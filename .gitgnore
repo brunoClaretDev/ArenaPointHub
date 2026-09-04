@@ -1,0 +1,22 @@
+# Compilação e Build do Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Arquivos e pastas do STS / Eclipse
+.classpath
+.project
+.settings/
+.factorypath
+bin/
+
+# Logs e arquivos do sistema
+*.log
+.DS_Store
+Thumbs.db
+
+# IDEs adicionais (VS Code / IntelliJ)
+.idea/
+*.iml
+.vscode/
