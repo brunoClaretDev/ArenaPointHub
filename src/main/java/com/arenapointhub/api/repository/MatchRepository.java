@@ -1,8 +1,9 @@
-package com.arenapoint.api.repository;
+package com.arenapointhub.api.repository;
 
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
-import com.arenapoint.api.model.Match;
+
+import com.arenapointhub.api.model.Match;
 
 public interface MatchRepository extends JpaRepository<Match, Long>{
 	List<Match> findByCategoryId(Long categoryId);

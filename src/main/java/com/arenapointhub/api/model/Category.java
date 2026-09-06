@@ -1,4 +1,4 @@
-package com.arenapoint.api.model;
+package com.arenapointhub.api.model;
 
 import java.util.ArrayList;
 import java.util.List;

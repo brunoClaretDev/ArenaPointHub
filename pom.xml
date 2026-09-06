@@ -10,14 +10,17 @@
 		<relativePath/>
 	</parent>
 	
-	<groupId>com.arenapoint</groupId>
-	<artifactId>arena-point</artifactId>
+	<groupId>com.arenapointhub</groupId>
+	<artifactId>arenapoint-hub-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>arena-point</name>
-	<description>API REST para gerenciamento de campeonatos do Arena Point</description>
+	<name>arenapoint-hub-api</name>
+	<description>API REST para gerenciamento de campeonatos do Arena Point Hub</description>
 
 	<properties>
 		<java.version>21</java.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<maven-resources-plugin.version>3.1.0</maven-resources-plugin.version>
 	</properties>
 
 	<dependencies>
@@ -71,6 +74,12 @@
 
 	<build>
 		<plugins>
+			<!-- Fix para o erro de Mojo no resources-plugin do STS -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
