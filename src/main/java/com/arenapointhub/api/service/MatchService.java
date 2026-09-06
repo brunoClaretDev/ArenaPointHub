@@ -116,4 +116,20 @@ public class MatchService {
         Match updatedMatch = matchRepository.save(match);
         return mapToResponseDTO(updatedMatch);
     }
+    
+    @Transactional(readOnly = true)
+    public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
+        return matchRepository.findByStatus(status)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchResponseDTO> getMatchesByPlayer(Long playerId) {
+        return matchRepository.findByPlayer1IdOrPlayer2Id(playerId, playerId)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
 }

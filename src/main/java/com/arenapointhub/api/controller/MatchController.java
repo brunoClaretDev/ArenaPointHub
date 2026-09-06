@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.arenapointhub.api.dto.MatchRequestDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
 import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
+import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.service.MatchService;
 
 import jakarta.validation.Valid;
@@ -48,5 +49,15 @@ public class MatchController {
 			@Valid @RequestBody MatchScoreUpdateDTO dto) {
 		MatchResponseDTO updated = matchService.updateScore(id, dto);
 		return ResponseEntity.ok(updated);
+	}
+	
+	@GetMapping("/status/{status}")
+	public ResponseEntity<List<MatchResponseDTO>> getMatchesByStatus(@PathVariable MatchStatus status) {
+	    return ResponseEntity.ok(matchService.getMatchesByStatus(status));
+	}
+
+	@GetMapping("/player/{playerId}")
+	public ResponseEntity<List<MatchResponseDTO>> getMatchesByPlayer(@PathVariable Long playerId) {
+	    return ResponseEntity.ok(matchService.getMatchesByPlayer(playerId));
 	}
 }
