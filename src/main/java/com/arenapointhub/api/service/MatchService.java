@@ -1,7 +1,15 @@
 package com.arenapointhub.api.service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.arenapointhub.api.dto.MatchRequestDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
@@ -11,12 +19,6 @@ import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class MatchService {
@@ -97,5 +99,21 @@ public class MatchService {
         dto.setScorePlayer2(entity.getScorePlayer2());
         dto.setStatus(entity.getStatus());
         return dto;
+    }
+    
+    @Transactional
+    public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+
+        match.setScorePlayer1(dto.getScorePlayer1());
+        match.setScorePlayer2(dto.getScorePlayer2());
+
+        if (dto.getStatus() != null) {
+            match.setStatus(dto.getStatus());
+        }
+
+        Match updatedMatch = matchRepository.save(match);
+        return mapToResponseDTO(updatedMatch);
     }
 }

@@ -1,36 +1,52 @@
 package com.arenapointhub.api.controller;
 
-import com.arenapointhub.api.dto.MatchRequestDTO;
-import com.arenapointhub.api.dto.MatchResponseDTO;
-import com.arenapointhub.api.service.MatchService;
-import jakarta.validation.Valid;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import com.arenapointhub.api.dto.MatchRequestDTO;
+import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
+import com.arenapointhub.api.service.MatchService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/matches")
 public class MatchController {
 
-    @Autowired
-    private MatchService matchService;
+	@Autowired
+	private MatchService matchService;
 
-    @PostMapping
-    public ResponseEntity<MatchResponseDTO> createMatch(@Valid @RequestBody MatchRequestDTO dto) {
-        MatchResponseDTO created = matchService.createMatch(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
-    }
+	@PostMapping
+	public ResponseEntity<MatchResponseDTO> createMatch(@Valid @RequestBody MatchRequestDTO dto) {
+		MatchResponseDTO created = matchService.createMatch(dto);
+		return ResponseEntity.status(HttpStatus.CREATED).body(created);
+	}
 
-    @GetMapping
-    public ResponseEntity<List<MatchResponseDTO>> getAllMatches() {
-        return ResponseEntity.ok(matchService.getAllMatches());
-    }
+	@GetMapping
+	public ResponseEntity<List<MatchResponseDTO>> getAllMatches() {
+		return ResponseEntity.ok(matchService.getAllMatches());
+	}
 
-    @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<MatchResponseDTO>> getMatchesByCategory(@PathVariable Long categoryId) {
-        return ResponseEntity.ok(matchService.getMatchesByCategory(categoryId));
-    }
+	@GetMapping("/category/{categoryId}")
+	public ResponseEntity<List<MatchResponseDTO>> getMatchesByCategory(@PathVariable Long categoryId) {
+		return ResponseEntity.ok(matchService.getMatchesByCategory(categoryId));
+	}
+
+	@PatchMapping("/{id}/score")
+	public ResponseEntity<MatchResponseDTO> updateScore(@PathVariable Long id,
+			@Valid @RequestBody MatchScoreUpdateDTO dto) {
+		MatchResponseDTO updated = matchService.updateScore(id, dto);
+		return ResponseEntity.ok(updated);
+	}
 }
