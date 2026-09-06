@@ -3,15 +3,7 @@ package com.arenapointhub.api.dto;
 import com.arenapointhub.api.model.enums.CategoryType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class CategoryRequestDTO {
 
     @NotBlank(message = "O nome da categoria é obrigatório")
@@ -27,4 +19,63 @@ public class CategoryRequestDTO {
 
     @NotNull(message = "O ID do torneio é obrigatório")
     private Long tournamentId;
+
+    public CategoryRequestDTO() {
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public CategoryType getType() {
+        return type;
+    }
+
+    public void setType(CategoryType type) {
+        this.type = type;
+    }
+
+    public Integer getMinAge() {
+        return minAge;
+    }
+
+    public void setMinAge(Integer minAge) {
+        this.minAge = minAge;
+    }
+
+    public Integer getMaxAge() {
+        return maxAge;
+    }
+
+    public void setMaxAge(Integer maxAge) {
+        this.maxAge = maxAge;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getScoringSystem() {
+        return scoringSystem;
+    }
+
+    public void setScoringSystem(String scoringSystem) {
+        this.scoringSystem = scoringSystem;
+    }
+
+    public Long getTournamentId() {
+        return tournamentId;
+    }
+
+    public void setTournamentId(Long tournamentId) {
+        this.tournamentId = tournamentId;
+    }
 }

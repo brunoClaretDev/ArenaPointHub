@@ -13,17 +13,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Entity
 @Table(name = "tournaments")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class Tournament {
 
 	@Id
@@ -45,6 +37,75 @@ public class Tournament {
 	@OneToMany(mappedBy = "tournament", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<Category> categories = new ArrayList<>();
 
+	public Tournament() {
+	}
+
+	public Tournament(Long id, String name, String description, String schedule, String location,
+			TournamentStatus status, List<Category> categories) {
+		this.id = id;
+		this.name = name;
+		this.description = description;
+		this.schedule = schedule;
+		this.location = location;
+		this.status = status;
+		this.categories = categories;
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public String getSchedule() {
+		return schedule;
+	}
+
+	public void setSchedule(String schedule) {
+		this.schedule = schedule;
+	}
+
+	public String getLocation() {
+		return location;
+	}
+
+	public void setLocation(String location) {
+		this.location = location;
+	}
+
+	public TournamentStatus getStatus() {
+		return status;
+	}
+
+	public void setStatus(TournamentStatus status) {
+		this.status = status;
+	}
+
+	public List<Category> getCategories() {
+		return categories;
+	}
+
+	public void setCategories(List<Category> categories) {
+		this.categories = categories;
+	}
 }
 
 enum TournamentStatus {
