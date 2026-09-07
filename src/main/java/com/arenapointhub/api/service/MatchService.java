@@ -147,4 +147,23 @@ public class MatchService {
         dto.setStatus(entity.getStatus());
         return dto;
     }
+    
+    @Transactional
+    public MatchResponseDTO updateMatch(Long id, MatchRequestDTO dto) {
+        Match match = matchRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + id));
+
+        if (dto.getScorePlayer1() != null) {
+            match.setScorePlayer1(dto.getScorePlayer1());
+        }
+        if (dto.getScorePlayer2() != null) {
+            match.setScorePlayer2(dto.getScorePlayer2());
+        }
+        if (dto.getStatus() != null) {
+            match.setStatus(dto.getStatus());
+        }
+
+        Match updatedMatch = matchRepository.save(match);
+        return mapToResponseDTO(updatedMatch);
+    }
 }

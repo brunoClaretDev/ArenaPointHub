@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,4 +61,9 @@ public class MatchController {
 	public ResponseEntity<List<MatchResponseDTO>> getMatchesByPlayer(@PathVariable Long playerId) {
 	    return ResponseEntity.ok(matchService.getMatchesByPlayer(playerId));
 	}
+	@PutMapping("/{id}")
+    public ResponseEntity<MatchResponseDTO> updateMatch(@PathVariable Long id, @RequestBody MatchRequestDTO dto) {
+        MatchResponseDTO updatedMatch = matchService.updateMatch(id, dto);
+        return ResponseEntity.ok(updatedMatch);
+    }
 }
