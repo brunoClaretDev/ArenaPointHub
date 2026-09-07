@@ -38,6 +38,21 @@ public class MatchService {
             throw new BusinessException("Um jogador não pode jogar contra ele mesmo.");
         }
 
+        // Validação 1: Conflito de local/mesa e horário
+        boolean courtOccupied = matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                dto.getTableOrCourt(), dto.getScheduledTime(), MatchStatus.CANCELED);
+        if (courtOccupied) {
+            throw new BusinessException("A mesa/quadra '" + dto.getTableOrCourt() + "' já está ocupada no horário " + dto.getScheduledTime());
+        }
+
+     // Validação 2: Conflito de agenda dos jogadores
+        boolean playersBusy = matchRepository.existsByPlayerBusy(
+                dto.getPlayer1Id(), dto.getPlayer2Id(), dto.getScheduledTime(), MatchStatus.CANCELED);
+
+        if (playersBusy) {
+            throw new BusinessException("Um dos jogadores já possui partida agendada no horário " + dto.getScheduledTime());
+        }
+        
         Category category = categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new BusinessException("Categoria não encontrada: " + dto.getCategoryId()));
 
@@ -75,6 +90,38 @@ public class MatchService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+
+        match.setScorePlayer1(dto.getScorePlayer1());
+        match.setScorePlayer2(dto.getScorePlayer2());
+
+        if (dto.getStatus() != null) {
+            match.setStatus(dto.getStatus());
+        }
+
+        Match updatedMatch = matchRepository.save(match);
+        return mapToResponseDTO(updatedMatch);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
+        return matchRepository.findByStatus(status)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchResponseDTO> getMatchesByPlayer(Long playerId) {
+        return matchRepository.findByPlayer1IdOrPlayer2Id(playerId, playerId)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     private MatchResponseDTO mapToResponseDTO(Match entity) {
         MatchResponseDTO dto = new MatchResponseDTO();
         dto.setId(entity.getId());
@@ -99,37 +146,5 @@ public class MatchService {
         dto.setScorePlayer2(entity.getScorePlayer2());
         dto.setStatus(entity.getStatus());
         return dto;
-    }
-    
-    @Transactional
-    public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
-        Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
-
-        match.setScorePlayer1(dto.getScorePlayer1());
-        match.setScorePlayer2(dto.getScorePlayer2());
-
-        if (dto.getStatus() != null) {
-            match.setStatus(dto.getStatus());
-        }
-
-        Match updatedMatch = matchRepository.save(match);
-        return mapToResponseDTO(updatedMatch);
-    }
-    
-    @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
-        return matchRepository.findByStatus(status)
-                .stream()
-                .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByPlayer(Long playerId) {
-        return matchRepository.findByPlayer1IdOrPlayer2Id(playerId, playerId)
-                .stream()
-                .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
     }
 }
