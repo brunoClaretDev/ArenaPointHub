@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.arenapointhub.api.dto.GroupGenerateRequestDTO;
 import com.arenapointhub.api.dto.GroupRequestDTO;
 import com.arenapointhub.api.dto.GroupResponseDTO;
+import com.arenapointhub.api.dto.GroupStandingDTO;
 import com.arenapointhub.api.service.GroupService;
 
 import jakarta.validation.Valid;
@@ -48,5 +49,11 @@ public class GroupController {
     public ResponseEntity<List<GroupResponseDTO>> generateGroups(@RequestBody GroupGenerateRequestDTO dto) {
         List<GroupResponseDTO> generatedGroups = groupService.generateAndDistributeGroups(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(generatedGroups);
+    }
+    
+    @GetMapping("/{groupId}/standings")
+    public ResponseEntity<List<GroupStandingDTO>> getGroupStandings(@PathVariable Long groupId) {
+        List<GroupStandingDTO> standings = groupService.calculateGroupStandings(groupId);
+        return ResponseEntity.ok(standings);
     }
 }

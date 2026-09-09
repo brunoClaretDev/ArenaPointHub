@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.arenapointhub.api.dto.MatchRequestDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.dto.MatchScoreRequestDTO;
 import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
+import com.arenapointhub.api.dto.MatchSetDTO;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.service.MatchService;
 
@@ -69,4 +71,21 @@ public class MatchController {
         MatchResponseDTO updatedMatch = matchService.updateMatch(id, dto);
         return ResponseEntity.ok(updatedMatch);
     }
+
+	// ==========================================
+	// NOVOS ENDPOINTS PARA GERENCIAMENTO DE SETS
+	// ==========================================
+
+	@PutMapping("/{matchId}/sets")
+	public ResponseEntity<Void> registerMatchSets(
+			@PathVariable Long matchId, 
+			@Valid @RequestBody MatchScoreRequestDTO dto) {
+		matchService.saveMatchSets(matchId, dto);
+		return ResponseEntity.ok().build();
+	}
+
+	@GetMapping("/{matchId}/sets")
+	public ResponseEntity<List<MatchSetDTO>> getMatchSets(@PathVariable Long matchId) {
+		return ResponseEntity.ok(matchService.getSetsByMatchId(matchId));
+	}
 }

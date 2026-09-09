@@ -10,13 +10,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.arenapointhub.api.dto.GroupGenerateRequestDTO;
 import com.arenapointhub.api.dto.GroupRequestDTO;
 import com.arenapointhub.api.dto.GroupResponseDTO;
+import com.arenapointhub.api.dto.GroupStandingDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Group;
+import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.GroupRepository;
+import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 
 @Service
@@ -25,11 +29,16 @@ public class GroupService {
     private final GroupRepository groupRepository;
     private final CategoryRepository categoryRepository;
     private final PlayerRepository playerRepository;
+    private final MatchRepository matchRepository;
 
-    public GroupService(GroupRepository groupRepository, CategoryRepository categoryRepository, PlayerRepository playerRepository) {
+    public GroupService(GroupRepository groupRepository, 
+                        CategoryRepository categoryRepository, 
+                        PlayerRepository playerRepository, 
+                        MatchRepository matchRepository) {
         this.groupRepository = groupRepository;
         this.categoryRepository = categoryRepository;
         this.playerRepository = playerRepository;
+        this.matchRepository = matchRepository;
     }
 
     @Transactional
@@ -89,24 +98,21 @@ public class GroupService {
         Category category = categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + dto.getCategoryId()));
 
-        // Busca os jogadores inscritos (ajuste o repositório se tiver busca específica por categoria)
         List<Player> players = playerRepository.findAll(); 
         
         if (players.isEmpty()) {
             throw new BusinessException("Não há jogadores cadastrados para gerar os grupos.");
         }
 
-        // Embaralha os jogadores aleatoriamente para o sorteio ser justo
         java.util.Collections.shuffle(players);
 
         int totalPlayers = players.size();
-        int targetSize = dto.getTargetGroupSize(); // Valor escolhido pelo admin
+        int targetSize = dto.getTargetGroupSize();
 
         if (targetSize <= 0) {
             throw new BusinessException("O tamanho alvo do grupo deve ser maior que zero.");
         }
 
-        // Cálculo da quantidade de grupos
         int numberOfGroups = totalPlayers / targetSize;
         if (numberOfGroups == 0) {
             numberOfGroups = 1; 
@@ -117,7 +123,6 @@ public class GroupService {
             distributedLists.add(new ArrayList<>());
         }
 
-        // Distribui ciclicamente para espalhar os "restos" de forma justa nos primeiros grupos
         int groupIndex = 0;
         for (Player player : players) {
             distributedLists.get(groupIndex).add(player);
@@ -126,7 +131,6 @@ public class GroupService {
 
         List<GroupResponseDTO> createdGroups = new ArrayList<>();
 
-        // Salva cada grupo gerado no banco de dados com nomes automáticos (Grupo A, Grupo B...)
         for (int i = 0; i < distributedLists.size(); i++) {
             List<Player> groupPlayers = distributedLists.get(i);
             
@@ -141,5 +145,114 @@ public class GroupService {
         }
 
         return createdGroups;
+    }
+    
+    @Transactional
+    public void generateMatchesForCategory(Long categoryId) {
+        List<Group> groups = groupRepository.findByCategoryId(categoryId);
+        
+        if (groups.isEmpty()) {
+            throw new BusinessException("Não há grupos gerados para esta categoria.");
+        }
+
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException("Categoria não encontrada."));
+
+        for (Group group : groups) {
+            List<Player> players = group.getPlayers();
+            
+            if (players == null || players.size() < 2) {
+                continue; 
+            }
+
+            // Algoritmo Round-Robin (Todos contra todos em turno único)
+            for (int i = 0; i < players.size(); i++) {
+                for (int j = i + 1; j < players.size(); j++) {
+                    Player player1 = players.get(i);
+                    Player player2 = players.get(j);
+
+                    Match match = new Match();
+                    match.setCategory(category);
+                    match.setGroup(group);
+                    match.setPlayer1(player1);
+                    match.setPlayer2(player2);
+                    match.setStatus(MatchStatus.SCHEDULED);
+
+                    matchRepository.save(match);
+                }
+            }
+        }
+    }
+    @Transactional(readOnly = true)
+    public List<GroupStandingDTO> calculateGroupStandings(Long groupId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
+
+        List<Player> players = group.getPlayers();
+        List<Match> matches = matchRepository.findByGroupId(groupId); // Garanta que possui esse método no MatchRepository
+
+        // Mapa para acumular as estatísticas de cada jogador
+        java.util.Map<Long, GroupStandingDTO> standingsMap = new java.util.HashMap();
+
+        for (Player player : players) {
+            GroupStandingDTO dto = new GroupStandingDTO();
+            dto.setPlayerId(player.getId());
+            dto.setPlayerName(player.getName());
+            dto.setClubAcademy(player.getClubAcademy());
+            standingsMap.put(player.getId(), dto);
+        }
+
+        for (Match match : matches) {
+            if (match.getStatus() != MatchStatus.FINISHED) {
+                continue; // Processa apenas partidas finalizadas
+            }
+
+            Long p1Id = match.getPlayer1().getId();
+            Long p2Id = match.getPlayer2().getId();
+
+            GroupStandingDTO stats1 = standingsMap.get(p1Id);
+            GroupStandingDTO stats2 = standingsMap.get(p2Id);
+
+            if (stats1 != null && stats2 != null) {
+                stats1.setMatchesPlayed(stats1.getMatchesPlayed() + 1);
+                stats2.setMatchesPlayed(stats2.getMatchesPlayed() + 1);
+
+                int setsP1 = match.getScorePlayer1() != null ? match.getScorePlayer1() : 0;
+                int setsP2 = match.getScorePlayer2() != null ? match.getScorePlayer2() : 0;
+
+                stats1.setSetsWon(stats1.getSetsWon() + setsP1);
+                stats1.setSetsLost(stats1.getSetsLost() + setsP2);
+                
+                stats2.setSetsWon(stats2.getSetsWon() + setsP2);
+                stats2.setSetsLost(stats2.getSetsLost() + setsP1);
+
+                if (setsP1 > setsP2) {
+                    stats1.setMatchesWon(stats1.getMatchesWon() + 1);
+                    stats1.setPoints(stats1.getPoints() + 2); // Ex: 2 pontos por vitória
+                    stats2.setMatchesLost(stats2.getMatchesLost() + 1);
+                    stats2.setPoints(stats2.getPoints() + 1); // Ex: 1 ponto por derrota
+                } else if (setsP2 > setsP1) {
+                    stats2.setMatchesWon(stats2.getMatchesWon() + 1);
+                    stats2.setPoints(stats2.getPoints() + 2);
+                    stats1.setMatchesLost(stats1.getMatchesLost() + 1);
+                    stats1.setPoints(stats1.getPoints() + 1);
+                }
+            }
+        }
+
+        // Calcula o saldo de sets e converte para lista
+        List<GroupStandingDTO> standings = new ArrayList<>(standingsMap.values());
+        for (GroupStandingDTO dto : standings) {
+            dto.setSetDifference(dto.getSetsWon() - dto.getSetsLost());
+        }
+
+        // Ordena por Pontos (desc), depois por Saldo de Sets (desc)
+        standings.sort((a, b) -> {
+            int pointsCompare = Integer.compare(b.getPoints(), a.getPoints());
+            if (pointsCompare != 0) return pointsCompare;
+            return Integer.compare(b.getSetDifference(), a.getSetDifference());
+        });
+
+        return standings;
     }
 }

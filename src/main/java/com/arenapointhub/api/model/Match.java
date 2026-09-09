@@ -14,6 +14,10 @@ public class Match {
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+    
+    @ManyToOne
+    @JoinColumn(name = "group_id", nullable = true) // Pode ser nulo caso haja partidas fora de grupos
+    private Group group;
 
     @ManyToOne
     @JoinColumn(name = "player1_id", nullable = false)
@@ -59,6 +63,14 @@ public class Match {
 
     public void setCategory(Category category) {
         this.category = category;
+    }
+    
+    public Group getGroup() {
+        return group;
+    }
+
+    public void setGroup(Group group) {
+        this.group = group;
     }
 
     public Player getPlayer1() {

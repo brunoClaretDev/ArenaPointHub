@@ -1,26 +1,33 @@
 package com.arenapointhub.api.dto;
 
-import com.arenapointhub.api.model.enums.MatchStatus;
 import jakarta.validation.constraints.NotNull;
 
 public class MatchRequestDTO {
 
-    @NotNull(message = "A categoria é obrigatória")
+    private Long groupId; // <-- ADICIONADO
+
+    @NotNull(message = "A categoria é obrigatória.")
     private Long categoryId;
 
-    @NotNull(message = "O Jogador 1 é obrigatório")
+    @NotNull(message = "O jogador 1 é obrigatório.")
     private Long player1Id;
 
-    @NotNull(message = "O Jogador 2 é obrigatório")
+    @NotNull(message = "O jogador 2 é obrigatório.")
     private Long player2Id;
 
     private String tableOrCourt;
     private String scheduledTime;
+    private com.arenapointhub.api.model.enums.MatchStatus status;
     private Integer scorePlayer1;
     private Integer scorePlayer2;
-    private MatchStatus status;
 
-    public MatchRequestDTO() {
+    // Getters e Setters
+    public Long getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(Long groupId) {
+        this.groupId = groupId;
     }
 
     public Long getCategoryId() {
@@ -47,22 +54,6 @@ public class MatchRequestDTO {
         this.player2Id = player2Id;
     }
 
-    public String getTableOrCourt() {
-        return tableOrCourt;
-    }
-
-    public void setTableOrCourt(String tableOrCourt) {
-        this.tableOrCourt = tableOrCourt;
-    }
-
-    public String getScheduledTime() {
-        return scheduledTime;
-    }
-
-    public void setScheduledTime(String scheduledTime) {
-        this.scheduledTime = scheduledTime;
-    }
-
     public Integer getScorePlayer1() {
         return scorePlayer1;
     }
@@ -79,11 +70,27 @@ public class MatchRequestDTO {
         this.scorePlayer2 = scorePlayer2;
     }
 
-    public MatchStatus getStatus() {
+    public String getTableOrCourt() {
+        return tableOrCourt;
+    }
+
+    public void setTableOrCourt(String tableOrCourt) {
+        this.tableOrCourt = tableOrCourt;
+    }
+
+    public String getScheduledTime() {
+        return scheduledTime;
+    }
+
+    public void setScheduledTime(String scheduledTime) {
+        this.scheduledTime = scheduledTime;
+    }
+
+    public com.arenapointhub.api.model.enums.MatchStatus getStatus() {
         return status;
     }
 
-    public void setStatus(MatchStatus status) {
+    public void setStatus(com.arenapointhub.api.model.enums.MatchStatus status) {
         this.status = status;
     }
 }

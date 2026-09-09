@@ -8,15 +8,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.arenapointhub.api.dto.MatchRequestDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.dto.MatchScoreRequestDTO;
 import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
+import com.arenapointhub.api.dto.MatchSetDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
+import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
+import com.arenapointhub.api.model.MatchSet;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
+import com.arenapointhub.api.repository.GroupRepository;
 import com.arenapointhub.api.repository.MatchRepository;
+import com.arenapointhub.api.repository.MatchSetRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 
 @Service
@@ -25,11 +31,19 @@ public class MatchService {
     private final MatchRepository matchRepository;
     private final CategoryRepository categoryRepository;
     private final PlayerRepository playerRepository;
+    private final MatchSetRepository matchSetRepository;
+    private final GroupRepository groupRepository; // <-- INJETADO
 
-    public MatchService(MatchRepository matchRepository, CategoryRepository categoryRepository, PlayerRepository playerRepository) {
+    public MatchService(MatchRepository matchRepository, 
+                        CategoryRepository categoryRepository, 
+                        PlayerRepository playerRepository, 
+                        MatchSetRepository matchSetRepository,
+                        GroupRepository groupRepository) {
         this.matchRepository = matchRepository;
         this.categoryRepository = categoryRepository;
         this.playerRepository = playerRepository;
+        this.matchSetRepository = matchSetRepository;
+        this.groupRepository = groupRepository;
     }
 
     @Transactional
@@ -38,14 +52,12 @@ public class MatchService {
             throw new BusinessException("Um jogador não pode jogar contra ele mesmo.");
         }
 
-        // Validação 1: Conflito de local/mesa e horário
         boolean courtOccupied = matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
                 dto.getTableOrCourt(), dto.getScheduledTime(), MatchStatus.CANCELED);
         if (courtOccupied) {
             throw new BusinessException("A mesa/quadra '" + dto.getTableOrCourt() + "' já está ocupada no horário " + dto.getScheduledTime());
         }
 
-     // Validação 2: Conflito de agenda dos jogadores
         boolean playersBusy = matchRepository.existsByPlayerBusy(
                 dto.getPlayer1Id(), dto.getPlayer2Id(), dto.getScheduledTime(), MatchStatus.CANCELED);
 
@@ -69,6 +81,13 @@ public class MatchService {
         match.setTableOrCourt(dto.getTableOrCourt());
         match.setScheduledTime(dto.getScheduledTime());
         match.setStatus(dto.getStatus() != null ? dto.getStatus() : MatchStatus.SCHEDULED);
+
+        // Associa o grupo se o ID foi informado
+        if (dto.getGroupId() != null) {
+            Group group = groupRepository.findById(dto.getGroupId())
+                    .orElseThrow(() -> new BusinessException("Grupo não encontrado: " + dto.getGroupId()));
+            match.setGroup(group);
+        }
 
         Match savedMatch = matchRepository.save(match);
         return mapToResponseDTO(savedMatch);
@@ -165,5 +184,48 @@ public class MatchService {
 
         Match updatedMatch = matchRepository.save(match);
         return mapToResponseDTO(updatedMatch);
+    }
+
+    @Transactional
+    public void saveMatchSets(Long matchId, MatchScoreRequestDTO dto) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+
+        for (MatchSetDTO setDto : dto.getSets()) {
+            MatchSet matchSet = matchSetRepository.findByMatchIdAndSetNumber(matchId, setDto.getSetNumber())
+                    .orElse(new MatchSet());
+
+            matchSet.setMatch(match);
+            matchSet.setSetNumber(setDto.getSetNumber());
+            matchSet.setScorePlayer1(setDto.getScorePlayer1());
+            matchSet.setScorePlayer2(setDto.getScorePlayer2());
+
+            matchSetRepository.save(matchSet);
+        }
+
+        List<MatchSet> allSets = matchSetRepository.findByMatchId(matchId);
+        int setsWonPlayer1 = 0;
+        int setsWonPlayer2 = 0;
+
+        for (MatchSet s : allSets) {
+            if (s.getScorePlayer1() > s.getScorePlayer2()) {
+                setsWonPlayer1++;
+            } else if (s.getScorePlayer2() > s.getScorePlayer1()) {
+                setsWonPlayer2++;
+            }
+        }
+
+        match.setScorePlayer1(setsWonPlayer1);
+        match.setScorePlayer2(setsWonPlayer2);
+        match.setStatus(MatchStatus.FINISHED);
+
+        matchRepository.save(match);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchSetDTO> getSetsByMatchId(Long matchId) {
+        return matchSetRepository.findByMatchId(matchId).stream()
+                .map(set -> new MatchSetDTO(set.getSetNumber(), set.getScorePlayer1(), set.getScorePlayer2()))
+                .collect(Collectors.toList());
     }
 }

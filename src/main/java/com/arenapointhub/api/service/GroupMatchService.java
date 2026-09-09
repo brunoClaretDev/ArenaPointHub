@@ -39,14 +39,12 @@ public class GroupMatchService {
 
         List<MatchResponseDTO> createdMatches = new ArrayList<>();
         
-        // Formato padrão de hora ("HH:mm")
         LocalTime currentTime = (baseScheduledTime != null && !baseScheduledTime.isBlank()) 
                 ? LocalTime.parse(baseScheduledTime, DateTimeFormatter.ofPattern("HH:mm")) 
                 : LocalTime.of(14, 0);
 
         String court = (tableOrCourt != null && !tableOrCourt.isBlank()) ? tableOrCourt : "Mesa 1";
 
-        // Algoritmo Round-Robin (Todos contra todos)
         for (int i = 0; i < players.size(); i++) {
             for (int j = i + 1; j < players.size(); j++) {
                 Player player1 = players.get(i);
@@ -54,16 +52,15 @@ public class GroupMatchService {
 
                 MatchRequestDTO matchDTO = new MatchRequestDTO();
                 matchDTO.setCategoryId(group.getCategory().getId());
+                matchDTO.setGroupId(group.getId()); // <-- PASSANDO O ID DO GRUPO AQUI
                 matchDTO.setPlayer1Id(player1.getId());
                 matchDTO.setPlayer2Id(player2.getId());
                 matchDTO.setTableOrCourt(court);
                 matchDTO.setScheduledTime(currentTime.format(DateTimeFormatter.ofPattern("HH:mm")));
 
-                // Salva a partida usando o serviço existente (passando pelas validações)
                 MatchResponseDTO response = matchService.createMatch(matchDTO);
                 createdMatches.add(response);
 
-                // Incrementa 30 minutos para a próxima partida não conflitar no mesmo horário/mesa
                 currentTime = currentTime.plusMinutes(30);
             }
         }

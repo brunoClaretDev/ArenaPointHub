@@ -17,6 +17,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     List<Match> findByStatus(MatchStatus status);
 
     List<Match> findByPlayer1IdOrPlayer2Id(Long player1Id, Long player2Id);
+    
+    List<Match> findByGroupId(Long groupId);
 
     // Valida se a mesa/quadra já está ocupada no mesmo horário
     @Query("SELECT COUNT(m) > 0 FROM Match m WHERE m.tableOrCourt = :tableOrCourt AND m.scheduledTime = :scheduledTime AND m.status <> :status")
