@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.arenapointhub.api.dto.GroupGenerateRequestDTO;
 import com.arenapointhub.api.dto.GroupRequestDTO;
 import com.arenapointhub.api.dto.GroupResponseDTO;
 import com.arenapointhub.api.service.GroupService;
@@ -41,5 +42,11 @@ public class GroupController {
     @GetMapping("/{id}")
     public ResponseEntity<GroupResponseDTO> getGroupById(@PathVariable Long id) {
         return ResponseEntity.ok(groupService.getGroupById(id));
+    }
+    
+    @PostMapping("/generate")
+    public ResponseEntity<List<GroupResponseDTO>> generateGroups(@RequestBody GroupGenerateRequestDTO dto) {
+        List<GroupResponseDTO> generatedGroups = groupService.generateAndDistributeGroups(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(generatedGroups);
     }
 }

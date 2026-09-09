@@ -1,4 +1,4 @@
-package com.arenapoint.api;
+package com.arenapointhub.api;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

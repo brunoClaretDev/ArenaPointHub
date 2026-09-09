@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.arenapointhub.api.dto.GroupGenerateRequestDTO;
 import com.arenapointhub.api.dto.GroupRequestDTO;
 import com.arenapointhub.api.dto.GroupResponseDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
@@ -81,5 +82,64 @@ public class GroupService {
 
         dto.setPlayers(playerDTOs);
         return dto;
+    }
+    
+    @Transactional
+    public List<GroupResponseDTO> generateAndDistributeGroups(GroupGenerateRequestDTO dto) {
+        Category category = categoryRepository.findById(dto.getCategoryId())
+                .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + dto.getCategoryId()));
+
+        // Busca os jogadores inscritos (ajuste o repositório se tiver busca específica por categoria)
+        List<Player> players = playerRepository.findAll(); 
+        
+        if (players.isEmpty()) {
+            throw new BusinessException("Não há jogadores cadastrados para gerar os grupos.");
+        }
+
+        // Embaralha os jogadores aleatoriamente para o sorteio ser justo
+        java.util.Collections.shuffle(players);
+
+        int totalPlayers = players.size();
+        int targetSize = dto.getTargetGroupSize(); // Valor escolhido pelo admin
+
+        if (targetSize <= 0) {
+            throw new BusinessException("O tamanho alvo do grupo deve ser maior que zero.");
+        }
+
+        // Cálculo da quantidade de grupos
+        int numberOfGroups = totalPlayers / targetSize;
+        if (numberOfGroups == 0) {
+            numberOfGroups = 1; 
+        }
+
+        List<List<Player>> distributedLists = new ArrayList<>();
+        for (int i = 0; i < numberOfGroups; i++) {
+            distributedLists.add(new ArrayList<>());
+        }
+
+        // Distribui ciclicamente para espalhar os "restos" de forma justa nos primeiros grupos
+        int groupIndex = 0;
+        for (Player player : players) {
+            distributedLists.get(groupIndex).add(player);
+            groupIndex = (groupIndex + 1) % numberOfGroups;
+        }
+
+        List<GroupResponseDTO> createdGroups = new ArrayList<>();
+
+        // Salva cada grupo gerado no banco de dados com nomes automáticos (Grupo A, Grupo B...)
+        for (int i = 0; i < distributedLists.size(); i++) {
+            List<Player> groupPlayers = distributedLists.get(i);
+            
+            Group group = new Group();
+            char groupLetter = (char) ('A' + i);
+            group.setName("Grupo " + groupLetter);
+            group.setCategory(category);
+            group.setPlayers(groupPlayers);
+
+            Group savedGroup = groupRepository.save(group);
+            createdGroups.add(mapToResponseDTO(savedGroup));
+        }
+
+        return createdGroups;
     }
 }
