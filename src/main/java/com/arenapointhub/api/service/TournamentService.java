@@ -3,7 +3,6 @@ package com.arenapointhub.api.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,8 +16,11 @@ import com.arenapointhub.api.repository.TournamentRepository;
 @Service
 public class TournamentService {
 
-    @Autowired
-    private TournamentRepository tournamentRepository;
+    private final TournamentRepository tournamentRepository;
+
+    public TournamentService(TournamentRepository tournamentRepository) {
+        this.tournamentRepository = tournamentRepository;
+    }
 
     @Transactional
     public TournamentResponseDTO createTournament(TournamentRequestDTO dto) {

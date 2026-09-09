@@ -2,7 +2,6 @@ package com.arenapointhub.api.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,8 +17,11 @@ import com.arenapointhub.api.service.GroupMatchService;
 @RequestMapping("/api/groups")
 public class GroupMatchController {
 
-    @Autowired
-    private GroupMatchService groupMatchService;
+    private final GroupMatchService groupMatchService;
+
+    public GroupMatchController(GroupMatchService groupMatchService) {
+        this.groupMatchService = groupMatchService;
+    }
 
     @PostMapping("/{groupId}/generate-matches")
     public ResponseEntity<List<MatchResponseDTO>> generateMatches(

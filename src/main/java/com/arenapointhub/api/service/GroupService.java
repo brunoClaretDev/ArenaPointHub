@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +21,15 @@ import com.arenapointhub.api.repository.PlayerRepository;
 @Service
 public class GroupService {
 
-    @Autowired
-    private GroupRepository groupRepository;
+    private final GroupRepository groupRepository;
+    private final CategoryRepository categoryRepository;
+    private final PlayerRepository playerRepository;
 
-    @Autowired
-    private CategoryRepository categoryRepository;
-
-    @Autowired
-    private PlayerRepository playerRepository;
+    public GroupService(GroupRepository groupRepository, CategoryRepository categoryRepository, PlayerRepository playerRepository) {
+        this.groupRepository = groupRepository;
+        this.categoryRepository = categoryRepository;
+        this.playerRepository = playerRepository;
+    }
 
     @Transactional
     public GroupResponseDTO createGroup(GroupRequestDTO dto) {

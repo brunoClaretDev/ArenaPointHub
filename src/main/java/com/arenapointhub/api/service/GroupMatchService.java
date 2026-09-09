@@ -5,7 +5,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,11 +18,13 @@ import com.arenapointhub.api.repository.GroupRepository;
 @Service
 public class GroupMatchService {
 
-    @Autowired
-    private GroupRepository groupRepository;
+    private final GroupRepository groupRepository;
+    private final MatchService matchService;
 
-    @Autowired
-    private MatchService matchService;
+    public GroupMatchService(GroupRepository groupRepository, MatchService matchService) {
+        this.groupRepository = groupRepository;
+        this.matchService = matchService;
+    }
 
     @Transactional
     public List<MatchResponseDTO> generateRoundRobinMatchesForGroup(Long groupId, String tableOrCourt, String baseScheduledTime) {

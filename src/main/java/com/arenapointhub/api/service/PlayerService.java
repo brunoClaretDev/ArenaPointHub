@@ -5,7 +5,6 @@ import com.arenapointhub.api.dto.PlayerResponseDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.repository.PlayerRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,8 +14,11 @@ import java.util.stream.Collectors;
 @Service
 public class PlayerService {
 
-    @Autowired
-    private PlayerRepository playerRepository;
+    private final PlayerRepository playerRepository;
+
+    public PlayerService(PlayerRepository playerRepository) {
+        this.playerRepository = playerRepository;
+    }
 
     @Transactional
     public PlayerResponseDTO createPlayer(PlayerRequestDTO dto) {

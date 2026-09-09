@@ -4,7 +4,6 @@ import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.service.TournamentService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,8 +14,11 @@ import java.util.List;
 @RequestMapping("/api/tournaments")
 public class TournamentController {
 
-    @Autowired
-    private TournamentService tournamentService;
+    private final TournamentService tournamentService;
+
+    public TournamentController(TournamentService tournamentService) {
+        this.tournamentService = tournamentService;
+    }
 
     @PostMapping
     public ResponseEntity<TournamentResponseDTO> createTournament(@Valid @RequestBody TournamentRequestDTO dto) {

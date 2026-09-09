@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,11 +21,13 @@ import com.arenapointhub.api.repository.MatchRepository;
 @Service
 public class StandingService {
 
-    @Autowired
-    private GroupRepository groupRepository;
+    private final GroupRepository groupRepository;
+    private final MatchRepository matchRepository;
 
-    @Autowired
-    private MatchRepository matchRepository;
+    public StandingService(GroupRepository groupRepository, MatchRepository matchRepository) {
+        this.groupRepository = groupRepository;
+        this.matchRepository = matchRepository;
+    }
 
     @Transactional(readOnly = true)
     public List<StandingDTO> calculateGroupStandings(Long groupId) {

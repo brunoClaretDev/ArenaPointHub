@@ -2,7 +2,6 @@ package com.arenapointhub.api.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,8 +25,11 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/matches")
 public class MatchController {
 
-	@Autowired
-	private MatchService matchService;
+	private final MatchService matchService;
+
+	public MatchController(MatchService matchService) {
+		this.matchService = matchService;
+	}
 
 	@PostMapping
 	public ResponseEntity<MatchResponseDTO> createMatch(@Valid @RequestBody MatchRequestDTO dto) {
@@ -61,6 +63,7 @@ public class MatchController {
 	public ResponseEntity<List<MatchResponseDTO>> getMatchesByPlayer(@PathVariable Long playerId) {
 	    return ResponseEntity.ok(matchService.getMatchesByPlayer(playerId));
 	}
+	
 	@PutMapping("/{id}")
     public ResponseEntity<MatchResponseDTO> updateMatch(@PathVariable Long id, @RequestBody MatchRequestDTO dto) {
         MatchResponseDTO updatedMatch = matchService.updateMatch(id, dto);

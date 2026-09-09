@@ -3,7 +3,6 @@ package com.arenapointhub.api.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +17,13 @@ import com.arenapointhub.api.repository.TournamentRepository;
 @Service
 public class CategoryService {
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private final CategoryRepository categoryRepository;
+    private final TournamentRepository tournamentRepository;
 
-    @Autowired
-    private TournamentRepository tournamentRepository;
+    public CategoryService(CategoryRepository categoryRepository, TournamentRepository tournamentRepository) {
+        this.categoryRepository = categoryRepository;
+        this.tournamentRepository = tournamentRepository;
+    }
 
     @Transactional
     public CategoryResponseDTO createCategory(CategoryRequestDTO dto) {

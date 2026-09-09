@@ -3,7 +3,6 @@ package com.arenapointhub.api.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,14 +22,15 @@ import com.arenapointhub.api.repository.PlayerRepository;
 @Service
 public class MatchService {
 
-    @Autowired
-    private MatchRepository matchRepository;
+    private final MatchRepository matchRepository;
+    private final CategoryRepository categoryRepository;
+    private final PlayerRepository playerRepository;
 
-    @Autowired
-    private CategoryRepository categoryRepository;
-
-    @Autowired
-    private PlayerRepository playerRepository;
+    public MatchService(MatchRepository matchRepository, CategoryRepository categoryRepository, PlayerRepository playerRepository) {
+        this.matchRepository = matchRepository;
+        this.categoryRepository = categoryRepository;
+        this.playerRepository = playerRepository;
+    }
 
     @Transactional
     public MatchResponseDTO createMatch(MatchRequestDTO dto) {
