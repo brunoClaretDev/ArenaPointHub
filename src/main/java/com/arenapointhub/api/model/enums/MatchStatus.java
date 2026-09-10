@@ -4,5 +4,6 @@ public enum MatchStatus {
     SCHEDULED,
     IN_PROGRESS,
     FINISHED,
-    CANCELED
+    CANCELED,
+    WO // Adicionado para WO
 }

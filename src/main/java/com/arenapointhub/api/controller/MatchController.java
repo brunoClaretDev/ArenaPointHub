@@ -18,6 +18,7 @@ import com.arenapointhub.api.dto.MatchResponseDTO;
 import com.arenapointhub.api.dto.MatchScoreRequestDTO;
 import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
 import com.arenapointhub.api.dto.MatchSetDTO;
+import com.arenapointhub.api.dto.MatchWoRequestDTO;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.service.MatchService;
 
@@ -87,5 +88,13 @@ public class MatchController {
 	@GetMapping("/{matchId}/sets")
 	public ResponseEntity<List<MatchSetDTO>> getMatchSets(@PathVariable Long matchId) {
 		return ResponseEntity.ok(matchService.getSetsByMatchId(matchId));
+	}
+	
+	@PutMapping("/{id}/wo")
+	public ResponseEntity<MatchResponseDTO> registerWalkover(
+	        @PathVariable Long id, 
+	        @RequestBody @Valid MatchWoRequestDTO dto) {
+	    MatchResponseDTO response = matchService.registerWalkover(id, dto);
+	    return ResponseEntity.ok(response);
 	}
 }

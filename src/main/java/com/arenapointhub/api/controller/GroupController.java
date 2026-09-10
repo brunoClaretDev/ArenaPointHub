@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,5 +56,13 @@ public class GroupController {
     public ResponseEntity<List<GroupStandingDTO>> getGroupStandings(@PathVariable Long groupId) {
         List<GroupStandingDTO> standings = groupService.calculateGroupStandings(groupId);
         return ResponseEntity.ok(standings);
+    }
+    
+    @DeleteMapping("/{groupId}/players/{playerId}")
+    public ResponseEntity<Void> removePlayerFromGroup(
+            @PathVariable Long groupId, 
+            @PathVariable Long playerId) {
+        groupService.removePlayerFromGroup(groupId, playerId);
+        return ResponseEntity.noContent().build();
     }
 }

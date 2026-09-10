@@ -165,7 +165,6 @@ public class GroupService {
                 continue; 
             }
 
-            // Algoritmo Round-Robin (Todos contra todos em turno único)
             for (int i = 0; i < players.size(); i++) {
                 for (int j = i + 1; j < players.size(); j++) {
                     Player player1 = players.get(i);
@@ -183,16 +182,16 @@ public class GroupService {
             }
         }
     }
+
     @Transactional(readOnly = true)
     public List<GroupStandingDTO> calculateGroupStandings(Long groupId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
 
         List<Player> players = group.getPlayers();
-        List<Match> matches = matchRepository.findByGroupId(groupId); // Garanta que possui esse método no MatchRepository
+        List<Match> matches = matchRepository.findByGroupId(groupId);
 
-        // Mapa para acumular as estatísticas de cada jogador
-        java.util.Map<Long, GroupStandingDTO> standingsMap = new java.util.HashMap();
+        java.util.Map<Long, GroupStandingDTO> standingsMap = new java.util.HashMap<>();
 
         for (Player player : players) {
             GroupStandingDTO dto = new GroupStandingDTO();
@@ -203,8 +202,9 @@ public class GroupService {
         }
 
         for (Match match : matches) {
-            if (match.getStatus() != MatchStatus.FINISHED) {
-                continue; // Processa apenas partidas finalizadas
+            // Atualizado para processar partidas finalizadas ou decididas por WO
+            if (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO) {
+                continue; 
             }
 
             Long p1Id = match.getPlayer1().getId();
@@ -228,9 +228,9 @@ public class GroupService {
 
                 if (setsP1 > setsP2) {
                     stats1.setMatchesWon(stats1.getMatchesWon() + 1);
-                    stats1.setPoints(stats1.getPoints() + 2); // Ex: 2 pontos por vitória
+                    stats1.setPoints(stats1.getPoints() + 2);
                     stats2.setMatchesLost(stats2.getMatchesLost() + 1);
-                    stats2.setPoints(stats2.getPoints() + 1); // Ex: 1 ponto por derrota
+                    stats2.setPoints(stats2.getPoints() + 1);
                 } else if (setsP2 > setsP1) {
                     stats2.setMatchesWon(stats2.getMatchesWon() + 1);
                     stats2.setPoints(stats2.getPoints() + 2);
@@ -240,13 +240,11 @@ public class GroupService {
             }
         }
 
-        // Calcula o saldo de sets e converte para lista
         List<GroupStandingDTO> standings = new ArrayList<>(standingsMap.values());
         for (GroupStandingDTO dto : standings) {
             dto.setSetDifference(dto.getSetsWon() - dto.getSetsLost());
         }
 
-        // Ordena por Pontos (desc), depois por Saldo de Sets (desc)
         standings.sort((a, b) -> {
             int pointsCompare = Integer.compare(b.getPoints(), a.getPoints());
             if (pointsCompare != 0) return pointsCompare;
@@ -254,5 +252,59 @@ public class GroupService {
         });
 
         return standings;
+    }
+    
+    @Transactional
+    public void removePlayerFromGroup(Long groupId, Long playerId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
+
+        // Remove o jogador da lista do grupo
+        boolean removed = group.getPlayers().removeIf(p -> p.getId().equals(playerId));
+        
+        if (!removed) {
+            throw new BusinessException("O jogador informado não pertence a este grupo.");
+        }
+
+        groupRepository.save(group);
+
+        // Remove apenas as partidas pendentes (SCHEDULED) deste grupo para evitar lixo
+        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
+        for (Match match : existingMatches) {
+            if (match.getStatus() == MatchStatus.SCHEDULED) {
+                matchRepository.delete(match);
+            }
+        }
+
+        // Refaz o Round-Robin apenas para os jogadores restantes deste grupo
+        List<Player> players = group.getPlayers();
+        if (players.size() >= 2) {
+            Category category = group.getCategory();
+
+            for (int i = 0; i < players.size(); i++) {
+                for (int j = i + 1; j < players.size(); j++) {
+                    Player p1 = players.get(i);
+                    Player p2 = players.get(j);
+
+                    // Verifica se já existe partida (finalizada ou em andamento) entre eles para não duplicar
+                    boolean matchExists = existingMatches.stream().anyMatch(m -> 
+                        ((m.getPlayer1().getId().equals(p1.getId()) && m.getPlayer2().getId().equals(p2.getId())) ||
+                         (m.getPlayer1().getId().equals(p2.getId()) && m.getPlayer2().getId().equals(p1.getId()))) &&
+                        m.getStatus() != MatchStatus.SCHEDULED
+                    );
+
+                    if (!matchExists) {
+                        Match match = new Match();
+                        match.setCategory(category);
+                        match.setGroup(group);
+                        match.setPlayer1(p1);
+                        match.setPlayer2(p2);
+                        match.setStatus(MatchStatus.SCHEDULED);
+
+                        matchRepository.save(match);
+                    }
+                }
+            }
+        }
     }
 }

@@ -11,6 +11,7 @@ import com.arenapointhub.api.dto.MatchResponseDTO;
 import com.arenapointhub.api.dto.MatchScoreRequestDTO;
 import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
 import com.arenapointhub.api.dto.MatchSetDTO;
+import com.arenapointhub.api.dto.MatchWoRequestDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
@@ -227,5 +228,38 @@ public class MatchService {
         return matchSetRepository.findByMatchId(matchId).stream()
                 .map(set -> new MatchSetDTO(set.getSetNumber(), set.getScorePlayer1(), set.getScorePlayer2()))
                 .collect(Collectors.toList());
+    }
+    
+    @Transactional
+    public MatchResponseDTO registerWalkover(Long matchId, MatchWoRequestDTO dto) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+
+        if (match.getStatus() == MatchStatus.FINISHED || match.getStatus() == MatchStatus.WO) {
+            // Opcional: permitir sobrescrever ou lançar exceção se já encerrada
+        }
+
+        Long winnerId = dto.getWinnerPlayerId();
+        boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
+        boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
+
+        if (!isPlayer1Winner && !isPlayer2Winner) {
+            throw new BusinessException("O jogador informado não faz parte desta partida.");
+        }
+
+        // Atribui o status de WO
+        match.setStatus(MatchStatus.WO);
+
+        // Definindo pontuação padrão de WO em sets (ex: 2 a 0 em sets para o vencedor, ou conforme regra do torneio)
+        if (isPlayer1Winner) {
+            match.setScorePlayer1(2);
+            match.setScorePlayer2(0);
+        } else {
+            match.setScorePlayer1(0);
+            match.setScorePlayer2(2);
+        }
+
+        Match updatedMatch = matchRepository.save(match);
+        return mapToResponseDTO(updatedMatch);
     }
 }
