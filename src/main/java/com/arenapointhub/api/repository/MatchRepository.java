@@ -1,12 +1,14 @@
 package com.arenapointhub.api.repository;
 
 import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.arenapointhub.api.model.Match;
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 
 @Repository
@@ -19,6 +21,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     List<Match> findByPlayer1IdOrPlayer2Id(Long player1Id, Long player2Id);
     
     List<Match> findByGroupId(Long groupId);
+    
+    void deleteByCategoryIdAndPhaseNot(Long categoryId, MatchPhase phase);
 
     // Valida se a mesa/quadra já está ocupada no mesmo horário
     @Query("SELECT COUNT(m) > 0 FROM Match m WHERE m.tableOrCourt = :tableOrCourt AND m.scheduledTime = :scheduledTime AND m.status <> :status")

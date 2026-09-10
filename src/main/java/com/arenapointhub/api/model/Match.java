@@ -1,7 +1,18 @@
 package com.arenapointhub.api.model;
 
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
-import jakarta.persistence.*;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "matches")
@@ -20,12 +31,16 @@ public class Match {
     private Group group;
 
     @ManyToOne
-    @JoinColumn(name = "player1_id", nullable = false)
+    @JoinColumn(name = "player1_id", nullable = true)
     private Player player1;
 
     @ManyToOne
-    @JoinColumn(name = "player2_id", nullable = false)
+    @JoinColumn(name = "player2_id", nullable = true)
     private Player player2;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MatchPhase phase = MatchPhase.GROUP; // Padrão continua sendo grupo para não quebrar o que já existe
 
     private String tableOrCourt;
     private String scheduledTime;
@@ -128,4 +143,13 @@ public class Match {
     public void setStatus(MatchStatus status) {
         this.status = status;
     }
+    
+    public void setPhase(MatchPhase phase) {
+        this.phase = phase;
+    }
+    
+    public MatchPhase getPhase() {
+        return phase;
+    }
+
 }

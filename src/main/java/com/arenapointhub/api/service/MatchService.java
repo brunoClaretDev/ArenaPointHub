@@ -1,5 +1,6 @@
 package com.arenapointhub.api.service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,7 @@ import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.MatchSet;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.GroupRepository;
@@ -33,7 +35,7 @@ public class MatchService {
     private final CategoryRepository categoryRepository;
     private final PlayerRepository playerRepository;
     private final MatchSetRepository matchSetRepository;
-    private final GroupRepository groupRepository; // <-- INJETADO
+    private final GroupRepository groupRepository;
 
     public MatchService(MatchRepository matchRepository, 
                         CategoryRepository categoryRepository, 
@@ -83,7 +85,6 @@ public class MatchService {
         match.setScheduledTime(dto.getScheduledTime());
         match.setStatus(dto.getStatus() != null ? dto.getStatus() : MatchStatus.SCHEDULED);
 
-        // Associa o grupo se o ID foi informado
         if (dto.getGroupId() != null) {
             Group group = groupRepository.findById(dto.getGroupId())
                     .orElseThrow(() -> new BusinessException("Grupo não encontrado: " + dto.getGroupId()));
@@ -123,6 +124,12 @@ public class MatchService {
         }
 
         Match updatedMatch = matchRepository.save(match);
+
+        // Dispara o avanço caso a partida tenha sido finalizada
+        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+            advanceWinnerToNextRound(updatedMatch);
+        }
+
         return mapToResponseDTO(updatedMatch);
     }
 
@@ -165,6 +172,7 @@ public class MatchService {
         dto.setScorePlayer1(entity.getScorePlayer1());
         dto.setScorePlayer2(entity.getScorePlayer2());
         dto.setStatus(entity.getStatus());
+        dto.setPhase(entity.getPhase());
         return dto;
     }
     
@@ -184,6 +192,11 @@ public class MatchService {
         }
 
         Match updatedMatch = matchRepository.save(match);
+        
+        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+            advanceWinnerToNextRound(updatedMatch);
+        }
+
         return mapToResponseDTO(updatedMatch);
     }
 
@@ -220,7 +233,10 @@ public class MatchService {
         match.setScorePlayer2(setsWonPlayer2);
         match.setStatus(MatchStatus.FINISHED);
 
-        matchRepository.save(match);
+        Match savedMatch = matchRepository.save(match);
+
+        // Dispara o avanço para a próxima fase
+        advanceWinnerToNextRound(savedMatch);
     }
 
     @Transactional(readOnly = true)
@@ -235,10 +251,6 @@ public class MatchService {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
 
-        if (match.getStatus() == MatchStatus.FINISHED || match.getStatus() == MatchStatus.WO) {
-            // Opcional: permitir sobrescrever ou lançar exceção se já encerrada
-        }
-
         Long winnerId = dto.getWinnerPlayerId();
         boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
         boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
@@ -247,10 +259,8 @@ public class MatchService {
             throw new BusinessException("O jogador informado não faz parte desta partida.");
         }
 
-        // Atribui o status de WO
         match.setStatus(MatchStatus.WO);
 
-        // Definindo pontuação padrão de WO em sets (ex: 2 a 0 em sets para o vencedor, ou conforme regra do torneio)
         if (isPlayer1Winner) {
             match.setScorePlayer1(2);
             match.setScorePlayer2(0);
@@ -260,6 +270,97 @@ public class MatchService {
         }
 
         Match updatedMatch = matchRepository.save(match);
+
+        // Dispara o avanço por WO também se desejado
+        advanceWinnerToNextRound(updatedMatch);
+
         return mapToResponseDTO(updatedMatch);
+    }
+    
+    private void advanceWinnerToNextRound(Match finishedMatch) {
+        if (finishedMatch.getPhase() == null || finishedMatch.getPhase() == MatchPhase.GROUP) {
+            return;
+        }
+
+        Player winner = (finishedMatch.getScorePlayer1() > finishedMatch.getScorePlayer2()) 
+                ? finishedMatch.getPlayer1() 
+                : (finishedMatch.getScorePlayer2() > finishedMatch.getScorePlayer1() ? finishedMatch.getPlayer2() : null);
+
+        if (winner == null) {
+            return; 
+        }
+
+        MatchPhase nextPhase = getNextPhase(finishedMatch.getPhase());
+        if (nextPhase == null) {
+            return; 
+        }
+
+        // Busca todas as partidas da fase atual ordenadas por ID para manter a consistência da árvore
+        List<Match> currentPhaseMatches = matchRepository.findByCategoryId(finishedMatch.getCategory().getId())
+                .stream()
+                .filter(m -> m.getPhase() == finishedMatch.getPhase())
+                .sorted(Comparator.comparing(Match::getId))
+                .collect(Collectors.toList());
+
+        List<Match> nextRoundMatches = matchRepository.findByCategoryId(finishedMatch.getCategory().getId())
+                .stream()
+                .filter(m -> m.getPhase() == nextPhase)
+                .sorted(Comparator.comparing(Match::getId))
+                .collect(Collectors.toList());
+
+        if (nextRoundMatches.isEmpty()) {
+            return;
+        }
+
+        int matchIndex = -1;
+        for (int i = 0; i < currentPhaseMatches.size(); i++) {
+            if (currentPhaseMatches.get(i).getId().equals(finishedMatch.getId())) {
+                matchIndex = i;
+                break;
+            }
+        }
+
+        if (matchIndex == -1) return;
+
+        // Mapeamento exato das quartas (0, 1, 2, 3) para as semifinais (0 e 1):
+        // Quartas 0 e 1 -> Semifinal 0
+        // Quartas 2 e 3 -> Semifinal 1
+        int targetMatchIndex = matchIndex / 2;
+        if (targetMatchIndex >= nextRoundMatches.size()) {
+            return;
+        }
+
+        Match targetMatch = nextRoundMatches.get(targetMatchIndex);
+
+        // Evita duplicar o mesmo jogador na mesma partida
+        boolean isPlayer1ThisWinner = targetMatch.getPlayer1() != null && targetMatch.getPlayer1().getId().equals(winner.getId());
+        boolean isPlayer2ThisWinner = targetMatch.getPlayer2() != null && targetMatch.getPlayer2().getId().equals(winner.getId());
+
+        if (isPlayer1ThisWinner || isPlayer2ThisWinner) {
+            return;
+        }
+
+        // Posiciona o vencedor: indices pares (0 e 2) vão para o player1; ímpares (1 e 3) vão para o player2
+        if (matchIndex % 2 == 0) {
+            if (targetMatch.getPlayer1() == null) {
+                targetMatch.setPlayer1(winner);
+                matchRepository.save(targetMatch);
+            }
+        } else {
+            if (targetMatch.getPlayer2() == null) {
+                targetMatch.setPlayer2(winner);
+                matchRepository.save(targetMatch);
+            }
+        }
+    }
+
+    private com.arenapointhub.api.model.enums.MatchPhase getNextPhase(com.arenapointhub.api.model.enums.MatchPhase currentPhase) {
+        switch (currentPhase) {
+            case ROUND_OF_32: return com.arenapointhub.api.model.enums.MatchPhase.ROUND_OF_16;
+            case ROUND_OF_16: return com.arenapointhub.api.model.enums.MatchPhase.QUARTER_FINAL;
+            case QUARTER_FINAL: return com.arenapointhub.api.model.enums.MatchPhase.SEMI_FINAL;
+            case SEMI_FINAL: return com.arenapointhub.api.model.enums.MatchPhase.FINAL;
+            default: return null;
+        }
     }
 }

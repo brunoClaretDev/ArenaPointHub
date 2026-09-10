@@ -1,5 +1,6 @@
 package com.arenapointhub.api.dto;
 
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 
 public class MatchResponseDTO {
@@ -14,6 +15,7 @@ public class MatchResponseDTO {
     private Integer scorePlayer1;
     private Integer scorePlayer2;
     private MatchStatus status;
+    private MatchPhase phase;
 
     public MatchResponseDTO() {
     }
@@ -96,5 +98,13 @@ public class MatchResponseDTO {
 
     public void setStatus(MatchStatus status) {
         this.status = status;
+    }
+
+    public MatchPhase getPhase() {
+        return phase;
+    }
+
+    public void setPhase(MatchPhase phase) {
+        this.phase = phase;
     }
 }

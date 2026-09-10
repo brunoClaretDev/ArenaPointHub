@@ -1,6 +1,9 @@
 package com.arenapointhub.api.service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -8,10 +11,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.arenapointhub.api.dto.CategoryRequestDTO;
 import com.arenapointhub.api.dto.CategoryResponseDTO;
+import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
+import com.arenapointhub.api.model.Group;
+import com.arenapointhub.api.model.Match;
+import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.model.enums.MatchPhase;
+import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
+import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
 @Service
@@ -19,10 +30,14 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
+    private final MatchRepository matchRepository;
 
-    public CategoryService(CategoryRepository categoryRepository, TournamentRepository tournamentRepository) {
+    public CategoryService(CategoryRepository categoryRepository, 
+                           TournamentRepository tournamentRepository,
+                           MatchRepository matchRepository) {
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
+        this.matchRepository = matchRepository;
     }
 
     @Transactional
@@ -98,6 +113,145 @@ public class CategoryService {
         if (category.getTournament() != null) {
             dto.setTournamentId(category.getTournament().getId());
         }
+
+        return dto;
+    }
+    
+    @Transactional
+    public void generatePlayoffs(Long categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + categoryId));
+
+        List<Group> groups = category.getGroups();
+        if (groups == null || groups.isEmpty()) {
+            throw new BusinessException("A categoria não possui grupos cadastrados.");
+        }
+
+        List<Player> qualifiedPlayers = new ArrayList<>();
+
+        for (Group group : groups) {
+            List<Match> groupMatches = matchRepository.findByGroupId(group.getId());
+            
+            Map<Player, Integer> playerWins = new HashMap<>();
+            
+            for (Match m : groupMatches) {
+                if (m.getPlayer1() != null) playerWins.putIfAbsent(m.getPlayer1(), 0);
+                if (m.getPlayer2() != null) playerWins.putIfAbsent(m.getPlayer2(), 0);
+            }
+
+            for (Match m : groupMatches) {
+                if (m.getStatus() == MatchStatus.FINISHED) {
+                    if (m.getScorePlayer1() > m.getScorePlayer2()) {
+                        playerWins.put(m.getPlayer1(), playerWins.get(m.getPlayer1()) + 1);
+                    } else if (m.getScorePlayer2() > m.getScorePlayer1()) {
+                        playerWins.put(m.getPlayer2(), playerWins.get(m.getPlayer2()) + 1);
+                    }
+                }
+            }
+
+            List<Player> sortedGroupPlayers = playerWins.entrySet().stream()
+                    .sorted(Map.Entry.<Player, Integer>comparingByValue().reversed())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            if (sortedGroupPlayers.size() < 2) {
+                throw new BusinessException("O grupo precisa ter pelo menos 2 jogadores computados.");
+            }
+
+            qualifiedPlayers.add(sortedGroupPlayers.get(0));
+            qualifiedPlayers.add(sortedGroupPlayers.get(1));
+        }
+
+        // Limpa playoffs anteriores
+        matchRepository.deleteByCategoryIdAndPhaseNot(categoryId, MatchPhase.GROUP);
+
+        if (qualifiedPlayers.size() < 8) {
+            throw new BusinessException("São necessários pelo menos 8 jogadores classificados para gerar os playoffs.");
+        }
+
+        // 1. Cria as 4 Quartas de Final ordenadas pelo chaveamento padrão (1x8, 4x5, 2x7, 3x6 ou conforme sua ordem de grupos)
+        List<Match> quarters = new ArrayList<>();
+        int[][] pairings = { {0, 7}, {3, 4}, {1, 6}, {2, 5} }; // Exemplo de cruzamento olímpico clássico
+
+        for (int[] pair : pairings) {
+            Match match = new Match();
+            match.setCategory(category);
+            match.setPlayer1(qualifiedPlayers.get(pair[0]));
+            match.setPlayer2(qualifiedPlayers.get(pair[1]));
+            match.setPhase(MatchPhase.QUARTER_FINAL);
+            match.setStatus(MatchStatus.SCHEDULED);
+            match.setScorePlayer1(0);
+            match.setScorePlayer2(0);
+            quarters.add(matchRepository.save(match));
+        }
+
+        // 2. Cria as 2 Semifinais vazias (A Semi 1 recebe os vencedores das Quartas 0 e 1; a Semi 2 recebe das Quartas 2 e 3)
+        Match semi1 = new Match();
+        semi1.setCategory(category);
+        semi1.setPhase(MatchPhase.SEMI_FINAL);
+        semi1.setStatus(MatchStatus.SCHEDULED);
+        semi1.setScorePlayer1(0);
+        semi1.setScorePlayer2(0);
+        matchRepository.save(semi1);
+
+        Match semi2 = new Match();
+        semi2.setCategory(category);
+        semi2.setPhase(MatchPhase.SEMI_FINAL);
+        semi2.setStatus(MatchStatus.SCHEDULED);
+        semi2.setScorePlayer1(0);
+        semi2.setScorePlayer2(0);
+        matchRepository.save(semi2);
+
+        // 3. Cria a Final vazia
+        Match finalMatch = new Match();
+        finalMatch.setCategory(category);
+        finalMatch.setPhase(MatchPhase.FINAL);
+        finalMatch.setStatus(MatchStatus.SCHEDULED);
+        finalMatch.setScorePlayer1(0);
+        finalMatch.setScorePlayer2(0);
+        matchRepository.save(finalMatch);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchResponseDTO> getMatchesByCategory(Long categoryId) {
+        if (!categoryRepository.existsById(categoryId)) {
+            throw new BusinessException("Categoria não encontrada com ID: " + categoryId);
+        }
+
+        return matchRepository.findByCategoryId(categoryId).stream()
+                .map(this::mapMatchToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    private MatchResponseDTO mapMatchToResponseDTO(Match match) {
+        MatchResponseDTO dto = new MatchResponseDTO();
+        dto.setId(match.getId());
+        
+        if (match.getCategory() != null) {
+            dto.setCategoryId(match.getCategory().getId());
+            dto.setCategoryName(match.getCategory().getName());
+        }
+
+        if (match.getPlayer1() != null) {
+            PlayerSummaryDTO p1 = new PlayerSummaryDTO();
+            p1.setId(match.getPlayer1().getId());
+            p1.setName(match.getPlayer1().getName());
+            dto.setPlayer1(p1);
+        }
+
+        if (match.getPlayer2() != null) {
+            PlayerSummaryDTO p2 = new PlayerSummaryDTO();
+            p2.setId(match.getPlayer2().getId());
+            p2.setName(match.getPlayer2().getName());
+            dto.setPlayer2(p2);
+        }
+
+        dto.setTableOrCourt(match.getTableOrCourt());
+        dto.setScheduledTime(match.getScheduledTime());
+        dto.setScorePlayer1(match.getScorePlayer1());
+        dto.setScorePlayer2(match.getScorePlayer2());
+        dto.setStatus(match.getStatus());
+        dto.setPhase(match.getPhase()); 
 
         return dto;
     }
