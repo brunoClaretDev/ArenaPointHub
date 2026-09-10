@@ -124,6 +124,18 @@ public class MatchService {
         }
 
         Match updatedMatch = matchRepository.save(match);
+        
+        if (updatedMatch.getPhase() == MatchPhase.FINAL && updatedMatch.getStatus() == MatchStatus.FINISHED) {
+            Player champion = (updatedMatch.getScorePlayer1() > updatedMatch.getScorePlayer2()) 
+                    ? updatedMatch.getPlayer1() 
+                    : (updatedMatch.getScorePlayer2() > updatedMatch.getScorePlayer1() ? updatedMatch.getPlayer2() : null);
+
+            if (champion != null) {
+                Category category = updatedMatch.getCategory();
+                category.setChampion(champion);
+                categoryRepository.save(category);
+            }
+        }
 
         // Dispara o avanço caso a partida tenha sido finalizada
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
@@ -133,6 +145,7 @@ public class MatchService {
         return mapToResponseDTO(updatedMatch);
     }
 
+    
     @Transactional(readOnly = true)
     public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
         return matchRepository.findByStatus(status)

@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.arenapointhub.api.dto.CategoryRequestDTO;
 import com.arenapointhub.api.dto.CategoryResponseDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
+import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Category;
+import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.service.CategoryService;
 
 import jakarta.validation.Valid;
@@ -67,5 +70,16 @@ public class CategoryController {
     @GetMapping("/{categoryId}/matches")
     public ResponseEntity<List<MatchResponseDTO>> getMatchesByCategory(@PathVariable Long categoryId) {
         return ResponseEntity.ok(categoryService.getMatchesByCategory(categoryId));
+    }
+    
+    @GetMapping("/{id}/champion")
+    public ResponseEntity<Player> getChampion(@PathVariable Long id) {
+        Player champion = categoryService.getChampionByCategoryId(id);
+        
+        if (champion == null) {
+            return ResponseEntity.noContent().build();
+        }
+        
+        return ResponseEntity.ok(champion);
     }
 }

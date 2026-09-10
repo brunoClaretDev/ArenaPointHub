@@ -32,6 +32,10 @@ public class Category {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "tournament_id", nullable = false)
 	private Tournament tournament;
+	
+	@ManyToOne
+	@JoinColumn(name = "champion_id", nullable = true)
+	private Player champion;
 
 	@Column(nullable = false)
 	private String name;
@@ -92,6 +96,14 @@ public class Category {
 
 	public void setTournament(Tournament tournament) {
 		this.tournament = tournament;
+	}
+	
+	public Player getChampion() {
+		return champion;
+	}
+
+	public void setChampion(Player champion) {
+		this.champion = champion;
 	}
 
 	public String getName() {

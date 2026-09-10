@@ -255,4 +255,10 @@ public class CategoryService {
 
         return dto;
     }
+    
+    public Player getChampionByCategoryId(Long categoryId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + categoryId));
+        return category.getChampion();
+    }
 }
