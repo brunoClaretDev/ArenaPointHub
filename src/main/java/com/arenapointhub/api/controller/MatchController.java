@@ -97,4 +97,10 @@ public class MatchController {
 	    MatchResponseDTO response = matchService.registerWalkover(id, dto);
 	    return ResponseEntity.ok(response);
 	}
+	
+	@GetMapping("/{id}")
+	public ResponseEntity<MatchResponseDTO> getMatchById(@PathVariable Long id) {
+	    MatchResponseDTO match = matchService.getMatchById(id);
+	    return ResponseEntity.ok(match);
+	}
 }

@@ -12,7 +12,8 @@ public class CategoryResponseDTO {
     private String description;
     private String scoringSystem;
     private Long tournamentId;
-
+    private int setsToWinMatch;
+    
     public CategoryResponseDTO() {
     }
 
@@ -78,5 +79,13 @@ public class CategoryResponseDTO {
 
     public void setTournamentId(Long tournamentId) {
         this.tournamentId = tournamentId;
+    }
+    
+    public int getSetsToWinMatch() {
+        return setsToWinMatch;
+    }
+
+    public void setSetsToWinMatch(int setsToWinMatch) {
+        this.setsToWinMatch = setsToWinMatch;
     }
 }

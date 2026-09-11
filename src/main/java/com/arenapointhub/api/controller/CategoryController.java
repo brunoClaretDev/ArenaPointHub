@@ -16,8 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.arenapointhub.api.dto.CategoryRequestDTO;
 import com.arenapointhub.api.dto.CategoryResponseDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
-import com.arenapointhub.api.exception.BusinessException;
-import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.service.CategoryService;
 
@@ -81,5 +79,15 @@ public class CategoryController {
         }
         
         return ResponseEntity.ok(champion);
+    }
+    
+    
+    @PostMapping("/{categoryId}/players/{playerId}")
+    public ResponseEntity<Void> addPlayerToCategory(
+            @PathVariable Long categoryId, 
+            @PathVariable Long playerId) {
+        
+        categoryService.addPlayerToCategory(categoryId, playerId);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }

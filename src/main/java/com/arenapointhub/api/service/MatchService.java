@@ -189,6 +189,13 @@ public class MatchService {
         return dto;
     }
     
+    @Transactional(readOnly = true)
+    public MatchResponseDTO getMatchById(Long id) {
+        Match match = matchRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + id));
+        return mapToResponseDTO(match);
+    }
+    
     @Transactional
     public MatchResponseDTO updateMatch(Long id, MatchRequestDTO dto) {
         Match match = matchRepository.findById(id)
@@ -219,17 +226,43 @@ public class MatchService {
                 .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
 
         for (MatchSetDTO setDto : dto.getSets()) {
+            int p1Score = setDto.getScorePlayer1();
+            int p2Score = setDto.getScorePlayer2();
+
+            boolean isP1WinnerSet = false;
+            boolean isP2WinnerSet = false;
+
+            // Regra padrão: alguém fez 11 e o oponente tem no máximo 9 (ex: 11x0 até 11x9)
+            if ((p1Score == 11 && p2Score <= 9) || (p2Score == 11 && p1Score <= 9)) {
+                if (p1Score == 11) isP1WinnerSet = true;
+                else isP2WinnerSet = true;
+            } 
+            // Regra de vantagem (Deuce): Ambos chegaram a 10 ou mais, e a diferença é exatamente de 2 pontos
+            else if (p1Score >= 10 && p2Score >= 10) {
+                int diff = Math.abs(p1Score - p2Score);
+                if (diff == 2) {
+                    if (p1Score > p2Score) isP1WinnerSet = true;
+                    else isP2WinnerSet = true;
+                }
+            }
+
+            if (!isP1WinnerSet && !isP2WinnerSet) {
+                throw new BusinessException("Placar inválido para o set " + setDto.getSetNumber() + 
+                    ": O set deve terminar em 11 (com no máximo 9 para o perdedor) ou com 2 pontos de diferença a partir de 10x10 (ex: 12x10, 13x11).");
+            }
+
             MatchSet matchSet = matchSetRepository.findByMatchIdAndSetNumber(matchId, setDto.getSetNumber())
                     .orElse(new MatchSet());
 
             matchSet.setMatch(match);
             matchSet.setSetNumber(setDto.getSetNumber());
-            matchSet.setScorePlayer1(setDto.getScorePlayer1());
-            matchSet.setScorePlayer2(setDto.getScorePlayer2());
+            matchSet.setScorePlayer1(p1Score);
+            matchSet.setScorePlayer2(p2Score);
 
             matchSetRepository.save(matchSet);
         }
 
+        // Recalcula o total de sets ganhos por cada jogador com base nos sets salvos
         List<MatchSet> allSets = matchSetRepository.findByMatchId(matchId);
         int setsWonPlayer1 = 0;
         int setsWonPlayer2 = 0;
@@ -244,12 +277,29 @@ public class MatchService {
 
         match.setScorePlayer1(setsWonPlayer1);
         match.setScorePlayer2(setsWonPlayer2);
-        match.setStatus(MatchStatus.FINISHED);
 
-        Match savedMatch = matchRepository.save(match);
+        // Pega quantos sets são necessários para vencer com base na configuração da categoria (Global para todas as fases)
+        int setsNeededToWin = determineSetsNeededToWin(match);
 
-        // Dispara o avanço para a próxima fase
-        advanceWinnerToNextRound(savedMatch);
+        if (setsWonPlayer1 >= setsNeededToWin || setsWonPlayer2 >= setsNeededToWin) {
+            match.setStatus(MatchStatus.FINISHED);
+            
+            Match savedMatch = matchRepository.save(match);
+
+            // Dispara o avanço para a próxima fase apenas quando fechar o confronto
+            advanceWinnerToNextRound(savedMatch);
+        } else {
+            match.setStatus(MatchStatus.IN_PROGRESS);
+            matchRepository.save(match);
+        }
+    }
+
+    // Método auxiliar para buscar a regra global da categoria
+    private int determineSetsNeededToWin(Match match) {
+        if (match.getCategory() != null && match.getCategory().getSetsToWinMatch() > 0) {
+            return match.getCategory().getSetsToWinMatch();
+        }
+        return 2; // Padrão de segurança: 2 vitórias (melhor de 3)
     }
 
     @Transactional(readOnly = true)

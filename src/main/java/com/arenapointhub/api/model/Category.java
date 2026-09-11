@@ -43,16 +43,20 @@ public class Category {
 	private String description;
 
 	@Enumerated(EnumType.STRING)
-	private CategoryType type;
+	private CategoryType type; // AGE (por idade, ex: Sub-8) ou LEVEL (por nível, ex: Absoluto A)
 
 	@Column(name = "scoring_system")
 	private String scoringSystem;
 
 	@Column(name = "min_age")
-	private Integer minAge;
+	private Integer minAge; // Usado se type for AGE
 
 	@Column(name = "max_age")
-	private Integer maxAge;
+	private Integer maxAge; // Usado se type for AGE (ex: 8 para Sub-8, 11 para Sub-11)
+
+	
+	@Column(name = "sets_to_win_match")
+	private int setsToWinMatch = 2; // Padrão: 2 (melhor de 3)
 
 	@ManyToMany
 	@JoinTable(
@@ -64,7 +68,8 @@ public class Category {
 
 	@OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
 	private List<Group> groups = new ArrayList<>();
-
+	
+	
 	public Category() {
 	}
 
@@ -169,4 +174,13 @@ public class Category {
 	public void setGroups(List<Group> groups) {
 		this.groups = groups;
 	}
+	
+	public int getSetsToWinMatch() {
+	    return setsToWinMatch;
+	}
+
+	public void setSetsToWinMatch(int setsToWinMatch) {
+	    this.setsToWinMatch = setsToWinMatch;
+	}
+	
 }

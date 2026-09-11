@@ -17,6 +17,8 @@ public class CategoryRequestDTO {
     private String description;
     private String scoringSystem;
 
+    private int setsToWinMatch = 2; // Opcional, assume 2 por padrão
+    
     @NotNull(message = "O ID do torneio é obrigatório")
     private Long tournamentId;
 
@@ -77,5 +79,13 @@ public class CategoryRequestDTO {
 
     public void setTournamentId(Long tournamentId) {
         this.tournamentId = tournamentId;
+    }
+    
+    public int getSetsToWinMatch() {
+        return setsToWinMatch;
+    }
+
+    public void setSetsToWinMatch(int setsToWinMatch) {
+        this.setsToWinMatch = setsToWinMatch;
     }
 }

@@ -1,5 +1,6 @@
 package com.arenapointhub.api.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,10 +20,12 @@ import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.model.enums.CategoryType;
 import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.MatchRepository;
+import com.arenapointhub.api.repository.PlayerRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
 @Service
@@ -31,13 +34,17 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
     private final MatchRepository matchRepository;
+    private final PlayerRepository playerRepository;
 
+    // Injeção de dependência via construtor (sem @Autowired)
     public CategoryService(CategoryRepository categoryRepository, 
                            TournamentRepository tournamentRepository,
-                           MatchRepository matchRepository) {
+                           MatchRepository matchRepository,
+                           PlayerRepository playerRepository) {
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
         this.matchRepository = matchRepository;
+        this.playerRepository = playerRepository;
     }
 
     @Transactional
@@ -98,6 +105,7 @@ public class CategoryService {
         category.setMaxAge(dto.getMaxAge());
         category.setDescription(dto.getDescription());
         category.setScoringSystem(dto.getScoringSystem());
+        category.setSetsToWinMatch(dto.getSetsToWinMatch()); // Adicionado aqui
     }
 
     private CategoryResponseDTO mapToResponseDTO(Category category) {
@@ -109,6 +117,7 @@ public class CategoryService {
         dto.setMaxAge(category.getMaxAge());
         dto.setDescription(category.getDescription());
         dto.setScoringSystem(category.getScoringSystem());
+        dto.setSetsToWinMatch(category.getSetsToWinMatch()); // Adicionado aqui
 
         if (category.getTournament() != null) {
             dto.setTournamentId(category.getTournament().getId());
@@ -169,9 +178,8 @@ public class CategoryService {
             throw new BusinessException("São necessários pelo menos 8 jogadores classificados para gerar os playoffs.");
         }
 
-        // 1. Cria as 4 Quartas de Final ordenadas pelo chaveamento padrão (1x8, 4x5, 2x7, 3x6 ou conforme sua ordem de grupos)
         List<Match> quarters = new ArrayList<>();
-        int[][] pairings = { {0, 7}, {3, 4}, {1, 6}, {2, 5} }; // Exemplo de cruzamento olímpico clássico
+        int[][] pairings = { {0, 7}, {3, 4}, {1, 6}, {2, 5} };
 
         for (int[] pair : pairings) {
             Match match = new Match();
@@ -185,7 +193,6 @@ public class CategoryService {
             quarters.add(matchRepository.save(match));
         }
 
-        // 2. Cria as 2 Semifinais vazias (A Semi 1 recebe os vencedores das Quartas 0 e 1; a Semi 2 recebe das Quartas 2 e 3)
         Match semi1 = new Match();
         semi1.setCategory(category);
         semi1.setPhase(MatchPhase.SEMI_FINAL);
@@ -202,7 +209,6 @@ public class CategoryService {
         semi2.setScorePlayer2(0);
         matchRepository.save(semi2);
 
-        // 3. Cria a Final vazia
         Match finalMatch = new Match();
         finalMatch.setCategory(category);
         finalMatch.setPhase(MatchPhase.FINAL);
@@ -256,9 +262,48 @@ public class CategoryService {
         return dto;
     }
     
+    @Transactional(readOnly = true)
     public Player getChampionByCategoryId(Long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + categoryId));
         return category.getChampion();
+    }
+    
+    public void validatePlayerAgeForCategory(Player player, Category category) {
+        if (category.getType() == CategoryType.AGE) {
+            if (player.getBirthDate() == null) {
+                throw new BusinessException("A data de nascimento do jogador é obrigatória para categorias restritas por idade.");
+            }
+
+            int currentYear = LocalDate.now().getYear();
+            int birthYear = player.getBirthDate().getYear();
+            int age = currentYear - birthYear;
+
+            if (category.getMaxAge() != null && age > category.getMaxAge()) {
+                throw new BusinessException("O jogador tem " + age + " anos e excede a idade máxima de " + category.getMaxAge() + " anos para a categoria " + category.getName());
+            }
+
+            if (category.getMinAge() != null && age < category.getMinAge()) {
+                throw new BusinessException("O jogador tem " + age + " anos e está abaixo da idade mínima de " + category.getMinAge() + " anos para a categoria " + category.getName());
+            }
+        }
+    }
+    
+    @Transactional
+    public void addPlayerToCategory(Long categoryId, Long playerId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + categoryId));
+                
+        Player player = playerRepository.findById(playerId)
+                .orElseThrow(() -> new BusinessException("Jogador não encontrado com ID: " + playerId));
+
+        // Valida se o player cumpre os requisitos da categoria
+        validatePlayerAgeForCategory(player, category);
+
+        // Evita duplicidade caso o player já esteja na categoria
+        if (!category.getPlayers().contains(player)) {
+            category.getPlayers().add(player);
+            categoryRepository.save(category);
+        }
     }
 }
