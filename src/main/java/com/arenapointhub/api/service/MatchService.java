@@ -1,7 +1,9 @@
 package com.arenapointhub.api.service;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.MatchSet;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
@@ -36,17 +39,20 @@ public class MatchService {
     private final PlayerRepository playerRepository;
     private final MatchSetRepository matchSetRepository;
     private final GroupRepository groupRepository;
+    private final GlobalRankingService globalRankingService;
 
     public MatchService(MatchRepository matchRepository, 
                         CategoryRepository categoryRepository, 
                         PlayerRepository playerRepository, 
                         MatchSetRepository matchSetRepository,
-                        GroupRepository groupRepository) {
+                        GroupRepository groupRepository,
+                        GlobalRankingService globalRankingService) {
         this.matchRepository = matchRepository;
         this.categoryRepository = categoryRepository;
         this.playerRepository = playerRepository;
         this.matchSetRepository = matchSetRepository;
         this.groupRepository = groupRepository;
+        this.globalRankingService = globalRankingService;
     }
 
     @Transactional
@@ -140,12 +146,12 @@ public class MatchService {
         // Dispara o avanço caso a partida tenha sido finalizada
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
             advanceWinnerToNextRound(updatedMatch);
+            checkAndDistributePointsIfFinalFinished(updatedMatch);
         }
 
         return mapToResponseDTO(updatedMatch);
     }
 
-    
     @Transactional(readOnly = true)
     public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
         return matchRepository.findByStatus(status)
@@ -215,6 +221,7 @@ public class MatchService {
         
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
             advanceWinnerToNextRound(updatedMatch);
+            checkAndDistributePointsIfFinalFinished(updatedMatch);
         }
 
         return mapToResponseDTO(updatedMatch);
@@ -288,6 +295,7 @@ public class MatchService {
 
             // Dispara o avanço para a próxima fase apenas quando fechar o confronto
             advanceWinnerToNextRound(savedMatch);
+            checkAndDistributePointsIfFinalFinished(savedMatch);
         } else {
             match.setStatus(MatchStatus.IN_PROGRESS);
             matchRepository.save(match);
@@ -336,8 +344,44 @@ public class MatchService {
 
         // Dispara o avanço por WO também se desejado
         advanceWinnerToNextRound(updatedMatch);
+        checkAndDistributePointsIfFinalFinished(updatedMatch);
 
         return mapToResponseDTO(updatedMatch);
+    }
+
+    private void checkAndDistributePointsIfFinalFinished(Match match) {
+        if (match.getPhase() == MatchPhase.FINAL && match.getStatus() == MatchStatus.FINISHED) {
+            Tournament tournament = match.getCategory().getTournament();
+
+            if (tournament != null) {
+                List<Match> allMatches = matchRepository.findByCategoryId(match.getCategory().getId());
+                Map<Player, Integer> playerPositions = new HashMap<>();
+
+                for (Match m : allMatches) {
+                    if (m.getStatus() != MatchStatus.FINISHED && m.getStatus() != MatchStatus.WO) continue;
+
+                    Player p1 = m.getPlayer1();
+                    Player p2 = m.getPlayer2();
+                    if (p1 == null || p2 == null) continue;
+
+                    Player winner = (m.getScorePlayer1() > m.getScorePlayer2()) ? p1 : p2;
+                    Player loser = (m.getScorePlayer1() > m.getScorePlayer2()) ? p2 : p1;
+
+                    if (m.getPhase() == MatchPhase.FINAL) {
+                        playerPositions.put(winner, 1);
+                        playerPositions.put(loser, 2);
+                    } else if (m.getPhase() == MatchPhase.SEMI_FINAL) {
+                        playerPositions.putIfAbsent(loser, 3);
+                    } else if (m.getPhase() == MatchPhase.QUARTER_FINAL) {
+                        playerPositions.putIfAbsent(loser, 5);
+                    }
+                }
+
+                if (!playerPositions.isEmpty()) {
+                    globalRankingService.distributeTournamentPoints(tournament, playerPositions);
+                }
+            }
+        }
     }
     
     private void advanceWinnerToNextRound(Match finishedMatch) {
