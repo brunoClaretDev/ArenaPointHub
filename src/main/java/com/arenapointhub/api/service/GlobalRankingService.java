@@ -121,7 +121,6 @@ public class GlobalRankingService {
         positions.put(champion, 1);
         positions.put(runnerUp, 2);
 
-        // 2. Mapeia as posições hierárquicas das Fases Finais (Semis e Quartas)
         for (Match match : matches) {
             if (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO) continue;
             
@@ -169,7 +168,7 @@ public class GlobalRankingService {
             }
         }
         
-        return positions; // <--- Adicione esta linha aqui
+        return positions; 
     }
     
 }

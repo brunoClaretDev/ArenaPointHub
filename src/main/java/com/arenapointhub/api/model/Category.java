@@ -43,7 +43,7 @@ public class Category {
 	private String description;
 
 	@Enumerated(EnumType.STRING)
-	private CategoryType type; // AGE (por idade, ex: Sub-8) ou LEVEL (por nível, ex: Absoluto A)
+	private CategoryType type; // AGE (por idade, ex: Sub-8) ou SKILL (por nível, ex: Absoluto A)
 
 	@Column(name = "scoring_system")
 	private String scoringSystem;

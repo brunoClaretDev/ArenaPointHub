@@ -73,10 +73,6 @@ public class MatchController {
         return ResponseEntity.ok(updatedMatch);
     }
 
-	// ==========================================
-	// NOVOS ENDPOINTS PARA GERENCIAMENTO DE SETS
-	// ==========================================
-
 	@PutMapping("/{matchId}/sets")
 	public ResponseEntity<Void> registerMatchSets(
 			@PathVariable Long matchId, 

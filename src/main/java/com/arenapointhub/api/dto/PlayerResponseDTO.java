@@ -11,11 +11,9 @@ public class PlayerResponseDTO {
     private String phone;
     private String clubAcademy;
 
-    // Construtor padrão (sem argumentos)
     public PlayerResponseDTO() {
     }
 
-    // Construtor completo com todos os parâmetros
     public PlayerResponseDTO(Long id, String name, String email, LocalDate birthDate, String phone, String clubAcademy) {
         this.id = id;
         this.name = name;
@@ -25,7 +23,6 @@ public class PlayerResponseDTO {
         this.clubAcademy = clubAcademy;
     }
 
-    // Getters e Setters explicito
     public Long getId() {
         return id;
     }

@@ -36,7 +36,6 @@ public class CategoryService {
     private final MatchRepository matchRepository;
     private final PlayerRepository playerRepository;
 
-    // Injeção de dependência via construtor (sem @Autowired)
     public CategoryService(CategoryRepository categoryRepository, 
                            TournamentRepository tournamentRepository,
                            MatchRepository matchRepository,
@@ -105,7 +104,7 @@ public class CategoryService {
         category.setMaxAge(dto.getMaxAge());
         category.setDescription(dto.getDescription());
         category.setScoringSystem(dto.getScoringSystem());
-        category.setSetsToWinMatch(dto.getSetsToWinMatch()); // Adicionado aqui
+        category.setSetsToWinMatch(dto.getSetsToWinMatch()); 
     }
 
     private CategoryResponseDTO mapToResponseDTO(Category category) {
@@ -117,7 +116,7 @@ public class CategoryService {
         dto.setMaxAge(category.getMaxAge());
         dto.setDescription(category.getDescription());
         dto.setScoringSystem(category.getScoringSystem());
-        dto.setSetsToWinMatch(category.getSetsToWinMatch()); // Adicionado aqui
+        dto.setSetsToWinMatch(category.getSetsToWinMatch());
 
         if (category.getTournament() != null) {
             dto.setTournamentId(category.getTournament().getId());

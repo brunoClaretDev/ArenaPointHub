@@ -23,11 +23,9 @@ public class Player {
     private String phone;
     private String clubAcademy;
 
-    // Construtor sem argumentos (Obrigatório para o JPA)
     public Player() {
     }
 
-    // Construtor completo
     public Player(Long id, String name, String email, LocalDate birthDate, String phone, String clubAcademy) {
         this.id = id;
         this.name = name;
@@ -36,8 +34,6 @@ public class Player {
         this.phone = phone;
         this.clubAcademy = clubAcademy;
     }
-
-    // --- GETTERS E SETTERS MANUAIS ---
 
     public Long getId() {
         return id;

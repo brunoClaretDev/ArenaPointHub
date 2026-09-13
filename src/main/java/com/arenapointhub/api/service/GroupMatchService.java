@@ -52,7 +52,7 @@ public class GroupMatchService {
 
                 MatchRequestDTO matchDTO = new MatchRequestDTO();
                 matchDTO.setCategoryId(group.getCategory().getId());
-                matchDTO.setGroupId(group.getId()); // <-- PASSANDO O ID DO GRUPO AQUI
+                matchDTO.setGroupId(group.getId()); 
                 matchDTO.setPlayer1Id(player1.getId());
                 matchDTO.setPlayer2Id(player2.getId());
                 matchDTO.setTableOrCourt(court);

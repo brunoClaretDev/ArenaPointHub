@@ -439,7 +439,6 @@ public class MatchService {
 
         Match targetMatch = nextRoundMatches.get(targetMatchIndex);
 
-        // Evita duplicar o mesmo jogador na mesma partida
         boolean isPlayer1ThisWinner = targetMatch.getPlayer1() != null && targetMatch.getPlayer1().getId().equals(winner.getId());
         boolean isPlayer2ThisWinner = targetMatch.getPlayer2() != null && targetMatch.getPlayer2().getId().equals(winner.getId());
 

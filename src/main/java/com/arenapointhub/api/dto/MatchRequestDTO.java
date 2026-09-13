@@ -21,7 +21,6 @@ public class MatchRequestDTO {
     private Integer scorePlayer1;
     private Integer scorePlayer2;
 
-    // Getters e Setters
     public Long getGroupId() {
         return groupId;
     }

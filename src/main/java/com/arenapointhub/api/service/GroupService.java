@@ -202,7 +202,6 @@ public class GroupService {
         }
 
         for (Match match : matches) {
-            // Atualizado para processar partidas finalizadas ou decididas por WO
             if (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO) {
                 continue; 
             }
@@ -259,7 +258,6 @@ public class GroupService {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
 
-        // Remove o jogador da lista do grupo
         boolean removed = group.getPlayers().removeIf(p -> p.getId().equals(playerId));
         
         if (!removed) {
