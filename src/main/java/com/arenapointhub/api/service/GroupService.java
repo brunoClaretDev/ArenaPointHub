@@ -98,10 +98,10 @@ public class GroupService {
         Category category = categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + dto.getCategoryId()));
 
-        List<Player> players = playerRepository.findAll(); 
+        List<Player> players = new ArrayList<>(category.getPlayers());
         
         if (players.isEmpty()) {
-            throw new BusinessException("Não há jogadores cadastrados para gerar os grupos.");
+        	throw new BusinessException("Não há jogadores inscritos nesta categoria para gerar os grupos.");
         }
 
         java.util.Collections.shuffle(players);
