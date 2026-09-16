@@ -52,9 +52,24 @@ public class GroupService {
 
         if (dto.getPlayerIds() != null && !dto.getPlayerIds().isEmpty()) {
             List<Player> players = playerRepository.findAllById(dto.getPlayerIds());
+
             if (players.size() != dto.getPlayerIds().size()) {
-                throw new BusinessException("Um ou mais jogadores informados não foram encontrados.");
+                throw new BusinessException(
+                        "Um ou mais jogadores informados não foram encontrados.");
             }
+
+            for (Long playerId : dto.getPlayerIds()) {
+                boolean alreadyInAnotherGroup =
+                        groupRepository.existsByCategoryIdAndPlayersId(
+                                dto.getCategoryId(), playerId);
+
+                if (alreadyInAnotherGroup) {
+                    throw new BusinessException(
+                            "O jogador com ID " + playerId
+                            + " já pertence a um grupo desta categoria.");
+                }
+            }
+
             group.setPlayers(players);
         }
 

@@ -10,4 +10,5 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 
     List<Group> findByCategoryId(Long categoryId);
 
+    boolean existsByCategoryIdAndPlayersId(Long categoryId, Long playerId);
 }
