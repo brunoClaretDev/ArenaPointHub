@@ -91,7 +91,54 @@ public class GroupService {
                 .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + id));
         return mapToResponseDTO(group);
     }
+    
+    @Transactional
+    public GroupResponseDTO updateGroup(Long id, GroupRequestDTO dto) {
+        Group group = groupRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(
+                        "Grupo não encontrado com ID: " + id));
 
+        Category category = categoryRepository.findById(dto.getCategoryId())
+                .orElseThrow(() -> new BusinessException(
+                        "Categoria não encontrada com ID: " + dto.getCategoryId()));
+
+        if (dto.getPlayerIds() != null && !dto.getPlayerIds().isEmpty()) {
+            List<Player> players = playerRepository.findAllById(dto.getPlayerIds());
+
+            if (players.size() != dto.getPlayerIds().size()) {
+                throw new BusinessException(
+                        "Um ou mais jogadores informados não foram encontrados.");
+            }
+
+            for (Long playerId : dto.getPlayerIds()) {
+                boolean alreadyInAnotherGroup =
+                        groupRepository.existsByCategoryIdAndPlayersId(
+                                dto.getCategoryId(), playerId);
+
+                boolean isCurrentPlayer =
+                        group.getPlayers().stream()
+                                .anyMatch(player -> player.getId().equals(playerId));
+
+                if (alreadyInAnotherGroup && !isCurrentPlayer) {
+                    throw new BusinessException(
+                            "O jogador com ID " + playerId
+                            + " já pertence a um grupo desta categoria.");
+                }
+            }
+
+            group.setPlayers(players);
+        } else {
+            group.setPlayers(new ArrayList<>());
+        }
+
+        group.setName(dto.getName());
+        group.setCategory(category);
+
+        Group updatedGroup = groupRepository.save(group);
+
+        return mapToResponseDTO(updatedGroup);
+    }
+    
     private GroupResponseDTO mapToResponseDTO(Group entity) {
         GroupResponseDTO dto = new GroupResponseDTO();
         dto.setId(entity.getId());
