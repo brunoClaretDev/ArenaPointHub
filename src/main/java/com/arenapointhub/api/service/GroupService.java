@@ -95,10 +95,17 @@ public class GroupService {
     
     @Transactional
     public List<GroupResponseDTO> generateAndDistributeGroups(GroupGenerateRequestDTO dto) {
-        Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + dto.getCategoryId()));
+    	Category category = categoryRepository.findById(dto.getCategoryId())
+    	        .orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + dto.getCategoryId()));
 
-        List<Player> players = new ArrayList<>(category.getPlayers());
+    	List<Group> existingGroups = groupRepository.findByCategoryId(dto.getCategoryId());
+
+    	if (!existingGroups.isEmpty()) {
+    	    throw new BusinessException(
+    	            "Já existem grupos gerados para esta categoria.");
+    	}
+
+    	List<Player> players = new ArrayList<>(category.getPlayers());
         
         if (players.isEmpty()) {
         	throw new BusinessException("Não há jogadores inscritos nesta categoria para gerar os grupos.");
