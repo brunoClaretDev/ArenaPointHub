@@ -14,57 +14,66 @@ import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.repository.GroupRepository;
+import com.arenapointhub.api.repository.MatchRepository;
 
 @Service
 public class GroupMatchService {
 
-    private final GroupRepository groupRepository;
-    private final MatchService matchService;
+	private final GroupRepository groupRepository;
+	private final MatchRepository matchRepository;
+	private final MatchService matchService;
 
-    public GroupMatchService(GroupRepository groupRepository, MatchService matchService) {
-        this.groupRepository = groupRepository;
-        this.matchService = matchService;
-    }
+	public GroupMatchService(GroupRepository groupRepository, MatchRepository matchRepository, MatchService matchService) {
+		this.groupRepository = groupRepository;
+		this.matchRepository = matchRepository;
+		this.matchService = matchService;
+	}
 
-    @Transactional
-    public List<MatchResponseDTO> generateRoundRobinMatchesForGroup(Long groupId, String tableOrCourt, String baseScheduledTime) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
+	@Transactional
+	public List<MatchResponseDTO> generateRoundRobinMatchesForGroup(Long groupId, String tableOrCourt,
+			String baseScheduledTime) {
+		Group group = groupRepository.findById(groupId)
+				.orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
 
-        List<Player> players = group.getPlayers();
+		List<Player> players = group.getPlayers();
 
-        if (players == null || players.size() < 2) {
-            throw new BusinessException("O grupo precisa ter pelo menos 2 jogadores para gerar as partidas.");
-        }
+		if (players == null || players.size() < 2) {
+			throw new BusinessException("O grupo precisa ter pelo menos 2 jogadores para gerar as partidas.");
+		}
+		
+		if (!matchRepository.findByGroupId(groupId).isEmpty()) {
+		    throw new BusinessException(
+		            "Já existem partidas geradas para este grupo.");
+		}
+		
+		List<MatchResponseDTO> createdMatches = new ArrayList<>();
 
-        List<MatchResponseDTO> createdMatches = new ArrayList<>();
-        
-        LocalTime currentTime = (baseScheduledTime != null && !baseScheduledTime.isBlank()) 
-                ? LocalTime.parse(baseScheduledTime, DateTimeFormatter.ofPattern("HH:mm")) 
-                : LocalTime.of(14, 0);
+		LocalTime currentTime = (baseScheduledTime != null && !baseScheduledTime.isBlank())
+				? LocalTime.parse(baseScheduledTime, DateTimeFormatter.ofPattern("HH:mm"))
+				: LocalTime.of(14, 0);
 
-        String court = (tableOrCourt != null && !tableOrCourt.isBlank()) ? tableOrCourt : "Mesa 1";
+		String court = (tableOrCourt != null && !tableOrCourt.isBlank()) ? tableOrCourt : "Mesa 1";
 
-        for (int i = 0; i < players.size(); i++) {
-            for (int j = i + 1; j < players.size(); j++) {
-                Player player1 = players.get(i);
-                Player player2 = players.get(j);
+		for (int i = 0; i < players.size(); i++) {
+			for (int j = i + 1; j < players.size(); j++) {
+				Player player1 = players.get(i);
+				Player player2 = players.get(j);
 
-                MatchRequestDTO matchDTO = new MatchRequestDTO();
-                matchDTO.setCategoryId(group.getCategory().getId());
-                matchDTO.setGroupId(group.getId()); 
-                matchDTO.setPlayer1Id(player1.getId());
-                matchDTO.setPlayer2Id(player2.getId());
-                matchDTO.setTableOrCourt(court);
-                matchDTO.setScheduledTime(currentTime.format(DateTimeFormatter.ofPattern("HH:mm")));
+				MatchRequestDTO matchDTO = new MatchRequestDTO();
+				matchDTO.setCategoryId(group.getCategory().getId());
+				matchDTO.setGroupId(group.getId());
+				matchDTO.setPlayer1Id(player1.getId());
+				matchDTO.setPlayer2Id(player2.getId());
+				matchDTO.setTableOrCourt(court);
+				matchDTO.setScheduledTime(currentTime.format(DateTimeFormatter.ofPattern("HH:mm")));
 
-                MatchResponseDTO response = matchService.createMatch(matchDTO);
-                createdMatches.add(response);
+				MatchResponseDTO response = matchService.createMatch(matchDTO);
+				createdMatches.add(response);
 
-                currentTime = currentTime.plusMinutes(30);
-            }
-        }
+				currentTime = currentTime.plusMinutes(30);
+			}
+		}
 
-        return createdMatches;
-    }
+		return createdMatches;
+	}
 }

@@ -325,53 +325,23 @@ public class GroupService {
     @Transactional
     public void removePlayerFromGroup(Long groupId, Long playerId) {
         Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
+                .orElseThrow(() -> new BusinessException(
+                        "Grupo não encontrado com ID: " + groupId));
 
-        boolean removed = group.getPlayers().removeIf(p -> p.getId().equals(playerId));
-        
+        boolean removed = group.getPlayers()
+                .removeIf(p -> p.getId().equals(playerId));
+
         if (!removed) {
-            throw new BusinessException("O jogador informado não pertence a este grupo.");
+            throw new BusinessException(
+                    "O jogador informado não pertence a este grupo.");
+        }
+
+        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
+
+        for (Match match : existingMatches) {
+            matchRepository.delete(match);
         }
 
         groupRepository.save(group);
-
-        // Remove apenas as partidas pendentes (SCHEDULED) deste grupo para evitar lixo
-        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
-        for (Match match : existingMatches) {
-            if (match.getStatus() == MatchStatus.SCHEDULED) {
-                matchRepository.delete(match);
-            }
-        }
-
-        // Refaz o Round-Robin apenas para os jogadores restantes deste grupo
-        List<Player> players = group.getPlayers();
-        if (players.size() >= 2) {
-            Category category = group.getCategory();
-
-            for (int i = 0; i < players.size(); i++) {
-                for (int j = i + 1; j < players.size(); j++) {
-                    Player p1 = players.get(i);
-                    Player p2 = players.get(j);
-
-                    // Verifica se já existe partida (finalizada ou em andamento) entre eles para não duplicar
-                    boolean matchExists = existingMatches.stream().anyMatch(m -> 
-                        ((m.getPlayer1().getId().equals(p1.getId()) && m.getPlayer2().getId().equals(p2.getId())) ||
-                         (m.getPlayer1().getId().equals(p2.getId()) && m.getPlayer2().getId().equals(p1.getId()))) &&
-                        m.getStatus() != MatchStatus.SCHEDULED
-                    );
-
-                    if (!matchExists) {
-                        Match match = new Match();
-                        match.setCategory(category);
-                        match.setGroup(group);
-                        match.setPlayer1(p1);
-                        match.setPlayer2(p2);
-                        match.setStatus(MatchStatus.SCHEDULED);
-
-                        matchRepository.save(match);
-                    }
-                }
-            }
-        }
     }
 }
