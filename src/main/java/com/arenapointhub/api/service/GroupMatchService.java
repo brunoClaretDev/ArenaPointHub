@@ -1,7 +1,5 @@
 package com.arenapointhub.api.service;
 
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,12 +46,6 @@ public class GroupMatchService {
 		
 		List<MatchResponseDTO> createdMatches = new ArrayList<>();
 
-		LocalTime currentTime = (baseScheduledTime != null && !baseScheduledTime.isBlank())
-				? LocalTime.parse(baseScheduledTime, DateTimeFormatter.ofPattern("HH:mm"))
-				: LocalTime.of(14, 0);
-
-		String court = (tableOrCourt != null && !tableOrCourt.isBlank()) ? tableOrCourt : "Mesa 1";
-
 		for (int i = 0; i < players.size(); i++) {
 			for (int j = i + 1; j < players.size(); j++) {
 				Player player1 = players.get(i);
@@ -64,13 +56,19 @@ public class GroupMatchService {
 				matchDTO.setGroupId(group.getId());
 				matchDTO.setPlayer1Id(player1.getId());
 				matchDTO.setPlayer2Id(player2.getId());
-				matchDTO.setTableOrCourt(court);
-				matchDTO.setScheduledTime(currentTime.format(DateTimeFormatter.ofPattern("HH:mm")));
+				matchDTO.setTableOrCourt(
+				        tableOrCourt != null && !tableOrCourt.isBlank()
+				                ? tableOrCourt
+				                : null);
 
+				matchDTO.setScheduledTime(
+				        baseScheduledTime != null && !baseScheduledTime.isBlank()
+				                ? baseScheduledTime
+				                : null);
+				
 				MatchResponseDTO response = matchService.createMatch(matchDTO);
 				createdMatches.add(response);
 
-				currentTime = currentTime.plusMinutes(30);
 			}
 		}
 
