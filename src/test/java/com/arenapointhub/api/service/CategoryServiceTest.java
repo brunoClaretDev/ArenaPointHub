@@ -1,6 +1,7 @@
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.repository.CategoryRepository;
@@ -73,5 +75,25 @@ class CategoryServiceTest {
                 .anyMatch(p -> p.getId().equals(1L));
 
         assertTrue(playerRegistered);
+    }
+
+    @Test
+    void shouldNotAddPlayerWhenAlreadyRegistered() {
+
+        category.getPlayers().add(player);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.addPlayerToCategory(1L, 1L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("O jogador já está inscrito na categoria."));
     }
 }
