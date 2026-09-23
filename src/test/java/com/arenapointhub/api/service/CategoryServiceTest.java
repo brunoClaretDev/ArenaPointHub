@@ -256,4 +256,22 @@ class CategoryServiceTest {
 
         assertTrue(category.getPlayers().isEmpty());
     }
+    
+    @Test
+    void shouldNotRemovePlayerWhenPlayerIsNotRegistered() {
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.removePlayerFromCategory(1L, 1L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("O jogador não está inscrito na categoria."));
+    }
 }
