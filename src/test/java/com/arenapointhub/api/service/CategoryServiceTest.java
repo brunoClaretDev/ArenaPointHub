@@ -222,4 +222,19 @@ class CategoryServiceTest {
 
         assertTrue(players.contains(player));
     }
+    
+    @Test
+    void shouldNotReturnPlayersWhenCategoryDoesNotExist() {
+
+        when(categoryRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.getPlayersByCategory(99L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("Categoria não encontrada com o ID: 99"));
+    }
 }
