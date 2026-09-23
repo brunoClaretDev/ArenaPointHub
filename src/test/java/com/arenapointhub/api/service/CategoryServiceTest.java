@@ -295,4 +295,19 @@ class CategoryServiceTest {
         assertTrue(players.contains(player2));
         assertTrue(players.size() == 2);
     }
+    
+    @Test
+    void shouldNotDrawPlayersWhenCategoryHasNoPlayers() {
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.drawPlayersByCategory(1L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("Não existem jogadores inscritos na categoria."));
+    }
 }
