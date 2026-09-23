@@ -96,4 +96,22 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("O jogador já está inscrito na categoria."));
     }
+    
+    @Test
+    void shouldNotAddPlayerWhenPlayerDoesNotExist() {
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.addPlayerToCategory(1L, 99L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("Jogador não encontrado com ID: 99"));
+    }
 }
