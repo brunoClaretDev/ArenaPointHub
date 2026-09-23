@@ -325,4 +325,18 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("Categoria não encontrada com o ID: 99"));
     }
+    
+    @Test
+    void shouldReturnChampionByCategory() {
+
+        category.setChampion(player);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        Player champion =
+                categoryService.getChampionByCategoryId(1L);
+
+        assertTrue(champion == player);
+    }
 }
