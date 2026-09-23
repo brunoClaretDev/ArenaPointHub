@@ -80,8 +80,8 @@ public class CategoryService {
     public CategoryResponseDTO getCategoryById(Long id) {
 
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + id));
+        		.orElseThrow(() -> new BusinessException(
+        				"Categoria não encontrada com o ID: " + id));
 
         return mapToResponseDTO(category);
     }
@@ -153,9 +153,9 @@ public class CategoryService {
     @Transactional
     public void generatePlayoffs(Long categoryId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com ID: " + categoryId));
+    	Category category = categoryRepository.findById(categoryId)
+    	        .orElseThrow(() -> new BusinessException(
+    	                "Categoria não encontrada com o ID: " + categoryId));
 
         List<Group> groups = category.getGroups();
 

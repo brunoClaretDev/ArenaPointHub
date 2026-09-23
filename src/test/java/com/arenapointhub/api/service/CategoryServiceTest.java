@@ -1,6 +1,7 @@
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -353,5 +354,20 @@ class CategoryServiceTest {
         assertTrue(
                 exception.getMessage()
                         .equals("Categoria não encontrada com o ID: 99"));
+    }
+    
+    @Test
+    void shouldNotGeneratePlayoffsWhenCategoryDoesNotExist() {
+
+        when(categoryRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.generatePlayoffs(99L));
+
+        assertEquals(
+                "Categoria não encontrada com o ID: 99",
+                exception.getMessage());
     }
 }
