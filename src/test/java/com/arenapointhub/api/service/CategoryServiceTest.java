@@ -237,4 +237,23 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("Categoria não encontrada com o ID: 99"));
     }
+    
+    @Test
+    void shouldRemovePlayerFromCategory() {
+
+        category.getPlayers().add(player);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        assertDoesNotThrow(() ->
+                categoryService.removePlayerFromCategory(1L, 1L));
+
+        verify(categoryRepository).save(category);
+
+        assertTrue(category.getPlayers().isEmpty());
+    }
 }
