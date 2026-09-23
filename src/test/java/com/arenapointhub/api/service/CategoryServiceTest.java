@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Optional;
 
@@ -153,5 +154,30 @@ class CategoryServiceTest {
         assertTrue(
                 exception.getMessage()
                         .equals("A data de nascimento do jogador é obrigatória para categorias restritas por idade."));
+    }
+    
+    @Test
+    void shouldNotAddPlayerWhenAgeExceedsMaximum() {
+
+        category.setType(CategoryType.AGE);
+        category.setName("Sub 13");
+        category.setMaxAge(13);
+
+        player.setBirthDate(
+                LocalDate.of(LocalDate.now().getYear() - 14, 1, 1));
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.addPlayerToCategory(1L, 1L));
+
+        assertTrue(
+                exception.getMessage()
+                        .contains("excede a idade máxima de 13 anos"));
     }
 }
