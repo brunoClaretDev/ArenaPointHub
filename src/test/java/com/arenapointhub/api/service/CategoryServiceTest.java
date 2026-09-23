@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -206,5 +207,19 @@ class CategoryServiceTest {
                 category.getPlayers()
                         .stream()
                         .anyMatch(p -> p.getId().equals(1L)));
+    }
+    
+    @Test
+    void shouldReturnPlayersByCategory() {
+
+        category.getPlayers().add(player);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        List<Player> players =
+                categoryService.getPlayersByCategory(1L);
+
+        assertTrue(players.contains(player));
     }
 }
