@@ -98,7 +98,7 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("O jogador já está inscrito na categoria."));
     }
-    
+
     @Test
     void shouldNotAddPlayerWhenPlayerDoesNotExist() {
 
@@ -116,7 +116,7 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("Jogador não encontrado com ID: 99"));
     }
-    
+
     @Test
     void shouldNotAddPlayerWhenCategoryDoesNotExist() {
 
@@ -131,7 +131,7 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("Categoria não encontrada com ID: 99"));
     }
-    
+
     @Test
     void shouldNotAddPlayerWhenBirthDateIsMissing() {
 
@@ -155,7 +155,7 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("A data de nascimento do jogador é obrigatória para categorias restritas por idade."));
     }
-    
+
     @Test
     void shouldNotAddPlayerWhenAgeExceedsMaximum() {
 
@@ -179,5 +179,32 @@ class CategoryServiceTest {
         assertTrue(
                 exception.getMessage()
                         .contains("excede a idade máxima de 13 anos"));
+    }
+
+    @Test
+    void shouldAddPlayerWhenAgeIsExactlyMaximum() {
+
+        category.setType(CategoryType.AGE);
+        category.setName("Sub 13");
+        category.setMaxAge(13);
+
+        player.setBirthDate(
+                LocalDate.of(LocalDate.now().getYear() - 13, 1, 1));
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        assertDoesNotThrow(() ->
+                categoryService.addPlayerToCategory(1L, 1L));
+
+        verify(categoryRepository).save(category);
+
+        assertTrue(
+                category.getPlayers()
+                        .stream()
+                        .anyMatch(p -> p.getId().equals(1L)));
     }
 }
