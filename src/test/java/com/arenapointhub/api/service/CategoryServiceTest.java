@@ -310,4 +310,19 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("Não existem jogadores inscritos na categoria."));
     }
+    
+    @Test
+    void shouldNotDrawPlayersWhenCategoryDoesNotExist() {
+
+        when(categoryRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.drawPlayersByCategory(99L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("Categoria não encontrada com o ID: 99"));
+    }
 }
