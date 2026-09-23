@@ -274,4 +274,25 @@ class CategoryServiceTest {
                 exception.getMessage()
                         .equals("O jogador não está inscrito na categoria."));
     }
+    
+    @Test
+    void shouldDrawPlayersByCategory() {
+
+        Player player2 = new Player();
+        player2.setId(2L);
+        player2.setName("Jogador 2");
+
+        category.getPlayers().add(player);
+        category.getPlayers().add(player2);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        List<Player> players =
+                categoryService.drawPlayersByCategory(1L);
+
+        assertTrue(players.contains(player));
+        assertTrue(players.contains(player2));
+        assertTrue(players.size() == 2);
+    }
 }
