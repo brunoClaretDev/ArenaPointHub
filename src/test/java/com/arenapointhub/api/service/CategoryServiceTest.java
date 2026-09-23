@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.CategoryType;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
@@ -128,5 +129,29 @@ class CategoryServiceTest {
         assertTrue(
                 exception.getMessage()
                         .equals("Categoria não encontrada com ID: 99"));
+    }
+    
+    @Test
+    void shouldNotAddPlayerWhenBirthDateIsMissing() {
+
+        category.setType(CategoryType.AGE);
+        category.setName("Sub 13");
+        category.setMaxAge(13);
+
+        player.setBirthDate(null);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.addPlayerToCategory(1L, 1L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("A data de nascimento do jogador é obrigatória para categorias restritas por idade."));
     }
 }
