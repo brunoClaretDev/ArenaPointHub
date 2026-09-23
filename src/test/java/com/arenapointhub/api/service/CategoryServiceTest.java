@@ -339,4 +339,19 @@ class CategoryServiceTest {
 
         assertTrue(champion == player);
     }
+    
+    @Test
+    void shouldNotReturnChampionWhenCategoryDoesNotExist() {
+
+        when(categoryRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.getChampionByCategoryId(99L));
+
+        assertTrue(
+                exception.getMessage()
+                        .equals("Categoria não encontrada com o ID: 99"));
+    }
 }
