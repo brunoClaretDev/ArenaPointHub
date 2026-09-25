@@ -7,20 +7,26 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.TestConstructor;
 
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 
 @DataJpaTest
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class CategoryRepositoryTest {
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private final CategoryRepository categoryRepository;
+    private final TournamentRepository tournamentRepository;
 
-    @Autowired
-    private TournamentRepository tournamentRepository;
+    CategoryRepositoryTest(
+            CategoryRepository categoryRepository,
+            TournamentRepository tournamentRepository) {
+
+        this.categoryRepository = categoryRepository;
+        this.tournamentRepository = tournamentRepository;
+    }
 
     @Test
     void shouldSaveAndFindCategory() {
@@ -41,7 +47,7 @@ class CategoryRepositoryTest {
         assertTrue(foundCategory.isPresent());
         assertEquals("Categoria Teste", foundCategory.get().getName());
     }
-    
+
     @Test
     void shouldFindCategoriesByTournamentId() {
         Tournament tournament = new Tournament();
