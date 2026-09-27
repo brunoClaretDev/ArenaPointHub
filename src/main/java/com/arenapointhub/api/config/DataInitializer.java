@@ -26,8 +26,8 @@ import com.arenapointhub.api.repository.TournamentRepository;
 @Configuration
 public class DataInitializer {
 
-    @Value("${arenapoint.initializer.enabled:true}")
-    private boolean initializerEnabled;
+	@Value("${arenapoint.initializer.enabled:false}")
+	private boolean initializerEnabled;
 
     @Bean
     public CommandLineRunner initData(
