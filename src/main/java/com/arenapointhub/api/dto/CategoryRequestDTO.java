@@ -1,8 +1,12 @@
 package com.arenapointhub.api.dto;
 
 import com.arenapointhub.api.model.enums.CategoryType;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
 
 public class CategoryRequestDTO {
 
@@ -17,7 +21,9 @@ public class CategoryRequestDTO {
     private String description;
     private String scoringSystem;
 
-    private int setsToWinMatch = 2; // Opcional, assume 2 por padrão
+    @Min(value = 1, message = "O número de sets para vencer deve ser 1, 2, 3 ou 4")
+    @Max(value = 4, message = "O número de sets para vencer deve ser 1, 2, 3 ou 4")
+    private int setsToWinMatch = 2;
     
     @NotNull(message = "O ID do torneio é obrigatório")
     private Long tournamentId;
