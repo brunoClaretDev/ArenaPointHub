@@ -58,46 +58,80 @@ public class MatchService {
     @Transactional
     public MatchResponseDTO createMatch(MatchRequestDTO dto) {
         if (dto.getPlayer1Id().equals(dto.getPlayer2Id())) {
-            throw new BusinessException("Um jogador não pode jogar contra ele mesmo.");
+            throw new BusinessException(
+                    "Um jogador não pode jogar contra ele mesmo.");
         }
 
-        boolean courtOccupied = matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                dto.getTableOrCourt(), dto.getScheduledTime(), MatchStatus.CANCELED);
+        boolean courtOccupied =
+                matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                        dto.getTableOrCourt(),
+                        dto.getScheduledTime(),
+                        MatchStatus.CANCELED);
+
         if (courtOccupied) {
-            throw new BusinessException("A mesa/quadra '" + dto.getTableOrCourt() + "' já está ocupada no horário " + dto.getScheduledTime());
+            throw new BusinessException(
+                    "A mesa/quadra '" + dto.getTableOrCourt()
+                    + "' já está ocupada no horário "
+                    + dto.getScheduledTime());
         }
 
         boolean playersBusy = matchRepository.existsByPlayerBusy(
-                dto.getPlayer1Id(), dto.getPlayer2Id(), dto.getScheduledTime(), MatchStatus.CANCELED);
+                dto.getPlayer1Id(),
+                dto.getPlayer2Id(),
+                dto.getScheduledTime(),
+                MatchStatus.CANCELED);
 
         if (playersBusy) {
-            throw new BusinessException("Um dos jogadores já possui partida agendada no horário " + dto.getScheduledTime());
+            throw new BusinessException(
+                    "Um dos jogadores já possui partida agendada no horário "
+                    + dto.getScheduledTime());
         }
-        
+
         Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new BusinessException("Categoria não encontrada: " + dto.getCategoryId()));
+                .orElseThrow(() -> new BusinessException(
+                        "Categoria não encontrada: " + dto.getCategoryId()));
 
         Player player1 = playerRepository.findById(dto.getPlayer1Id())
-                .orElseThrow(() -> new BusinessException("Jogador 1 não encontrado: " + dto.getPlayer1Id()));
+                .orElseThrow(() -> new BusinessException(
+                        "Jogador 1 não encontrado: " + dto.getPlayer1Id()));
 
         Player player2 = playerRepository.findById(dto.getPlayer2Id())
-                .orElseThrow(() -> new BusinessException("Jogador 2 não encontrado: " + dto.getPlayer2Id()));
+                .orElseThrow(() -> new BusinessException(
+                        "Jogador 2 não encontrado: " + dto.getPlayer2Id()));
 
         Match match = new Match();
+
         match.setCategory(category);
         match.setPlayer1(player1);
         match.setPlayer2(player2);
         match.setTableOrCourt(dto.getTableOrCourt());
         match.setScheduledTime(dto.getScheduledTime());
-        match.setStatus(dto.getStatus() != null ? dto.getStatus() : MatchStatus.SCHEDULED);
+
+        match.setStatus(
+                dto.getStatus() != null
+                        ? dto.getStatus()
+                        : MatchStatus.SCHEDULED);
+
+        match.setScorePlayer1(
+                dto.getScorePlayer1() != null
+                        ? dto.getScorePlayer1()
+                        : 0);
+
+        match.setScorePlayer2(
+                dto.getScorePlayer2() != null
+                        ? dto.getScorePlayer2()
+                        : 0);
 
         if (dto.getGroupId() != null) {
             Group group = groupRepository.findById(dto.getGroupId())
-                    .orElseThrow(() -> new BusinessException("Grupo não encontrado: " + dto.getGroupId()));
+                    .orElseThrow(() -> new BusinessException(
+                            "Grupo não encontrado: " + dto.getGroupId()));
+
             match.setGroup(group);
         }
 
         Match savedMatch = matchRepository.save(match);
+
         return mapToResponseDTO(savedMatch);
     }
 
