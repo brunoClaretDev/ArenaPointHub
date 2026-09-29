@@ -692,4 +692,66 @@ class MatchServiceTest {
 
         return matchSet;
     }
+    
+    @Test
+    void shouldNotRegisterWalkoverForFinishedMatch() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.FINISHED,
+                2,
+                0
+        );
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(1L);
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(match));
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(10L, dto)
+        );
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldNotRegisterWalkoverForMatchAlreadyMarkedAsWo() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.WO,
+                2,
+                0
+        );
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(1L);
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(match));
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(10L, dto)
+        );
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
 }

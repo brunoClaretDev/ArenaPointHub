@@ -356,6 +356,12 @@ public class MatchService {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
 
+        if (match.getStatus() != MatchStatus.SCHEDULED) {
+            throw new BusinessException(
+                    "Só é possível registrar WO em partidas agendadas."
+            );
+        }
+        
         Long winnerId = dto.getWinnerPlayerId();
         boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
         boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
