@@ -342,15 +342,26 @@ public class GroupService {
                 .orElseThrow(() -> new BusinessException(
                         "Grupo não encontrado com ID: " + groupId));
 
+        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
+
+        boolean hasPlayedMatches = existingMatches.stream()
+                .anyMatch(match ->
+                        match.getStatus() == MatchStatus.IN_PROGRESS
+                        || match.getStatus() == MatchStatus.FINISHED
+                        || match.getStatus() == MatchStatus.WO);
+
+        if (hasPlayedMatches) {
+            throw new BusinessException(
+                    "Não é possível remover jogadores de um grupo que já possui partidas iniciadas ou realizadas.");
+        }
+
         boolean removed = group.getPlayers()
-                .removeIf(p -> p.getId().equals(playerId));
+                .removeIf(player -> player.getId().equals(playerId));
 
         if (!removed) {
             throw new BusinessException(
                     "O jogador informado não pertence a este grupo.");
         }
-
-        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
 
         for (Match match : existingMatches) {
             matchRepository.delete(match);
