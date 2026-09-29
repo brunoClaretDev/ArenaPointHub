@@ -73,13 +73,21 @@ public class DataInitializer {
                     savedPlayers.add(playerRepository.save(player));
                 }
 
-                // 4. Cria 4 Grupos e vincula à Categoria
+             // 4. Cria 4 Grupos e vincula à Categoria
                 List<Group> savedGroups = new ArrayList<>();
 
                 for (int i = 1; i <= 4; i++) {
                     Group group = new Group();
                     group.setName("Grupo " + (char) ('A' + i - 1));
                     group.setCategory(savedCategory);
+
+                    int startIndex = (i - 1) * 4;
+                    int endIndex = startIndex + 4;
+
+                    group.setPlayers(
+                            new ArrayList<>(savedPlayers.subList(startIndex, endIndex))
+                    );
+
                     savedGroups.add(groupRepository.save(group));
                 }
 
