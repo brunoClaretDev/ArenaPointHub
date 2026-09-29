@@ -412,7 +412,143 @@ class GroupServiceTest {
         assertEquals(-2, standings.get(1).getSetDifference());
         assertEquals(1, standings.get(1).getMatchesLost());
     }
+    
+    @Test
+    void shouldPrioritizeMostWinsWhenPlayersHaveSamePoints() {
+        Category category = createCategory(1L);
 
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+        Player player4 = createPlayer(4L, "Player 4");
+
+        Group group = createGroup(10L, "Grupo A", category);
+        group.setPlayers(new ArrayList<>(
+                List.of(player1, player2, player3, player4)
+        ));
+
+        List<Match> matches = List.of(
+                createMatch(player1, player3, MatchStatus.FINISHED, 3, 0),
+                createMatch(player1, player4, MatchStatus.FINISHED, 3, 0),
+                createMatch(player2, player3, MatchStatus.FINISHED, 3, 0),
+                createMatch(player2, player4, MatchStatus.FINISHED, 0, 3),
+                createMatch(player2, player3, MatchStatus.FINISHED, 0, 3)
+        );
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.findByGroupId(10L))
+                .thenReturn(matches);
+
+        List<GroupStandingDTO> standings =
+                groupService.calculateGroupStandings(10L);
+
+        GroupStandingDTO first = standings.get(0);
+        GroupStandingDTO second = standings.get(1);
+
+        assertEquals(1L, first.getPlayerId());
+        assertEquals(4, first.getPoints());
+        assertEquals(2, first.getMatchesWon());
+
+        assertEquals(2L, second.getPlayerId());
+        assertEquals(4, second.getPoints());
+        assertEquals(1, second.getMatchesWon());
+    }
+    
+    @Test
+    void shouldPrioritizeSetDifferenceWhenPointsAndWinsAreEqual() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+
+        Group group = createGroup(10L, "Grupo A", category);
+        group.setPlayers(new ArrayList<>(
+                List.of(player1, player2, player3)
+        ));
+
+        List<Match> matches = List.of(
+                createMatch(
+                        player1, player3,
+                        MatchStatus.FINISHED, 3, 0
+                ),
+                createMatch(
+                        player2, player3,
+                        MatchStatus.FINISHED, 3, 2
+                )
+        );
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.findByGroupId(10L))
+                .thenReturn(matches);
+
+        List<GroupStandingDTO> standings =
+                groupService.calculateGroupStandings(10L);
+
+        GroupStandingDTO first = standings.get(0);
+        GroupStandingDTO second = standings.get(1);
+
+        assertEquals(1L, first.getPlayerId());
+        assertEquals(2, first.getPoints());
+        assertEquals(1, first.getMatchesWon());
+        assertEquals(3, first.getSetDifference());
+
+        assertEquals(2L, second.getPlayerId());
+        assertEquals(2, second.getPoints());
+        assertEquals(1, second.getMatchesWon());
+        assertEquals(1, second.getSetDifference());
+    }
+
+    @Test
+    void shouldPrioritizeSetsWonWhenPointsWinsAndSetDifferenceAreEqual() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+        Player player4 = createPlayer(4L, "Player 4");
+
+        Group group = createGroup(10L, "Grupo A", category);
+        group.setPlayers(new ArrayList<>(
+                List.of(player1, player2, player3, player4)
+        ));
+
+        List<Match> matches = List.of(
+                createMatch(player1, player3, MatchStatus.FINISHED, 3, 0),
+                createMatch(player4, player1, MatchStatus.FINISHED, 3, 1),
+                createMatch(player2, player4, MatchStatus.FINISHED, 4, 0),
+                createMatch(player3, player2, MatchStatus.FINISHED, 5, 2)
+        );
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.findByGroupId(10L))
+                .thenReturn(matches);
+
+        List<GroupStandingDTO> standings =
+                groupService.calculateGroupStandings(10L);
+
+        GroupStandingDTO first = standings.get(0);
+        GroupStandingDTO second = standings.get(1);
+
+        assertEquals(2L, first.getPlayerId());
+        assertEquals(3, first.getPoints());
+        assertEquals(1, first.getMatchesWon());
+        assertEquals(1, first.getSetDifference());
+        assertEquals(6, first.getSetsWon());
+
+        assertEquals(1L, second.getPlayerId());
+        assertEquals(3, second.getPoints());
+        assertEquals(1, second.getMatchesWon());
+        assertEquals(1, second.getSetDifference());
+        assertEquals(4, second.getSetsWon());
+    }
+    
     @Test
     void shouldRemovePlayerFromGroupAndDeleteGroupMatches() {
         Category category = createCategory(1L);

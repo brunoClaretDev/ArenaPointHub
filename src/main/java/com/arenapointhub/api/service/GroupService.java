@@ -315,8 +315,22 @@ public class GroupService {
 
         standings.sort((a, b) -> {
             int pointsCompare = Integer.compare(b.getPoints(), a.getPoints());
-            if (pointsCompare != 0) return pointsCompare;
-            return Integer.compare(b.getSetDifference(), a.getSetDifference());
+            if (pointsCompare != 0) {
+                return pointsCompare;
+            }
+
+            int winsCompare = Integer.compare(b.getMatchesWon(), a.getMatchesWon());
+            if (winsCompare != 0) {
+                return winsCompare;
+            }
+
+            int setDifferenceCompare =
+                    Integer.compare(b.getSetDifference(), a.getSetDifference());
+            if (setDifferenceCompare != 0) {
+                return setDifferenceCompare;
+            }
+
+            return Integer.compare(b.getSetsWon(), a.getSetsWon());
         });
 
         return standings;
