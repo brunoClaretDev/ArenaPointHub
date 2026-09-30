@@ -73,12 +73,12 @@ public class StandingService {
 
                     if (score1 > score2) {
                         s1.setWins(s1.getWins() + 1);
-                        s1.setPoints(s1.getPoints() + 2); // Ex: 2 pontos por vitória
+                        s1.setPoints(s1.getPoints() + 3); // Ex: 2 pontos por vitória
                         s2.setLosses(s2.getLosses() + 1);
                         s2.setPoints(s2.getPoints() + 1); // Ex: 1 ponto por derrota
                     } else if (score2 > score1) {
                         s2.setWins(s2.getWins() + 1);
-                        s2.setPoints(s2.getPoints() + 2);
+                        s2.setPoints(s2.getPoints() + 3);
                         s1.setLosses(s1.getLosses() + 1);
                         s1.setPoints(s1.getPoints() + 1);
                     }
