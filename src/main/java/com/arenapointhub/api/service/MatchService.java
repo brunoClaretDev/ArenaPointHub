@@ -441,17 +441,37 @@ public class MatchService {
         }
     }
     
-    private void advanceWinnerToNextRound(Match finishedMatch) {
+    public void advanceWinnerToNextRound(Match finishedMatch) {
         if (finishedMatch.getPhase() == null || finishedMatch.getPhase() == MatchPhase.GROUP) {
             return;
         }
 
-        Player winner = (finishedMatch.getScorePlayer1() > finishedMatch.getScorePlayer2()) 
-                ? finishedMatch.getPlayer1() 
-                : (finishedMatch.getScorePlayer2() > finishedMatch.getScorePlayer1() ? finishedMatch.getPlayer2() : null);
+        Player winner;
 
-        if (winner == null) {
-            return; 
+        if (finishedMatch.getPlayer1() != null
+                && finishedMatch.getPlayer2() == null) {
+
+            // Jogador 1 avançou por BYE
+            winner = finishedMatch.getPlayer1();
+
+        } else if (finishedMatch.getPlayer2() != null
+                && finishedMatch.getPlayer1() == null) {
+
+            // Jogador 2 avançou por BYE
+            winner = finishedMatch.getPlayer2();
+
+        } else if (finishedMatch.getScorePlayer1() > finishedMatch.getScorePlayer2()) {
+
+            winner = finishedMatch.getPlayer1();
+
+        } else if (finishedMatch.getScorePlayer2() > finishedMatch.getScorePlayer1()) {
+
+            winner = finishedMatch.getPlayer2();
+
+        } else {
+
+            // Empate ou partida sem jogadores definidos
+            return;
         }
 
         MatchPhase nextPhase = getNextPhase(finishedMatch.getPhase());
