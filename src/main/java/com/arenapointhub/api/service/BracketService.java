@@ -1,8 +1,8 @@
 package com.arenapointhub.api.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -27,197 +27,341 @@ import jakarta.transaction.Transactional;
 @Service
 public class BracketService {
 
-	private final GroupRepository groupRepository;
-	private final GroupService groupService;
-	private final MatchRepository matchRepository;
-	private final PlayerRepository playerRepository;
-	private final CategoryRepository categoryRepository;
+    private final GroupRepository groupRepository;
+    private final GroupService groupService;
+    private final MatchRepository matchRepository;
+    private final PlayerRepository playerRepository;
+    private final CategoryRepository categoryRepository;
 
-	public BracketService(GroupRepository groupRepository, GroupService groupService, MatchRepository matchRepository,
-			PlayerRepository playerRepository, CategoryRepository categoryRepository) {
-		this.groupRepository = groupRepository;
-		this.groupService = groupService;
-		this.matchRepository = matchRepository;
-		this.playerRepository = playerRepository;
-		this.categoryRepository = categoryRepository;
-	}
+    public BracketService(
+            GroupRepository groupRepository,
+            GroupService groupService,
+            MatchRepository matchRepository,
+            PlayerRepository playerRepository,
+            CategoryRepository categoryRepository) {
 
-	/**
-	 * Identifica os 1ºs colocados de cada grupo em ordem de criação/nome do grupo.
-	 */
-	public List<Player> getOrderedGroupWinners(Long categoryId) {
-		List<Group> groups = groupRepository.findByCategoryId(categoryId);
-		if (groups.isEmpty()) {
-			throw new BusinessException("Não existem grupos para esta categoria.");
-		}
+        this.groupRepository = groupRepository;
+        this.groupService = groupService;
+        this.matchRepository = matchRepository;
+        this.playerRepository = playerRepository;
+        this.categoryRepository = categoryRepository;
+    }
 
-		// Ordena os grupos alfabeticamente ou por ID (Ex: Grupo A, Grupo B, Grupo 1,
-		// Grupo 2...)
-		groups.sort((g1, g2) -> g1.getName().compareToIgnoreCase(g2.getName()));
+    @Transactional
+    public BracketResponseDTO generateKnockoutBracket(
+            Long categoryId,
+            int targetBracketSize) {
 
-		List<Player> groupWinners = new ArrayList<>();
+        Category category = findCategory(categoryId);
 
-		for (Group group : groups) {
-			List<GroupStandingDTO> standings = groupService.calculateGroupStandings(group.getId());
-			if (!standings.isEmpty()) {
-				Long topPlayerId = standings.get(0).getPlayerId();
-				playerRepository.findById(topPlayerId).ifPresent(groupWinners::add);
-			}
-		}
+        validateBracketSize(targetBracketSize);
 
-		return groupWinners;
-	}
+        List<Player> qualifiedPlayers =
+                getOrderedQualifiedPlayers(categoryId);
 
-	/**
-	 * Calcula quantos Byes são necessários com base no total de classificados e no
-	 * tamanho alvo da chave (ex: 16).
-	 */
-	public int calculateRequiredByes(int totalQualifiedPlayers, int targetBracketSize) {
-		if (totalQualifiedPlayers > targetBracketSize) {
-			throw new BusinessException("O número de classificados não pode ser maior que o tamanho da chave.");
-		}
-		return targetBracketSize - totalQualifiedPlayers;
-	}
+        int totalQualifiedPlayers = qualifiedPlayers.size();
 
-	/**
-	 * Retorna a lista de jogadores que recebem Bye ordenados pelos 1ºs lugares de
-	 * cada grupo.
-	 */
-	public List<Player> determinePlayersWithBye(Long categoryId, int totalQualifiedPlayers, int targetBracketSize) {
-		List<Player> groupWinnersOrdered = getOrderedGroupWinners(categoryId);
-		int numberOfByes = calculateRequiredByes(totalQualifiedPlayers, targetBracketSize);
+        List<Player> playersWithBye = determinePlayersWithBye(
+                categoryId,
+                totalQualifiedPlayers,
+                targetBracketSize
+        );
 
-		if (numberOfByes > groupWinnersOrdered.size()) {
-			throw new BusinessException(
-					"O número de Byes necessários é maior que a quantidade de vencedores de grupo disponíveis.");
-		}
+        List<Match> createdMatches = new ArrayList<>();
 
-		return groupWinnersOrdered.stream().limit(numberOfByes).collect(Collectors.toList());
-	}
-	
-	private MatchPhase determineFirstRoundPhase(int bracketSize) {
-	    return switch (bracketSize) {
-	        case 32 -> MatchPhase.ROUND_OF_32;
-	        case 16 -> MatchPhase.ROUND_OF_16;
-	        case 8 -> MatchPhase.QUARTER_FINAL;
-	        case 4 -> MatchPhase.SEMI_FINAL;
-	        case 2 -> MatchPhase.FINAL;
-	        default -> throw new BusinessException(
-	                "Tamanho de chave inválido para gerar Playoffs."
-	        );
-	    };
-	}
+        createdMatches.addAll(
+                createFirstRoundKnockoutMatches(
+                        category,
+                        qualifiedPlayers,
+                        playersWithBye,
+                        targetBracketSize
+                )
+        );
 
-	@Transactional
-	public BracketResponseDTO generateKnockoutBracket(Long categoryId, int targetBracketSize) {
-		Category category = categoryRepository.findById(categoryId)
-				.orElseThrow(() -> new BusinessException("Categoria não encontrada com ID: " + categoryId));
+        createdMatches.addAll(
+                createSubsequentRoundMatches(
+                        category,
+                        targetBracketSize
+                )
+        );
 
-		List<Player> orderedPlayers = getOrderedQualifiedPlayers(categoryId);
-		int totalQualified = orderedPlayers.size();
+        BracketResponseDTO response = new BracketResponseDTO();
+        response.setCategoryId(category.getId());
+        response.setCategoryName(category.getName());
+        response.setTargetBracketSize(targetBracketSize);
+        response.setMatches(
+                createdMatches.stream()
+                        .map(this::mapMatchToResponseDTO)
+                        .toList()
+        );
 
-		List<Player> playersWithBye = determinePlayersWithBye(categoryId, totalQualified, targetBracketSize);
+        return response;
+    }
 
-		List<Match> createdMatches = createFirstRoundKnockoutMatches(categoryId, orderedPlayers, playersWithBye,
-				targetBracketSize);
+    public List<Player> getOrderedGroupWinners(Long categoryId) {
+        List<Group> groups = getOrderedGroups(categoryId);
 
-		BracketResponseDTO responseDTO = new BracketResponseDTO();
-		responseDTO.setCategoryId(category.getId());
-		responseDTO.setCategoryName(category.getName());
-		responseDTO.setTargetBracketSize(targetBracketSize);
+        List<Player> winners = new ArrayList<>();
 
-		List<MatchResponseDTO> matchDTOs = createdMatches.stream().map(this::mapMatchToResponseDTO)
-				.collect(Collectors.toList());
+        for (Group group : groups) {
+            List<GroupStandingDTO> standings =
+                    groupService.calculateGroupStandings(group.getId());
 
-		responseDTO.setMatches(matchDTOs);
+            if (!standings.isEmpty()) {
+                Long playerId = standings.get(0).getPlayerId();
 
-		return responseDTO;
-	}
+                playerRepository.findById(playerId)
+                        .ifPresent(winners::add);
+            }
+        }
 
-	public List<Player> getOrderedQualifiedPlayers(Long categoryId) {
-		List<Group> groups = groupRepository.findByCategoryId(categoryId);
-		if (groups.isEmpty()) {
-			throw new BusinessException("Não existem grupos para esta categoria.");
-		}
+        return winners;
+    }
 
-		// Ordena os grupos alfabeticamente (Grupo A, Grupo B...)
-		groups.sort((g1, g2) -> g1.getName().compareToIgnoreCase(g2.getName()));
+    public List<Player> getOrderedQualifiedPlayers(Long categoryId) {
+        List<Group> groups = getOrderedGroups(categoryId);
 
-		List<Player> firstPlacePlayers = new ArrayList<>();
-		List<Player> secondPlacePlayers = new ArrayList<>();
+        List<Player> firstPlacePlayers = new ArrayList<>();
+        List<Player> secondPlacePlayers = new ArrayList<>();
 
-		for (Group group : groups) {
-			List<GroupStandingDTO> standings = groupService.calculateGroupStandings(group.getId());
-			if (standings.size() > 0) {
-				playerRepository.findById(standings.get(0).getPlayerId()).ifPresent(firstPlacePlayers::add);
-			}
-			if (standings.size() > 1) {
-				playerRepository.findById(standings.get(1).getPlayerId()).ifPresent(secondPlacePlayers::add);
-			}
-		}
+        for (Group group : groups) {
+            List<GroupStandingDTO> standings =
+                    groupService.calculateGroupStandings(group.getId());
 
-		// Junta primeiro os 1ºs colocados de cada grupo, seguido dos 2ºs colocados
-		List<Player> orderedPlayers = new ArrayList<>(firstPlacePlayers);
-		orderedPlayers.addAll(secondPlacePlayers);
-		return orderedPlayers;
-	}
+            addPlayerFromStanding(standings, 0, firstPlacePlayers);
+            addPlayerFromStanding(standings, 1, secondPlacePlayers);
+        }
 
-	private List<Match> createFirstRoundKnockoutMatches(Long categoryId, List<Player> orderedPlayers,
-			List<Player> playersWithBye, int bracketSize) {
-		Category category = categoryRepository.findById(categoryId)
-				.orElseThrow(() -> new BusinessException("Categoria não encontrada."));
+        List<Player> qualifiedPlayers = new ArrayList<>(firstPlacePlayers);
+        qualifiedPlayers.addAll(secondPlacePlayers);
 
-		List<Match> createdMatches = new ArrayList<>();
-		int numMatches = bracketSize / 2;
+        return qualifiedPlayers;
+    }
 
-		for (int i = 0; i < numMatches; i++) {
-			Match match = new Match();
-			match.setCategory(category);
-			match.setPhase(determineFirstRoundPhase(bracketSize));
-			match.setStatus(MatchStatus.SCHEDULED);
+    public int calculateRequiredByes(
+            int totalQualifiedPlayers,
+            int targetBracketSize) {
 
-			Player player1 = i < orderedPlayers.size() ? orderedPlayers.get(i) : null;
-			Player player2 = (bracketSize - 1 - i) < orderedPlayers.size() ? orderedPlayers.get(bracketSize - 1 - i)
-					: null;
+        validateBracketSize(targetBracketSize);
 
-			if (player1 != null && playersWithBye.contains(player1)) {
-				match.setPlayer1(player1);
-				match.setPlayer2(null); // Bye
-				match.setStatus(MatchStatus.FINISHED);
-			} else {
-				match.setPlayer1(player1);
-				match.setPlayer2(player2);
-			}
+        if (totalQualifiedPlayers > targetBracketSize) {
+            throw new BusinessException(
+                    "O número de classificados não pode ser maior que o tamanho da chave."
+            );
+        }
 
-			Match savedMatch = matchRepository.save(match);
-			createdMatches.add(savedMatch);
-		}
+        return targetBracketSize - totalQualifiedPlayers;
+    }
 
-		return createdMatches;
-	}
+    public List<Player> determinePlayersWithBye(
+            Long categoryId,
+            int totalQualifiedPlayers,
+            int targetBracketSize) {
 
-	private MatchResponseDTO mapMatchToResponseDTO(Match match) {
-		MatchResponseDTO dto = new MatchResponseDTO();
-		dto.setId(match.getId());
-		if (match.getCategory() != null) {
-			dto.setCategoryId(match.getCategory().getId());
-			dto.setCategoryName(match.getCategory().getName());
-		}
-		if (match.getPlayer1() != null) {
-			PlayerSummaryDTO p1Summary = new PlayerSummaryDTO(match.getPlayer1().getId(), match.getPlayer1().getName(),
-					match.getPlayer1().getClubAcademy());
-			dto.setPlayer1(p1Summary);
-		}
-		if (match.getPlayer2() != null) {
-			PlayerSummaryDTO p2Summary = new PlayerSummaryDTO(match.getPlayer2().getId(), match.getPlayer2().getName(),
-					match.getPlayer2().getClubAcademy());
-			dto.setPlayer2(p2Summary);
-		}
-		dto.setScorePlayer1(match.getScorePlayer1());
-		dto.setScorePlayer2(match.getScorePlayer2());
-		dto.setStatus(match.getStatus());
-		dto.setTableOrCourt(match.getTableOrCourt());
-		dto.setScheduledTime(match.getScheduledTime());
-		return dto;
-	}
+        List<Player> groupWinners = getOrderedGroupWinners(categoryId);
+
+        int numberOfByes = calculateRequiredByes(
+                totalQualifiedPlayers,
+                targetBracketSize
+        );
+
+        if (numberOfByes > groupWinners.size()) {
+            throw new BusinessException(
+                    "O número de Byes necessários é maior que a quantidade de vencedores de grupo disponíveis."
+            );
+        }
+
+        return groupWinners.stream()
+                .limit(numberOfByes)
+                .toList();
+    }
+
+    private List<Group> getOrderedGroups(Long categoryId) {
+        List<Group> groups = groupRepository.findByCategoryId(categoryId);
+
+        if (groups.isEmpty()) {
+            throw new BusinessException(
+                    "Não existem grupos para esta categoria."
+            );
+        }
+
+        groups.sort(
+                Comparator.comparing(
+                        Group::getName,
+                        String.CASE_INSENSITIVE_ORDER
+                )
+        );
+
+        return groups;
+    }
+
+    private void addPlayerFromStanding(
+            List<GroupStandingDTO> standings,
+            int position,
+            List<Player> destination) {
+
+        if (standings.size() <= position) {
+            return;
+        }
+
+        Long playerId = standings.get(position).getPlayerId();
+
+        playerRepository.findById(playerId)
+                .ifPresent(destination::add);
+    }
+
+    private Category findCategory(Long categoryId) {
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new BusinessException(
+                        "Categoria não encontrada com ID: " + categoryId
+                ));
+    }
+
+    private void validateBracketSize(int bracketSize) {
+        if (bracketSize != 2
+                && bracketSize != 4
+                && bracketSize != 8
+                && bracketSize != 16
+                && bracketSize != 32) {
+
+            throw new BusinessException(
+                    "Tamanho de chave inválido para gerar Playoffs."
+            );
+        }
+    }
+
+    private MatchPhase determineFirstRoundPhase(int bracketSize) {
+        return switch (bracketSize) {
+            case 32 -> MatchPhase.ROUND_OF_32;
+            case 16 -> MatchPhase.ROUND_OF_16;
+            case 8 -> MatchPhase.QUARTER_FINAL;
+            case 4 -> MatchPhase.SEMI_FINAL;
+            case 2 -> MatchPhase.FINAL;
+            default -> throw new BusinessException(
+                    "Tamanho de chave inválido para gerar Playoffs."
+            );
+        };
+    }
+
+    private MatchPhase getNextPhase(MatchPhase currentPhase) {
+        return switch (currentPhase) {
+            case ROUND_OF_32 -> MatchPhase.ROUND_OF_16;
+            case ROUND_OF_16 -> MatchPhase.QUARTER_FINAL;
+            case QUARTER_FINAL -> MatchPhase.SEMI_FINAL;
+            case SEMI_FINAL -> MatchPhase.FINAL;
+            default -> null;
+        };
+    }
+
+    private List<Match> createFirstRoundKnockoutMatches(
+            Category category,
+            List<Player> orderedPlayers,
+            List<Player> playersWithBye,
+            int bracketSize) {
+
+        List<Match> matches = new ArrayList<>();
+
+        int numberOfMatches = bracketSize / 2;
+        MatchPhase firstRoundPhase =
+                determineFirstRoundPhase(bracketSize);
+
+        for (int i = 0; i < numberOfMatches; i++) {
+            Player player1 = getPlayerAt(orderedPlayers, i);
+            Player player2 = getPlayerAt(
+                    orderedPlayers,
+                    bracketSize - 1 - i
+            );
+
+            Match match = new Match();
+            match.setCategory(category);
+            match.setPhase(firstRoundPhase);
+            match.setStatus(MatchStatus.SCHEDULED);
+
+            match.setPlayer1(player1);
+            match.setPlayer2(player2);
+
+            if (player1 != null && playersWithBye.contains(player1)) {
+                match.setPlayer2(null);
+                match.setStatus(MatchStatus.FINISHED);
+            }
+
+            matches.add(matchRepository.save(match));
+        }
+
+        return matches;
+    }
+
+    private List<Match> createSubsequentRoundMatches(
+            Category category,
+            int bracketSize) {
+
+        List<Match> matches = new ArrayList<>();
+
+        int matchesInRound = bracketSize / 4;
+        MatchPhase currentPhase =
+                determineFirstRoundPhase(bracketSize);
+
+        while (currentPhase != MatchPhase.FINAL) {
+            currentPhase = getNextPhase(currentPhase);
+
+            if (currentPhase == null) {
+                break;
+            }
+
+            for (int i = 0; i < matchesInRound; i++) {
+                Match match = new Match();
+
+                match.setCategory(category);
+                match.setPhase(currentPhase);
+                match.setStatus(MatchStatus.SCHEDULED);
+
+                matches.add(matchRepository.save(match));
+            }
+
+            matchesInRound /= 2;
+        }
+
+        return matches;
+    }
+
+    private Player getPlayerAt(List<Player> players, int index) {
+        if (index < 0 || index >= players.size()) {
+            return null;
+        }
+
+        return players.get(index);
+    }
+
+    private MatchResponseDTO mapMatchToResponseDTO(Match match) {
+        MatchResponseDTO dto = new MatchResponseDTO();
+
+        dto.setId(match.getId());
+        dto.setCategoryId(match.getCategory().getId());
+        dto.setCategoryName(match.getCategory().getName());
+
+        if (match.getPlayer1() != null) {
+            dto.setPlayer1(toPlayerSummary(match.getPlayer1()));
+        }
+
+        if (match.getPlayer2() != null) {
+            dto.setPlayer2(toPlayerSummary(match.getPlayer2()));
+        }
+
+        dto.setScorePlayer1(match.getScorePlayer1());
+        dto.setScorePlayer2(match.getScorePlayer2());
+        dto.setStatus(match.getStatus());
+        dto.setPhase(match.getPhase());
+        dto.setTableOrCourt(match.getTableOrCourt());
+        dto.setScheduledTime(match.getScheduledTime());
+
+        return dto;
+    }
+
+    private PlayerSummaryDTO toPlayerSummary(Player player) {
+        return new PlayerSummaryDTO(
+                player.getId(),
+                player.getName(),
+                player.getClubAcademy()
+        );
+    }
 }

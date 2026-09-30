@@ -243,17 +243,19 @@ class BracketServiceTest {
         assertEquals(1L, response.getCategoryId());
         assertEquals("Sub 15", response.getCategoryName());
         assertEquals(4, response.getTargetBracketSize());
-        assertEquals(2, response.getMatches().size());
+        assertEquals(3, response.getMatches().size());
 
         org.mockito.ArgumentCaptor<Match> matchCaptor =
                 org.mockito.ArgumentCaptor.forClass(Match.class);
 
-        verify(matchRepository, org.mockito.Mockito.times(2))
-                .save(matchCaptor.capture());
+        verify(matchRepository, org.mockito.Mockito.times(3))
+        		.save(matchCaptor.capture());
 
-        for (Match match : matchCaptor.getAllValues()) {
-            assertEquals(MatchPhase.SEMI_FINAL, match.getPhase());
-        }
+        List<Match> savedMatches = matchCaptor.getAllValues();
+
+        assertEquals(MatchPhase.SEMI_FINAL, savedMatches.get(0).getPhase());
+        assertEquals(MatchPhase.SEMI_FINAL, savedMatches.get(1).getPhase());
+        assertEquals(MatchPhase.FINAL, savedMatches.get(2).getPhase());
     }
 
     private Category createCategory(Long id) {
