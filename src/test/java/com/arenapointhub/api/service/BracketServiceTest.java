@@ -23,6 +23,7 @@ import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.GroupRepository;
 import com.arenapointhub.api.repository.MatchRepository;
@@ -244,8 +245,15 @@ class BracketServiceTest {
         assertEquals(4, response.getTargetBracketSize());
         assertEquals(2, response.getMatches().size());
 
+        org.mockito.ArgumentCaptor<Match> matchCaptor =
+                org.mockito.ArgumentCaptor.forClass(Match.class);
+
         verify(matchRepository, org.mockito.Mockito.times(2))
-                .save(any(Match.class));
+                .save(matchCaptor.capture());
+
+        for (Match match : matchCaptor.getAllValues()) {
+            assertEquals(MatchPhase.SEMI_FINAL, match.getPhase());
+        }
     }
 
     private Category createCategory(Long id) {

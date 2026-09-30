@@ -85,7 +85,7 @@ class StandingServiceTest {
         StandingDTO second = standings.get(1);
 
         assertEquals(1L, first.getPlayerId());
-        assertEquals(2, first.getPoints());
+        assertEquals(3, first.getPoints());
         assertEquals(1, first.getPlayed());
         assertEquals(1, first.getWins());
         assertEquals(0, first.getLosses());

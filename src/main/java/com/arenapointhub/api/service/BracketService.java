@@ -15,6 +15,7 @@ import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.GroupRepository;
@@ -93,6 +94,19 @@ public class BracketService {
 
 		return groupWinnersOrdered.stream().limit(numberOfByes).collect(Collectors.toList());
 	}
+	
+	private MatchPhase determineFirstRoundPhase(int bracketSize) {
+	    return switch (bracketSize) {
+	        case 32 -> MatchPhase.ROUND_OF_32;
+	        case 16 -> MatchPhase.ROUND_OF_16;
+	        case 8 -> MatchPhase.QUARTER_FINAL;
+	        case 4 -> MatchPhase.SEMI_FINAL;
+	        case 2 -> MatchPhase.FINAL;
+	        default -> throw new BusinessException(
+	                "Tamanho de chave inválido para gerar Playoffs."
+	        );
+	    };
+	}
 
 	@Transactional
 	public BracketResponseDTO generateKnockoutBracket(Long categoryId, int targetBracketSize) {
@@ -159,6 +173,7 @@ public class BracketService {
 		for (int i = 0; i < numMatches; i++) {
 			Match match = new Match();
 			match.setCategory(category);
+			match.setPhase(determineFirstRoundPhase(bracketSize));
 			match.setStatus(MatchStatus.SCHEDULED);
 
 			Player player1 = i < orderedPlayers.size() ? orderedPlayers.get(i) : null;
