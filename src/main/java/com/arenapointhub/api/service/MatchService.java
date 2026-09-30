@@ -354,35 +354,52 @@ public class MatchService {
     @Transactional
     public MatchResponseDTO registerWalkover(Long matchId, MatchWoRequestDTO dto) {
         Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+                .orElseThrow(() -> new BusinessException(
+                        "Partida não encontrada com ID: " + matchId));
 
         if (match.getStatus() != MatchStatus.SCHEDULED) {
             throw new BusinessException(
-                    "Só é possível registrar WO em partidas agendadas."
-            );
+                    "Só é possível registrar WO em partidas agendadas.");
         }
-        
+
         Long winnerId = dto.getWinnerPlayerId();
+
         boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
         boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
 
         if (!isPlayer1Winner && !isPlayer2Winner) {
-            throw new BusinessException("O jogador informado não faz parte desta partida.");
+            throw new BusinessException(
+                    "O jogador informado não faz parte desta partida.");
         }
 
+        int setsNeededToWin = determineSetsNeededToWin(match);
+
+        // Registra cada set do WO com placar de 11 a 0.
+        for (int setNumber = 1; setNumber <= setsNeededToWin; setNumber++) {
+            MatchSet matchSet = matchSetRepository
+                    .findByMatchIdAndSetNumber(matchId, setNumber)
+                    .orElse(new MatchSet());
+
+            matchSet.setMatch(match);
+            matchSet.setSetNumber(setNumber);
+
+            if (isPlayer1Winner) {
+                matchSet.setScorePlayer1(11);
+                matchSet.setScorePlayer2(0);
+            } else {
+                matchSet.setScorePlayer1(0);
+                matchSet.setScorePlayer2(11);
+            }
+
+            matchSetRepository.save(matchSet);
+        }
+
+        match.setScorePlayer1(isPlayer1Winner ? setsNeededToWin : 0);
+        match.setScorePlayer2(isPlayer2Winner ? setsNeededToWin : 0);
         match.setStatus(MatchStatus.WO);
-
-        if (isPlayer1Winner) {
-            match.setScorePlayer1(2);
-            match.setScorePlayer2(0);
-        } else {
-            match.setScorePlayer1(0);
-            match.setScorePlayer2(2);
-        }
 
         Match updatedMatch = matchRepository.save(match);
 
-        // Dispara o avanço por WO também se desejado
         advanceWinnerToNextRound(updatedMatch);
         checkAndDistributePointsIfFinalFinished(updatedMatch);
 

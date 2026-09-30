@@ -461,6 +461,7 @@ class MatchServiceTest {
         assertEquals(0, response.getScorePlayer2());
 
         verify(matchRepository).save(match);
+        verify(matchSetRepository, times(2)).save(any(MatchSet.class));
     }
 
     @Test
