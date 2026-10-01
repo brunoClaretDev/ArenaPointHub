@@ -185,6 +185,52 @@ public class BracketService {
 
         return winners;
     }
+    
+    private List<Player> getOrderedSecondPlacePlayers(Long categoryId) {
+
+        List<Group> groups = getOrderedGroups(categoryId);
+
+        List<GroupStandingDTO> secondPlaceStandings = new ArrayList<>();
+
+        for (Group group : groups) {
+
+            List<GroupStandingDTO> standings =
+                    groupService.calculateGroupStandings(group.getId());
+
+            if (standings.size() > 1) {
+                secondPlaceStandings.add(standings.get(1));
+            }
+        }
+
+        secondPlaceStandings.sort(
+                Comparator.comparingInt(GroupStandingDTO::getPoints)
+                        .reversed()
+                        .thenComparing(
+                                Comparator.comparingInt(
+                                        GroupStandingDTO::getMatchesWon
+                                ).reversed()
+                        )
+                        .thenComparing(
+                                Comparator.comparingInt(
+                                        GroupStandingDTO::getSetDifference
+                                ).reversed()
+                        )
+                        .thenComparing(
+                                Comparator.comparingInt(
+                                        GroupStandingDTO::getSetsWon
+                                ).reversed()
+                        )
+        );
+
+        List<Player> secondPlacePlayers = new ArrayList<>();
+
+        for (GroupStandingDTO standing : secondPlaceStandings) {
+            playerRepository.findById(standing.getPlayerId())
+                    .ifPresent(secondPlacePlayers::add);
+        }
+
+        return secondPlacePlayers;
+    }
 
     public List<Player> getOrderedQualifiedPlayers(Long categoryId) {
 
@@ -227,22 +273,48 @@ public class BracketService {
             int totalQualifiedPlayers,
             int targetBracketSize) {
 
-        List<Player> groupWinners = getOrderedGroupWinners(categoryId);
-
         int numberOfByes = calculateRequiredByes(
                 totalQualifiedPlayers,
                 targetBracketSize
         );
 
-        if (numberOfByes > groupWinners.size()) {
+        if (numberOfByes == 0) {
+            return new ArrayList<>();
+        }
+
+        List<Player> groupWinners = getOrderedGroupWinners(categoryId);
+        List<Player> playersWithBye = new ArrayList<>();
+
+        // 1º: distribuir BYEs aos vencedores dos grupos
+        for (Player winner : groupWinners) {
+            if (playersWithBye.size() >= numberOfByes) {
+                break;
+            }
+
+            playersWithBye.add(winner);
+        }
+
+        // 2º: completar com os melhores segundos colocados
+        if (playersWithBye.size() < numberOfByes) {
+            List<Player> secondPlacePlayers =
+                    getOrderedSecondPlacePlayers(categoryId);
+
+            for (Player player : secondPlacePlayers) {
+                if (playersWithBye.size() >= numberOfByes) {
+                    break;
+                }
+
+                playersWithBye.add(player);
+            }
+        }
+
+        if (playersWithBye.size() < numberOfByes) {
             throw new BusinessException(
-                    "O número de Byes necessários é maior que a quantidade de vencedores de grupo disponíveis."
+                    "Não existem jogadores classificados suficientes para distribuir todos os Byes."
             );
         }
 
-        return groupWinners.stream()
-                .limit(numberOfByes)
-                .toList();
+        return playersWithBye;
     }
 
     private List<Group> getOrderedGroups(Long categoryId) {
@@ -336,27 +408,66 @@ public class BracketService {
         List<Match> matches = new ArrayList<>();
 
         int numberOfMatches = bracketSize / 2;
+
         MatchPhase firstRoundPhase =
                 determineFirstRoundPhase(bracketSize);
 
+        List<Player> remainingPlayers = new ArrayList<>(orderedPlayers);
+
+        for (Player byePlayer : playersWithBye) {
+            remainingPlayers.removeIf(
+                    player -> player.getId().equals(byePlayer.getId())
+            );
+        }
+
+        List<Integer> byeMatchIndexes = new ArrayList<>();
+
+        for (int i = 0; i < numberOfMatches; i += 2) {
+            byeMatchIndexes.add(i);
+        }
+
+        for (int i = 1; i < numberOfMatches; i += 2) {
+            byeMatchIndexes.add(i);
+        }
+
+        int byeIndex = 0;
+        int playerIndex = 0;
+
         for (int i = 0; i < numberOfMatches; i++) {
 
-            Player player1 = getPlayerAt(orderedPlayers, i);
-            Player player2 = getPlayerAt(
-                    orderedPlayers,
-                    bracketSize - 1 - i
-            );
-
             Match match = new Match();
+
             match.setCategory(category);
             match.setPhase(firstRoundPhase);
             match.setStatus(MatchStatus.SCHEDULED);
-            match.setPlayer1(player1);
-            match.setPlayer2(player2);
 
-            if (player1 != null && playersWithBye.contains(player1)) {
+            if (byeIndex < playersWithBye.size()
+                    && byeMatchIndexes.get(byeIndex) == i) {
+
+                Player byePlayer = playersWithBye.get(byeIndex);
+
+                match.setPlayer1(byePlayer);
                 match.setPlayer2(null);
                 match.setStatus(MatchStatus.FINISHED);
+
+                byeIndex++;
+
+            } else {
+
+                Player player1 = getPlayerAt(
+                        remainingPlayers,
+                        playerIndex
+                );
+
+                Player player2 = getPlayerAt(
+                        remainingPlayers,
+                        playerIndex + 1
+                );
+
+                match.setPlayer1(player1);
+                match.setPlayer2(player2);
+
+                playerIndex += 2;
             }
 
             matches.add(matchRepository.save(match));

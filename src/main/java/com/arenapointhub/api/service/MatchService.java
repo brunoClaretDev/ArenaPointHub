@@ -204,21 +204,26 @@ public class MatchService {
 
     private MatchResponseDTO mapToResponseDTO(Match entity) {
         MatchResponseDTO dto = new MatchResponseDTO();
+
         dto.setId(entity.getId());
         dto.setCategoryId(entity.getCategory().getId());
         dto.setCategoryName(entity.getCategory().getName());
 
-        dto.setPlayer1(new PlayerSummaryDTO(
-                entity.getPlayer1().getId(),
-                entity.getPlayer1().getName(),
-                entity.getPlayer1().getClubAcademy()
-        ));
+        if (entity.getPlayer1() != null) {
+            dto.setPlayer1(new PlayerSummaryDTO(
+                    entity.getPlayer1().getId(),
+                    entity.getPlayer1().getName(),
+                    entity.getPlayer1().getClubAcademy()
+            ));
+        }
 
-        dto.setPlayer2(new PlayerSummaryDTO(
-                entity.getPlayer2().getId(),
-                entity.getPlayer2().getName(),
-                entity.getPlayer2().getClubAcademy()
-        ));
+        if (entity.getPlayer2() != null) {
+            dto.setPlayer2(new PlayerSummaryDTO(
+                    entity.getPlayer2().getId(),
+                    entity.getPlayer2().getName(),
+                    entity.getPlayer2().getClubAcademy()
+            ));
+        }
 
         dto.setTableOrCourt(entity.getTableOrCourt());
         dto.setScheduledTime(entity.getScheduledTime());
@@ -226,6 +231,7 @@ public class MatchService {
         dto.setScorePlayer2(entity.getScorePlayer2());
         dto.setStatus(entity.getStatus());
         dto.setPhase(entity.getPhase());
+
         return dto;
     }
     

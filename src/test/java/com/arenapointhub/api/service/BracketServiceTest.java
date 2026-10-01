@@ -24,6 +24,7 @@ import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.enums.MatchPhase;
+import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.GroupRepository;
 import com.arenapointhub.api.repository.MatchRepository;
@@ -256,6 +257,112 @@ class BracketServiceTest {
         assertEquals(MatchPhase.SEMI_FINAL, savedMatches.get(0).getPhase());
         assertEquals(MatchPhase.SEMI_FINAL, savedMatches.get(1).getPhase());
         assertEquals(MatchPhase.FINAL, savedMatches.get(2).getPhase());
+    }
+    
+    @Test
+    void shouldDistributeByesAcrossDifferentSemifinals() {
+        Category category = createCategory(1L);
+
+        Group groupA = createGroup(1L, "Grupo A", category);
+        Group groupB = createGroup(2L, "Grupo B", category);
+        Group groupC = createGroup(3L, "Grupo C", category);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+        Player player4 = createPlayer(4L, "Player 4");
+        Player player5 = createPlayer(5L, "Player 5");
+        Player player6 = createPlayer(6L, "Player 6");
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(groupRepository.findByCategoryId(1L))
+                .thenReturn(new ArrayList<>(
+                        List.of(groupA, groupB, groupC)));
+
+        when(groupService.calculateGroupStandings(1L))
+                .thenReturn(List.of(
+                        createStanding(player1),
+                        createStanding(player2)));
+
+        when(groupService.calculateGroupStandings(2L))
+                .thenReturn(List.of(
+                        createStanding(player3),
+                        createStanding(player4)));
+
+        when(groupService.calculateGroupStandings(3L))
+                .thenReturn(List.of(
+                        createStanding(player5),
+                        createStanding(player6)));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.of(player2));
+        when(playerRepository.findById(3L))
+                .thenReturn(Optional.of(player3));
+        when(playerRepository.findById(4L))
+                .thenReturn(Optional.of(player4));
+        when(playerRepository.findById(5L))
+                .thenReturn(Optional.of(player5));
+        when(playerRepository.findById(6L))
+                .thenReturn(Optional.of(player6));
+
+        long[] nextId = {100L};
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> {
+                    Match match = invocation.getArgument(0);
+                    match.setId(nextId[0]++);
+                    return match;
+                });
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(1L, 8);
+
+        assertEquals(7, response.getMatches().size());
+
+        org.mockito.ArgumentCaptor<Match> matchCaptor =
+                org.mockito.ArgumentCaptor.forClass(Match.class);
+
+        verify(matchRepository, org.mockito.Mockito.times(9))
+        		.save(matchCaptor.capture());
+
+        List<Match> matches = matchCaptor.getAllValues();
+
+        // Primeira fase: 4 partidas
+        assertEquals(MatchPhase.QUARTER_FINAL,
+                matches.get(0).getPhase());
+
+        assertEquals(MatchStatus.FINISHED,
+                matches.get(0).getStatus());
+
+        assertEquals(1L,
+                matches.get(0).getPlayer1().getId());
+
+        assertEquals(null, matches.get(0).getPlayer2());
+
+        assertEquals(MatchStatus.FINISHED,
+                matches.get(2).getStatus());
+
+        assertEquals(3L,
+                matches.get(2).getPlayer1().getId());
+
+        assertEquals(null, matches.get(2).getPlayer2());
+
+        // Semifinais: cada BYE deve ocupar uma semifinal diferente
+        assertEquals(MatchPhase.SEMI_FINAL,
+                matches.get(4).getPhase());
+
+        assertEquals(MatchPhase.SEMI_FINAL,
+                matches.get(5).getPhase());
+
+        assertEquals(1L,
+                matches.get(4).getPlayer1().getId());
+
+        assertEquals(3L,
+                matches.get(5).getPlayer1().getId());
     }
 
     private Category createCategory(Long id) {
