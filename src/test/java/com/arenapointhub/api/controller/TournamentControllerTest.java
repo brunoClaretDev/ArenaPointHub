@@ -20,8 +20,10 @@ import org.springframework.http.ResponseEntity;
 
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 import com.arenapointhub.api.service.GlobalRankingService;
@@ -42,6 +44,9 @@ class TournamentControllerTest {
     @Mock
     private PlayerRepository playerRepository;
 
+    @Mock
+    private CategoryRepository categoryRepository;
+
     private TournamentController tournamentController;
 
     @BeforeEach
@@ -50,7 +55,9 @@ class TournamentControllerTest {
                 tournamentService,
                 globalRankingService,
                 tournamentRepository,
-                playerRepository);
+                playerRepository,
+                categoryRepository
+        );
     }
 
     @Test
@@ -58,7 +65,8 @@ class TournamentControllerTest {
         TournamentRequestDTO request = new TournamentRequestDTO();
         TournamentResponseDTO expected = new TournamentResponseDTO();
 
-        when(tournamentService.createTournament(request)).thenReturn(expected);
+        when(tournamentService.createTournament(request))
+                .thenReturn(expected);
 
         ResponseEntity<TournamentResponseDTO> response =
                 tournamentController.createTournament(request);
@@ -74,7 +82,8 @@ class TournamentControllerTest {
         List<TournamentResponseDTO> expected =
                 List.of(new TournamentResponseDTO());
 
-        when(tournamentService.getAllTournaments()).thenReturn(expected);
+        when(tournamentService.getAllTournaments())
+                .thenReturn(expected);
 
         ResponseEntity<List<TournamentResponseDTO>> response =
                 tournamentController.getAllTournaments();
@@ -142,18 +151,26 @@ class TournamentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(
                 "Playoffs gerados com sucesso para o torneio ID: 1",
-                response.getBody());
+                response.getBody()
+        );
     }
 
     @Test
     void shouldDistributeTournamentPoints() {
         Long tournamentId = 1L;
-        Tournament tournament = new Tournament();
+
+        Tournament tournament = createTournament(tournamentId);
+        Category category = createCategory(1L, tournament);
+
         Player firstPlayer = new Player();
         Player secondPlayer = new Player();
 
         when(tournamentRepository.findById(tournamentId))
                 .thenReturn(Optional.of(tournament));
+
+        when(categoryRepository.findByTournamentId(tournamentId))
+                .thenReturn(List.of(category));
+
         when(playerRepository.findAll())
                 .thenReturn(List.of(firstPlayer, secondPlayer));
 
@@ -163,20 +180,50 @@ class TournamentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(
                 "Pontos distribuídos com sucesso para o ranking global!",
-                response.getBody());
+                response.getBody()
+        );
 
         verify(globalRankingService).distributeTournamentPoints(
                 tournament,
-                Map.of(firstPlayer, 1, secondPlayer, 2));
+                category,
+                Map.of(firstPlayer, 1, secondPlayer, 2)
+        );
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenTournamentHasNoCategories() {
+        Long tournamentId = 1L;
+        Tournament tournament = createTournament(tournamentId);
+
+        when(tournamentRepository.findById(tournamentId))
+                .thenReturn(Optional.of(tournament));
+
+        when(categoryRepository.findByTournamentId(tournamentId))
+                .thenReturn(List.of());
+
+        ResponseEntity<String> response =
+                tournamentController.testDistributePoints(tournamentId);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(
+                "O torneio não possui categorias cadastradas.",
+                response.getBody()
+        );
     }
 
     @Test
     void shouldReturnBadRequestWhenThereAreFewerThanTwoPlayers() {
         Long tournamentId = 1L;
-        Tournament tournament = new Tournament();
+
+        Tournament tournament = createTournament(tournamentId);
+        Category category = createCategory(1L, tournament);
 
         when(tournamentRepository.findById(tournamentId))
                 .thenReturn(Optional.of(tournament));
+
+        when(categoryRepository.findByTournamentId(tournamentId))
+                .thenReturn(List.of(category));
+
         when(playerRepository.findAll())
                 .thenReturn(List.of(new Player()));
 
@@ -186,7 +233,8 @@ class TournamentControllerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertEquals(
                 "O banco precisa ter pelo menos 2 jogadores cadastrados.",
-                response.getBody());
+                response.getBody()
+        );
     }
 
     @Test
@@ -198,10 +246,27 @@ class TournamentControllerTest {
 
         RuntimeException exception = assertThrows(
                 RuntimeException.class,
-                () -> tournamentController.testDistributePoints(tournamentId));
+                () -> tournamentController.testDistributePoints(tournamentId)
+        );
 
         assertEquals(
                 "Torneio não encontrado com ID: 99",
-                exception.getMessage());
+                exception.getMessage()
+        );
+    }
+
+    private Tournament createTournament(Long id) {
+        Tournament tournament = new Tournament();
+        tournament.setId(id);
+        tournament.setName("Tournament Test");
+        return tournament;
+    }
+
+    private Category createCategory(Long id, Tournament tournament) {
+        Category category = new Category();
+        category.setId(id);
+        category.setTournament(tournament);
+        category.setName("Category Test");
+        return category;
     }
 }

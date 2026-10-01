@@ -155,7 +155,8 @@ public class MatchService {
     public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
-
+        		boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
+        
         match.setScorePlayer1(dto.getScorePlayer1());
         match.setScorePlayer2(dto.getScorePlayer2());
 
@@ -180,7 +181,10 @@ public class MatchService {
         // Dispara o avanço caso a partida tenha sido finalizada
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
             advanceWinnerToNextRound(updatedMatch);
-            checkAndDistributePointsIfFinalFinished(updatedMatch);
+
+            if (!alreadyFinished) {
+                checkAndDistributePointsIfFinalFinished(updatedMatch);
+            }
         }
 
         return mapToResponseDTO(updatedMatch);
@@ -245,8 +249,11 @@ public class MatchService {
     @Transactional
     public MatchResponseDTO updateMatch(Long id, MatchRequestDTO dto) {
         Match match = matchRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + id));
+                .orElseThrow(() -> new BusinessException(
+                		"Partida não encontrada com ID: " + id));
 
+        boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
+        
         if (dto.getScorePlayer1() != null) {
             match.setScorePlayer1(dto.getScorePlayer1());
         }
@@ -260,8 +267,12 @@ public class MatchService {
         Match updatedMatch = matchRepository.save(match);
         
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+
             advanceWinnerToNextRound(updatedMatch);
-            checkAndDistributePointsIfFinalFinished(updatedMatch);
+
+            if (!alreadyFinished) {
+                checkAndDistributePointsIfFinalFinished(updatedMatch);
+            }
         }
 
         return mapToResponseDTO(updatedMatch);
@@ -269,10 +280,15 @@ public class MatchService {
 
     @Transactional
     public void saveMatchSets(Long matchId, MatchScoreRequestDTO dto) {
+
         Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+                .orElseThrow(() -> new BusinessException(
+                        "Partida não encontrada com ID: " + matchId));
+
+        boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
 
         for (MatchSetDTO setDto : dto.getSets()) {
+           
             int p1Score = setDto.getScorePlayer1();
             int p2Score = setDto.getScorePlayer2();
 
@@ -335,7 +351,10 @@ public class MatchService {
 
             // Dispara o avanço para a próxima fase apenas quando fechar o confronto
             advanceWinnerToNextRound(savedMatch);
-            checkAndDistributePointsIfFinalFinished(savedMatch);
+
+            if (!alreadyFinished) {
+                checkAndDistributePointsIfFinalFinished(savedMatch);
+            }
         } else {
             match.setStatus(MatchStatus.IN_PROGRESS);
             matchRepository.save(match);
@@ -413,7 +432,9 @@ public class MatchService {
     }
 
     private void checkAndDistributePointsIfFinalFinished(Match match) {
-        if (match.getPhase() == MatchPhase.FINAL && match.getStatus() == MatchStatus.FINISHED) {
+    	if (match.getPhase() == MatchPhase.FINAL
+    	        && (match.getStatus() == MatchStatus.FINISHED
+    	                || match.getStatus() == MatchStatus.WO)) {
             Tournament tournament = match.getCategory().getTournament();
 
             if (tournament != null) {
@@ -441,7 +462,10 @@ public class MatchService {
                 }
 
                 if (!playerPositions.isEmpty()) {
-                    globalRankingService.distributeTournamentPoints(tournament, playerPositions);
+                    globalRankingService.distributeTournamentPoints(
+                            tournament,
+                            match.getCategory(),
+                            playerPositions);
                 }
             }
         }

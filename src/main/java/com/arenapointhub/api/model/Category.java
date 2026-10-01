@@ -58,6 +58,9 @@ public class Category {
 	@Column(name = "sets_to_win_match")
 	private int setsToWinMatch = 2; // Padrão: 2 (melhor de 3)
 
+	@Column(name = "ranking_processed", nullable = false)
+	private boolean rankingProcessed = false;
+	
 	@ManyToMany
 	@JoinTable(
 		name = "registrations", 
@@ -181,6 +184,14 @@ public class Category {
 
 	public void setSetsToWinMatch(int setsToWinMatch) {
 	    this.setsToWinMatch = setsToWinMatch;
+	}
+	
+	public boolean isRankingProcessed() {
+	    return rankingProcessed;
+	}
+
+	public void setRankingProcessed(boolean rankingProcessed) {
+	    this.rankingProcessed = rankingProcessed;
 	}
 	
 }

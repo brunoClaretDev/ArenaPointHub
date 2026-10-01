@@ -3,70 +3,97 @@ package com.arenapointhub.api.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "player_global_ranking")
+@Table(
+    name = "player_global_ranking",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_ranking_player_category_year",
+            columnNames = {"player_id", "category_id", "ranking_year"}
+        )
+    }
+)
 public class PlayerGlobalRanking {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	@ManyToOne
-	@JoinColumn(name = "player_id", nullable = false)
-	private Player player;
+    @ManyToOne
+    @JoinColumn(name = "player_id", nullable = false)
+    private Player player;
 
-	@Column(name = "`year`", nullable = false)
-	private int year; // Ex: 2026
+    @ManyToOne
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 
-	private int totalPoints = 0;
-	private int tournamentsPlayed = 0;
+    @Column(name = "ranking_year", nullable = false)
+    private int year;
 
-	public PlayerGlobalRanking() {
-	}
+    private int totalPoints = 0;
 
-	public PlayerGlobalRanking(Player player, int year, int totalPoints, int tournamentsPlayed) {
-		this.player = player;
-		this.year = year;
-		this.totalPoints = totalPoints;
-		this.tournamentsPlayed = tournamentsPlayed;
-	}
+    private int tournamentsPlayed = 0;
 
-	public Long getId() {
-		return id;
-	}
+    public PlayerGlobalRanking() {
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public PlayerGlobalRanking(
+            Player player,
+            Category category,
+            int year,
+            int totalPoints,
+            int tournamentsPlayed) {
+        this.player = player;
+        this.category = category;
+        this.year = year;
+        this.totalPoints = totalPoints;
+        this.tournamentsPlayed = tournamentsPlayed;
+    }
 
-	public Player getPlayer() {
-		return player;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setPlayer(Player player) {
-		this.player = player;
-	}
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-	public int getYear() {
-		return year;
-	}
+    public Player getPlayer() {
+        return player;
+    }
 
-	public void setYear(int year) {
-		this.year = year;
-	}
+    public void setPlayer(Player player) {
+        this.player = player;
+    }
 
-	public int getTotalPoints() {
-		return totalPoints;
-	}
+    public Category getCategory() {
+        return category;
+    }
 
-	public void setTotalPoints(int totalPoints) {
-		this.totalPoints = totalPoints;
-	}
+    public void setCategory(Category category) {
+        this.category = category;
+    }
 
-	public int getTournamentsPlayed() {
-		return tournamentsPlayed;
-	}
+    public int getYear() {
+        return year;
+    }
 
-	public void setTournamentsPlayed(int tournamentsPlayed) {
-		this.tournamentsPlayed = tournamentsPlayed;
-	}
+    public void setYear(int year) {
+        this.year = year;
+    }
+
+    public int getTotalPoints() {
+        return totalPoints;
+    }
+
+    public void setTotalPoints(int totalPoints) {
+        this.totalPoints = totalPoints;
+    }
+
+    public int getTournamentsPlayed() {
+        return tournamentsPlayed;
+    }
+
+    public void setTournamentsPlayed(int tournamentsPlayed) {
+        this.tournamentsPlayed = tournamentsPlayed;
+    }
 }

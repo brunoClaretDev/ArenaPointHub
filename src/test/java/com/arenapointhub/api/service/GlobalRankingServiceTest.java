@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.PlayerGlobalRanking;
@@ -43,6 +43,7 @@ class GlobalRankingServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
         globalRankingService = new GlobalRankingService(
                 rankingRepository,
                 scoringConfigRepository
@@ -52,6 +53,7 @@ class GlobalRankingServiceTest {
     @Test
     void shouldDistributeClassicPoints() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
 
         Player champion = createPlayer(1L, "Champion");
         Player runnerUp = createPlayer(2L, "Runner Up");
@@ -60,109 +62,70 @@ class GlobalRankingServiceTest {
         config.setPointsChampion(100);
         config.setPointsRunnerUp(70);
 
-        Map<Player, Integer> positions = new HashMap<>();
-        positions.put(champion, 1);
-        positions.put(runnerUp, 2);
+        Map<Player, Integer> positions = Map.of(
+                champion, 1,
+                runnerUp, 2
+        );
 
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
-                any(Long.class),
-                any(Integer.class)))
-                .thenReturn(Optional.empty());
-
-        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockScoringConfig(config);
+        mockEmptyRankings();
 
         globalRankingService.distributeTournamentPoints(
                 tournament,
+                category,
                 positions
         );
 
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(champion)
-                                && ranking.getTotalPoints() == 100
-                                && ranking.getTournamentsPlayed() == 1
-                )
-        );
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 70, 1);
 
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(runnerUp)
-                                && ranking.getTotalPoints() == 70
-                                && ranking.getTournamentsPlayed() == 1
-                )
-        );
+        assertEquals(true, category.isRankingProcessed());
     }
 
     @Test
     void shouldDistributeByPositionPoints() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
 
         Player player = createPlayer(1L, "Player");
 
         TournamentScoringConfig config = createByPositionConfig();
         config.setPoints1stPlace(150);
 
-        Map<Player, Integer> positions = new HashMap<>();
-        positions.put(player, 1);
-
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
-                any(Long.class),
-                any(Integer.class)))
-                .thenReturn(Optional.empty());
-
-        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockScoringConfig(config);
+        mockEmptyRankings();
 
         globalRankingService.distributeTournamentPoints(
                 tournament,
-                positions
+                category,
+                Map.of(player, 1)
         );
 
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(player)
-                                && ranking.getTotalPoints() == 150
-                                && ranking.getTournamentsPlayed() == 1
-                )
-        );
+        verifyRankingSaved(player, 150, 1);
     }
 
     @Test
     void shouldCreateRankingWhenPlayerHasNoRankingForCurrentYear() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
         Player player = createPlayer(1L, "Player");
 
         TournamentScoringConfig config = createClassicConfig();
         config.setPointsChampion(100);
 
-        Map<Player, Integer> positions = Map.of(player, 1);
-
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
-                1L,
-                LocalDate.now().getYear()))
-                .thenReturn(Optional.empty());
-
-        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockScoringConfig(config);
+        mockEmptyRankings();
 
         globalRankingService.distributeTournamentPoints(
                 tournament,
-                positions
+                category,
+                Map.of(player, 1)
         );
 
         verify(rankingRepository).save(
                 org.mockito.ArgumentMatchers.argThat(ranking ->
                         ranking.getPlayer().equals(player)
+                                && ranking.getCategory().equals(category)
                                 && ranking.getYear() == LocalDate.now().getYear()
                                 && ranking.getTotalPoints() == 100
                                 && ranking.getTournamentsPlayed() == 1
@@ -173,6 +136,7 @@ class GlobalRankingServiceTest {
     @Test
     void shouldUpdateExistingRanking() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
         Player player = createPlayer(1L, "Player");
 
         TournamentScoringConfig config = createClassicConfig();
@@ -180,26 +144,26 @@ class GlobalRankingServiceTest {
 
         PlayerGlobalRanking ranking = new PlayerGlobalRanking();
         ranking.setPlayer(player);
+        ranking.setCategory(category);
         ranking.setYear(LocalDate.now().getYear());
         ranking.setTotalPoints(50);
         ranking.setTournamentsPlayed(2);
 
-        Map<Player, Integer> positions = Map.of(player, 1);
+        mockScoringConfig(config);
 
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
+        when(rankingRepository.findByPlayerIdAndCategoryIdAndYear(
                 1L,
-                LocalDate.now().getYear()))
-                .thenReturn(Optional.of(ranking));
+                1L,
+                LocalDate.now().getYear()
+        )).thenReturn(Optional.of(ranking));
 
         when(rankingRepository.save(any(PlayerGlobalRanking.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         globalRankingService.distributeTournamentPoints(
                 tournament,
-                positions
+                category,
+                Map.of(player, 1)
         );
 
         assertEquals(150, ranking.getTotalPoints());
@@ -211,6 +175,7 @@ class GlobalRankingServiceTest {
     @Test
     void shouldNotDistributePointsWhenScoringConfigDoesNotExist() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
         Player player = createPlayer(1L, "Player");
 
         when(scoringConfigRepository.findByTournamentId(1L))
@@ -220,6 +185,7 @@ class GlobalRankingServiceTest {
                 BusinessException.class,
                 () -> globalRankingService.distributeTournamentPoints(
                         tournament,
+                        category,
                         Map.of(player, 1)
                 )
         );
@@ -229,17 +195,20 @@ class GlobalRankingServiceTest {
                 exception.getMessage()
         );
 
-        verify(rankingRepository, never()).save(any(PlayerGlobalRanking.class));
+        verify(rankingRepository, never())
+                .save(any(PlayerGlobalRanking.class));
     }
 
     @Test
     void shouldProcessTournamentCompletionAndDistributeChampionAndRunnerUpPoints() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
 
         Player champion = createPlayer(1L, "Champion");
         Player runnerUp = createPlayer(2L, "Runner Up");
 
         Match finalMatch = createMatch(
+                category,
                 champion,
                 runnerUp,
                 MatchPhase.FINAL,
@@ -252,40 +221,22 @@ class GlobalRankingServiceTest {
         config.setPointsChampion(100);
         config.setPointsRunnerUp(70);
 
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
-                any(Long.class),
-                any(Integer.class)))
-                .thenReturn(Optional.empty());
-
-        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockScoringConfig(config);
+        mockEmptyRankings();
 
         globalRankingService.processTournamentCompletion(
                 tournament,
                 List.of(finalMatch)
         );
 
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(champion)
-                                && ranking.getTotalPoints() == 100
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(runnerUp)
-                                && ranking.getTotalPoints() == 70
-                )
-        );
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 70, 1);
     }
 
     @Test
     void shouldProcessSemiFinalAndQuarterFinalPositions() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
 
         Player champion = createPlayer(1L, "Champion");
         Player runnerUp = createPlayer(2L, "Runner Up");
@@ -295,6 +246,7 @@ class GlobalRankingServiceTest {
         Player sixth = createPlayer(6L, "Sixth");
 
         Match finalMatch = createMatch(
+                category,
                 champion,
                 runnerUp,
                 MatchPhase.FINAL,
@@ -304,6 +256,7 @@ class GlobalRankingServiceTest {
         );
 
         Match semi1 = createMatch(
+                category,
                 champion,
                 third,
                 MatchPhase.SEMI_FINAL,
@@ -313,6 +266,7 @@ class GlobalRankingServiceTest {
         );
 
         Match semi2 = createMatch(
+                category,
                 runnerUp,
                 fourth,
                 MatchPhase.SEMI_FINAL,
@@ -322,6 +276,7 @@ class GlobalRankingServiceTest {
         );
 
         Match quarter1 = createMatch(
+                category,
                 champion,
                 fifth,
                 MatchPhase.QUARTER_FINAL,
@@ -331,6 +286,7 @@ class GlobalRankingServiceTest {
         );
 
         Match quarter2 = createMatch(
+                category,
                 runnerUp,
                 sixth,
                 MatchPhase.QUARTER_FINAL,
@@ -345,16 +301,8 @@ class GlobalRankingServiceTest {
         config.setPointsSemiFinalsLoser(50);
         config.setPointsQuarterFinalsLoser(30);
 
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
-        when(rankingRepository.findByPlayerIdAndYear(
-                any(Long.class),
-                any(Integer.class)))
-                .thenReturn(Optional.empty());
-
-        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockScoringConfig(config);
+        mockEmptyRankings();
 
         globalRankingService.processTournamentCompletion(
                 tournament,
@@ -367,57 +315,24 @@ class GlobalRankingServiceTest {
                 )
         );
 
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(champion)
-                                && ranking.getTotalPoints() == 100
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(runnerUp)
-                                && ranking.getTotalPoints() == 70
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(third)
-                                && ranking.getTotalPoints() == 50
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(fourth)
-                                && ranking.getTotalPoints() == 50
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(fifth)
-                                && ranking.getTotalPoints() == 30
-                )
-        );
-
-        verify(rankingRepository).save(
-                org.mockito.ArgumentMatchers.argThat(ranking ->
-                        ranking.getPlayer().equals(sixth)
-                                && ranking.getTotalPoints() == 30
-                )
-        );
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 70, 1);
+        verifyRankingSaved(third, 50, 1);
+        verifyRankingSaved(fourth, 50, 1);
+        verifyRankingSaved(fifth, 30, 1);
+        verifyRankingSaved(sixth, 30, 1);
     }
 
     @Test
     void shouldNotDistributePointsWhenFinalIsInvalid() {
         Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match invalidFinal = createMatch(
+                category,
                 player1,
                 player2,
                 MatchPhase.FINAL,
@@ -426,18 +341,68 @@ class GlobalRankingServiceTest {
                 1
         );
 
-        TournamentScoringConfig config = createClassicConfig();
-
-        when(scoringConfigRepository.findByTournamentId(1L))
-                .thenReturn(Optional.of(config));
-
         globalRankingService.processTournamentCompletion(
                 tournament,
                 List.of(invalidFinal)
         );
 
-        verify(scoringConfigRepository).findByTournamentId(1L);
-        verify(rankingRepository, never()).save(any(PlayerGlobalRanking.class));
+        verify(scoringConfigRepository, never())
+                .findByTournamentId(1L);
+
+        verify(rankingRepository, never())
+                .save(any(PlayerGlobalRanking.class));
+    }
+
+    @Test
+    void shouldNotDistributePointsAgainWhenCategoryWasAlreadyProcessed() {
+        Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
+        category.setRankingProcessed(true);
+
+        Player player = createPlayer(1L, "Player");
+
+        globalRankingService.distributeTournamentPoints(
+                tournament,
+                category,
+                Map.of(player, 1)
+        );
+
+        verify(scoringConfigRepository, never())
+                .findByTournamentId(1L);
+
+        verify(rankingRepository, never())
+                .save(any(PlayerGlobalRanking.class));
+    }
+
+    private void mockScoringConfig(TournamentScoringConfig config) {
+        when(scoringConfigRepository.findByTournamentId(1L))
+                .thenReturn(Optional.of(config));
+    }
+
+    private void mockEmptyRankings() {
+        when(rankingRepository.findByPlayerIdAndCategoryIdAndYear(
+                any(Long.class),
+                any(Long.class),
+                any(Integer.class)
+        )).thenReturn(Optional.empty());
+
+        when(rankingRepository.save(any(PlayerGlobalRanking.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private void verifyRankingSaved(
+            Player player,
+            int expectedPoints,
+            int expectedTournamentsPlayed) {
+
+        verify(rankingRepository).save(
+                org.mockito.ArgumentMatchers.argThat(ranking ->
+                        ranking.getPlayer().equals(player)
+                                && ranking.getTotalPoints() == expectedPoints
+                                && ranking.getTournamentsPlayed()
+                                        == expectedTournamentsPlayed
+                )
+        );
     }
 
     private Tournament createTournament(Long id) {
@@ -447,11 +412,20 @@ class GlobalRankingServiceTest {
         return tournament;
     }
 
+    private Category createCategory(Long id, Tournament tournament) {
+        Category category = new Category();
+        category.setId(id);
+        category.setTournament(tournament);
+        return category;
+    }
+
     private Player createPlayer(Long id, String name) {
         Player player = new Player();
         player.setId(id);
         player.setName(name);
-        player.setEmail(name.toLowerCase().replace(" ", "") + "@email.com");
+        player.setEmail(
+                name.toLowerCase().replace(" ", "") + "@email.com"
+        );
         player.setBirthDate(LocalDate.of(2010, 1, 1));
         return player;
     }
@@ -469,6 +443,7 @@ class GlobalRankingServiceTest {
     }
 
     private Match createMatch(
+            Category category,
             Player player1,
             Player player2,
             MatchPhase phase,
@@ -477,6 +452,7 @@ class GlobalRankingServiceTest {
             int scorePlayer2) {
 
         Match match = new Match();
+        match.setCategory(category);
         match.setPlayer1(player1);
         match.setPlayer2(player2);
         match.setPhase(phase);

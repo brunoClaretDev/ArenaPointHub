@@ -17,9 +17,15 @@ public class GlobalRankingController {
         this.rankingRepository = rankingRepository;
     }
 
-    @GetMapping("/year/{year}")
-    public ResponseEntity<List<PlayerGlobalRanking>> getGlobalRankingByYear(@PathVariable int year) {
-        List<PlayerGlobalRanking> ranking = rankingRepository.findByYearOrderByTotalPointsDesc(year);
+    @GetMapping("/year/{year}/category/{categoryId}")
+    public ResponseEntity<List<PlayerGlobalRanking>> getGlobalRankingByYearAndCategory(
+            @PathVariable int year,
+            @PathVariable Long categoryId) {
+
+        List<PlayerGlobalRanking> ranking =
+                rankingRepository.findByCategoryIdAndYearOrderByTotalPointsDesc(
+                        categoryId, year);
+
         return ResponseEntity.ok(ranking);
     }
 }

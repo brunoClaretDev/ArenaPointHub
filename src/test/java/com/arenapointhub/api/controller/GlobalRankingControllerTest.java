@@ -21,6 +21,9 @@ import com.arenapointhub.api.repository.PlayerGlobalRankingRepository;
 @ExtendWith(MockitoExtension.class)
 class GlobalRankingControllerTest {
 
+    private static final int TEST_YEAR = 2026;
+    private static final Long TEST_CATEGORY_ID = 1L;
+
     @Mock
     private PlayerGlobalRankingRepository rankingRepository;
 
@@ -28,41 +31,50 @@ class GlobalRankingControllerTest {
 
     @BeforeEach
     void setUp() {
-        globalRankingController = new GlobalRankingController(rankingRepository);
+        globalRankingController =
+                new GlobalRankingController(rankingRepository);
     }
 
     @Test
-    void shouldGetGlobalRankingByYear() {
-        int year = 2026;
+    void shouldReturnGlobalRankingForYearAndCategory() {
         List<PlayerGlobalRanking> expectedRanking =
                 List.of(new PlayerGlobalRanking());
 
-        when(rankingRepository.findByYearOrderByTotalPointsDesc(year))
+        when(rankingRepository
+                .findByCategoryIdAndYearOrderByTotalPointsDesc(
+                        TEST_CATEGORY_ID, TEST_YEAR))
                 .thenReturn(expectedRanking);
 
         ResponseEntity<List<PlayerGlobalRanking>> response =
-                globalRankingController.getGlobalRankingByYear(year);
+                globalRankingController.getGlobalRankingByYearAndCategory(
+                        TEST_YEAR, TEST_CATEGORY_ID);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expectedRanking, response.getBody());
 
-        verify(rankingRepository).findByYearOrderByTotalPointsDesc(year);
+        verify(rankingRepository)
+                .findByCategoryIdAndYearOrderByTotalPointsDesc(
+                        TEST_CATEGORY_ID, TEST_YEAR);
     }
 
     @Test
-    void shouldReturnEmptyListWhenThereIsNoRankingForYear() {
-        int year = 2025;
+    void shouldReturnEmptyListWhenNoRankingExistsForYearAndCategory() {
         List<PlayerGlobalRanking> expectedRanking = List.of();
 
-        when(rankingRepository.findByYearOrderByTotalPointsDesc(year))
+        when(rankingRepository
+                .findByCategoryIdAndYearOrderByTotalPointsDesc(
+                        TEST_CATEGORY_ID, TEST_YEAR))
                 .thenReturn(expectedRanking);
 
         ResponseEntity<List<PlayerGlobalRanking>> response =
-                globalRankingController.getGlobalRankingByYear(year);
+                globalRankingController.getGlobalRankingByYearAndCategory(
+                        TEST_YEAR, TEST_CATEGORY_ID);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expectedRanking, response.getBody());
 
-        verify(rankingRepository).findByYearOrderByTotalPointsDesc(year);
+        verify(rankingRepository)
+                .findByCategoryIdAndYearOrderByTotalPointsDesc(
+                        TEST_CATEGORY_ID, TEST_YEAR);
     }
 }

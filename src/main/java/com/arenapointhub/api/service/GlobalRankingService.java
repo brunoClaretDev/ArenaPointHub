@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.PlayerGlobalRanking;
@@ -33,33 +34,57 @@ public class GlobalRankingService {
     }
 
     @Transactional
-    public void distributeTournamentPoints(Tournament tournament, Map<Player, Integer> playerPositions) {
-        TournamentScoringConfig config = scoringConfigRepository.findByTournamentId(tournament.getId())
-                .orElseThrow(() -> new BusinessException("Configuração de pontuação não encontrada para este torneio."));
+    public void distributeTournamentPoints(
+            Tournament tournament,
+            Category category,
+            Map<Player, Integer> playerPositions) {
+
+    	if (category.isRankingProcessed()) {
+    	    return;
+    	}
+
+    	if (playerPositions == null || playerPositions.isEmpty()) {
+    	    return;
+    	}
+    	
+        TournamentScoringConfig config =
+                scoringConfigRepository.findByTournamentId(tournament.getId())
+                        .orElseThrow(() -> new BusinessException(
+                                "Configuração de pontuação não encontrada para este torneio."));
 
         int currentYear = LocalDate.now().getYear();
 
         for (Map.Entry<Player, Integer> entry : playerPositions.entrySet()) {
             Player player = entry.getKey();
-            int position = entry.getValue(); // 1 para Campeão, 2 para Vice, etc.
+            int position = entry.getValue();
 
             int pointsEarned = calculatePointsForPosition(config, position);
 
-            PlayerGlobalRanking globalRanking = rankingRepository.findByPlayerIdAndYear(player.getId(), currentYear)
+            PlayerGlobalRanking globalRanking = rankingRepository
+                    .findByPlayerIdAndCategoryIdAndYear(
+                            player.getId(),
+                            category.getId(),
+                            currentYear)
                     .orElseGet(() -> {
                         PlayerGlobalRanking newRanking = new PlayerGlobalRanking();
                         newRanking.setPlayer(player);
+                        newRanking.setCategory(category);
                         newRanking.setYear(currentYear);
                         newRanking.setTotalPoints(0);
                         newRanking.setTournamentsPlayed(0);
                         return newRanking;
                     });
 
-            globalRanking.setTotalPoints(globalRanking.getTotalPoints() + pointsEarned);
-            globalRanking.setTournamentsPlayed(globalRanking.getTournamentsPlayed() + 1);
+            globalRanking.setTotalPoints(
+                    globalRanking.getTotalPoints() + pointsEarned);
+
+            globalRanking.setTournamentsPlayed(
+                    globalRanking.getTournamentsPlayed() + 1);
 
             rankingRepository.save(globalRanking);
         }
+        
+        category.setRankingProcessed(true);
     }
 
     private int calculatePointsForPosition(TournamentScoringConfig config, int position) {
@@ -92,9 +117,21 @@ public class GlobalRankingService {
     }
     
     @Transactional
-    public void processTournamentCompletion(Tournament tournament, List<Match> matches) {
-        Map<Player, Integer> playerPositions = determinePlayerPositions(matches);
-        distributeTournamentPoints(tournament, playerPositions);
+    public void processTournamentCompletion(
+            Tournament tournament,
+            List<Match> matches) {
+
+        Category category = matches.stream()
+                .map(Match::getCategory)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(
+                        "Não foi possível identificar a categoria do torneio."));
+
+        Map<Player, Integer> playerPositions =
+                determinePlayerPositions(matches);
+
+        distributeTournamentPoints(tournament, category, playerPositions);
     }
 
     private Map<Player, Integer> determinePlayerPositions(List<Match> matches) {

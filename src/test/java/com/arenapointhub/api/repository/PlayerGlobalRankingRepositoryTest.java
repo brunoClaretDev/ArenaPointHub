@@ -12,95 +12,152 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.TestConstructor.AutowireMode;
 
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.PlayerGlobalRanking;
+import com.arenapointhub.api.model.Tournament;
 
-@DataJpaTest
+@DataJpaTest(properties = {
+	    "spring.jpa.hibernate.ddl-auto=create-drop"
+	})
 @TestConstructor(autowireMode = AutowireMode.ALL)
 class PlayerGlobalRankingRepositoryTest {
 
     private final PlayerGlobalRankingRepository playerGlobalRankingRepository;
     private final PlayerRepository playerRepository;
+    private final CategoryRepository categoryRepository;
+    private final TournamentRepository tournamentRepository;
 
     PlayerGlobalRankingRepositoryTest(
             PlayerGlobalRankingRepository playerGlobalRankingRepository,
-            PlayerRepository playerRepository) {
+            PlayerRepository playerRepository,
+            CategoryRepository categoryRepository,
+            TournamentRepository tournamentRepository) {
 
         this.playerGlobalRankingRepository = playerGlobalRankingRepository;
         this.playerRepository = playerRepository;
+        this.categoryRepository = categoryRepository;
+        this.tournamentRepository = tournamentRepository;
     }
 
     @Test
-    void shouldFindRankingByPlayerIdAndYear() {
-        Player player = new Player();
-        player.setName("Jogador Teste");
-        player.setEmail("jogador.ranking@email.com");
-        player.setBirthDate(LocalDate.of(2012, 5, 10));
+    void shouldFindRankingByPlayerIdCategoryIdAndYear() {
+        Player savedPlayer = createAndSavePlayer(
+                "Jogador Teste",
+                "jogador.ranking@email.com"
+        );
 
-        Player savedPlayer = playerRepository.save(player);
+        Category savedCategory = createAndSaveCategory(
+                "Categoria Teste"
+        );
 
         PlayerGlobalRanking ranking = new PlayerGlobalRanking(
                 savedPlayer,
+                savedCategory,
                 2026,
                 150,
-                5);
+                5
+        );
 
         playerGlobalRankingRepository.save(ranking);
 
         Optional<PlayerGlobalRanking> foundRanking =
-                playerGlobalRankingRepository.findByPlayerIdAndYear(
-                        savedPlayer.getId(),
-                        2026);
+                playerGlobalRankingRepository
+                        .findByPlayerIdAndCategoryIdAndYear(
+                                savedPlayer.getId(),
+                                savedCategory.getId(),
+                                2026
+                        );
 
         assertTrue(foundRanking.isPresent());
-        assertEquals(savedPlayer.getId(), foundRanking.get().getPlayer().getId());
+        assertEquals(
+                savedPlayer.getId(),
+                foundRanking.get().getPlayer().getId()
+        );
+        assertEquals(
+                savedCategory.getId(),
+                foundRanking.get().getCategory().getId()
+        );
         assertEquals(2026, foundRanking.get().getYear());
         assertEquals(150, foundRanking.get().getTotalPoints());
         assertEquals(5, foundRanking.get().getTournamentsPlayed());
     }
 
     @Test
-    void shouldFindRankingsByYearOrderedByTotalPointsDescending() {
-        Player player1 = new Player();
-        player1.setName("Jogador 1");
-        player1.setEmail("jogador1.ranking@email.com");
-        player1.setBirthDate(LocalDate.of(2012, 5, 10));
+    void shouldFindRankingsByCategoryAndYearOrderedByTotalPointsDescending() {
+        Player savedPlayer1 = createAndSavePlayer(
+                "Jogador 1",
+                "jogador1.ranking@email.com"
+        );
 
-        Player player2 = new Player();
-        player2.setName("Jogador 2");
-        player2.setEmail("jogador2.ranking@email.com");
-        player2.setBirthDate(LocalDate.of(2011, 6, 15));
+        Player savedPlayer2 = createAndSavePlayer(
+                "Jogador 2",
+                "jogador2.ranking@email.com"
+        );
 
-        Player savedPlayer1 = playerRepository.save(player1);
-        Player savedPlayer2 = playerRepository.save(player2);
+        Category savedCategory = createAndSaveCategory(
+                "Categoria Teste"
+        );
 
         PlayerGlobalRanking ranking1 = new PlayerGlobalRanking(
                 savedPlayer1,
+                savedCategory,
                 2026,
                 100,
-                4);
+                4
+        );
 
         PlayerGlobalRanking ranking2 = new PlayerGlobalRanking(
                 savedPlayer2,
+                savedCategory,
                 2026,
                 250,
-                6);
+                6
+        );
 
         playerGlobalRankingRepository.save(ranking1);
         playerGlobalRankingRepository.save(ranking2);
 
         List<PlayerGlobalRanking> rankings =
                 playerGlobalRankingRepository
-                        .findByYearOrderByTotalPointsDesc(2026);
+                        .findByCategoryIdAndYearOrderByTotalPointsDesc(
+                                savedCategory.getId(),
+                                2026
+                        );
 
         assertEquals(2, rankings.size());
         assertEquals(250, rankings.get(0).getTotalPoints());
         assertEquals(100, rankings.get(1).getTotalPoints());
+
         assertEquals(
                 savedPlayer2.getId(),
-                rankings.get(0).getPlayer().getId());
+                rankings.get(0).getPlayer().getId()
+        );
         assertEquals(
                 savedPlayer1.getId(),
-                rankings.get(1).getPlayer().getId());
+                rankings.get(1).getPlayer().getId()
+        );
+    }
+
+    private Player createAndSavePlayer(String name, String email) {
+        Player player = new Player();
+        player.setName(name);
+        player.setEmail(email);
+        player.setBirthDate(LocalDate.of(2012, 5, 10));
+
+        return playerRepository.save(player);
+    }
+
+    private Category createAndSaveCategory(String name) {
+        Tournament tournament = new Tournament();
+        tournament.setName("Torneio de Teste");
+
+        Tournament savedTournament = tournamentRepository.save(tournament);
+
+        Category category = new Category();
+        category.setName(name);
+        category.setTournament(savedTournament);
+
+        return categoryRepository.save(category);
     }
 }
