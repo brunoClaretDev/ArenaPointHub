@@ -14,6 +14,7 @@ import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.GroupRepository;
 import com.arenapointhub.api.repository.MatchRepository;
@@ -52,7 +53,9 @@ public class StandingService {
 
         for (Match match : matches) {
             // Considera apenas partidas finalizadas e que envolvem jogadores deste grupo
-            if (match.getStatus() == MatchStatus.FINISHED) {
+        	if (match.getPhase() == MatchPhase.GROUP
+        	        && (match.getStatus() == MatchStatus.FINISHED
+        	        || match.getStatus() == MatchStatus.WO)) {
                 Long p1Id = match.getPlayer1().getId();
                 Long p2Id = match.getPlayer2().getId();
 

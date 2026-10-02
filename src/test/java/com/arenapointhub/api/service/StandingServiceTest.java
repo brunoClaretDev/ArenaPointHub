@@ -243,6 +243,108 @@ class StandingServiceTest {
                 exception.getMessage()
         );
     }
+    
+    @Test
+    void shouldIgnoreFinishedPlayoffMatchesWhenCalculatingGroupStandings() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Group group = createGroup(
+                10L,
+                category,
+                player1,
+                player2
+        );
+
+        Match playoffMatch = createMatch(
+                20L,
+                category,
+                player1,
+                player2,
+                MatchStatus.FINISHED,
+                3,
+                0
+        );
+
+        playoffMatch.setPhase(MatchPhase.ROUND_OF_16);
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(playoffMatch));
+
+        List<StandingDTO> standings =
+                standingService.calculateGroupStandings(10L);
+
+        assertEquals(2, standings.size());
+
+        for (StandingDTO standing : standings) {
+            assertEquals(0, standing.getPlayed());
+            assertEquals(0, standing.getWins());
+            assertEquals(0, standing.getLosses());
+            assertEquals(0, standing.getPoints());
+            assertEquals(0, standing.getSetsWon());
+            assertEquals(0, standing.getSetsLost());
+        }
+    }
+    
+    @Test
+    void shouldCalculateStandingsForWalkoverMatches() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Group group = createGroup(
+                10L,
+                category,
+                player1,
+                player2
+        );
+
+        Match walkoverMatch = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchStatus.WO,
+                3,
+                0
+        );
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(walkoverMatch));
+
+        List<StandingDTO> standings =
+                standingService.calculateGroupStandings(10L);
+
+        assertEquals(2, standings.size());
+
+        StandingDTO winner = standings.get(0);
+        StandingDTO loser = standings.get(1);
+
+        assertEquals(1L, winner.getPlayerId());
+        assertEquals(3, winner.getPoints());
+        assertEquals(1, winner.getPlayed());
+        assertEquals(1, winner.getWins());
+        assertEquals(0, winner.getLosses());
+        assertEquals(3, winner.getSetsWon());
+        assertEquals(0, winner.getSetsLost());
+
+        assertEquals(2L, loser.getPlayerId());
+        assertEquals(1, loser.getPoints());
+        assertEquals(1, loser.getPlayed());
+        assertEquals(0, loser.getWins());
+        assertEquals(1, loser.getLosses());
+        assertEquals(0, loser.getSetsWon());
+        assertEquals(3, loser.getSetsLost());
+    }
 
     private Category createCategory(Long id) {
         Category category = new Category();
