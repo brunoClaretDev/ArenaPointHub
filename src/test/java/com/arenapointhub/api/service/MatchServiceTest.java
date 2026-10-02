@@ -679,6 +679,75 @@ class MatchServiceTest {
         verify(matchRepository).save(finalMatch);
     }
 
+    @Test
+    void shouldAdvanceWalkoverWinnerFromSemiFinalToFinal() {
+        Category category = createCategory(1L);
+
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+        Player otherWinner = createPlayer(3L, "Other Winner");
+
+        Match semiFinal1 = createMatch(
+                20L,
+                category,
+                winner,
+                opponent,
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        Match semiFinal2 = createMatch(
+                21L,
+                category,
+                otherWinner,
+                null,
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        Match finalMatch = createMatch(
+                30L,
+                category,
+                null,
+                null,
+                MatchPhase.FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(20L))
+                .thenReturn(Optional.of(semiFinal1));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(
+                        semiFinal1,
+                        semiFinal2,
+                        finalMatch
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(1L);
+
+        MatchResponseDTO response =
+                matchService.registerWalkover(20L, dto);
+
+        assertEquals(MatchStatus.WO, response.getStatus());
+        assertEquals(2, response.getScorePlayer1());
+        assertEquals(0, response.getScorePlayer2());
+
+        assertEquals(winner, finalMatch.getPlayer1());
+
+        verify(matchRepository).save(finalMatch);
+    }
+    
     private MatchRequestDTO createMatchRequest(
             Long categoryId,
             Long player1Id,
