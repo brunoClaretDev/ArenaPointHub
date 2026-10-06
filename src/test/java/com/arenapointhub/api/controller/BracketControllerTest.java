@@ -33,24 +33,34 @@ class BracketControllerTest {
 
     @Test
     void shouldGenerateKnockoutBracket() {
-        Long categoryId = 1L;
-        int targetBracketSize = 8;
 
-        BracketResponseDTO expectedResponse = new BracketResponseDTO();
+        Long categoryId = 1L;
+
+        BracketResponseDTO expectedResponse =
+                new BracketResponseDTO();
+
         expectedResponse.setCategoryId(categoryId);
         expectedResponse.setCategoryName("Categoria Sub-13");
-        expectedResponse.setTargetBracketSize(targetBracketSize);
+        expectedResponse.setTargetBracketSize(8);
         expectedResponse.setMatches(Collections.emptyList());
 
-        when(bracketService.generateKnockoutBracket(categoryId, targetBracketSize))
+        when(bracketService.generateKnockoutBracket(categoryId))
                 .thenReturn(expectedResponse);
 
         ResponseEntity<BracketResponseDTO> response =
-                bracketController.generateKnockoutBracket(categoryId, targetBracketSize);
+                bracketController.generateKnockoutBracket(categoryId);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertSame(expectedResponse, response.getBody());
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
 
-        verify(bracketService).generateKnockoutBracket(categoryId, targetBracketSize);
+        assertSame(
+                expectedResponse,
+                response.getBody()
+        );
+
+        verify(bracketService)
+                .generateKnockoutBracket(categoryId);
     }
 }

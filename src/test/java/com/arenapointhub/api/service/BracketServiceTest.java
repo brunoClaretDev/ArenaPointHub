@@ -239,7 +239,7 @@ class BracketServiceTest {
         });
 
         BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(1L, 4);
+        		bracketService.generateKnockoutBracket(1L);
 
         assertEquals(1L, response.getCategoryId());
         assertEquals("Sub 15", response.getCategoryName());
@@ -319,7 +319,7 @@ class BracketServiceTest {
                 });
 
         BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(1L, 8);
+                bracketService.generateKnockoutBracket(1L);
 
         assertEquals(7, response.getMatches().size());
 

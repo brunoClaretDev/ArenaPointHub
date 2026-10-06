@@ -4,7 +4,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.arenapointhub.api.dto.BracketResponseDTO;
@@ -22,9 +21,11 @@ public class BracketController {
 
     @PostMapping("/generate/{categoryId}")
     public ResponseEntity<BracketResponseDTO> generateKnockoutBracket(
-            @PathVariable Long categoryId,
-            @RequestParam int targetBracketSize) {
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(categoryId, targetBracketSize);
+            @PathVariable Long categoryId) {
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(categoryId);
+
         return ResponseEntity.ok(response);
     }
 }
