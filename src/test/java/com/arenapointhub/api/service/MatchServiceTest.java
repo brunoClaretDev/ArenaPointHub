@@ -941,6 +941,47 @@ class MatchServiceTest {
         verify(matchRepository).save(finalMatch);
     }
     
+    @Test
+    void shouldDistributeTournamentPointsWhenFinalIsFinished() {
+        Category category = createCategory(1L);
+
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L,
+                category,
+                winner,
+                loser,
+                MatchPhase.FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(30L))
+                .thenReturn(Optional.of(finalMatch));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(finalMatch));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        matchService.updateScore(30L, dto);
+
+        verify(globalRankingService).distributeTournamentPoints(
+                any(Tournament.class),
+                any(Category.class),
+                any()
+        );
+    }
+    
     private MatchRequestDTO createMatchRequest(
             Long categoryId,
             Long player1Id,
