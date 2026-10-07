@@ -3,6 +3,7 @@ package com.arenapointhub.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -164,7 +165,6 @@ class BracketServiceTest {
     @Test
     void shouldGenerateFirstRoundKnockoutBracket() {
         Category category = createCategory();
-
         List<Group> groups = createGroups(2, category);
 
         Player player1 = createPlayer(1L, "Player 1");
@@ -196,28 +196,10 @@ class BracketServiceTest {
     @Test
     void shouldDistributeByesAcrossDifferentSemifinals() {
         Category category = createCategory();
-
         List<Group> groups = createGroups(3, category);
 
-        Player player1 = createPlayer(1L, "Player 1");
-        Player player2 = createPlayer(2L, "Player 2");
-        Player player3 = createPlayer(3L, "Player 3");
-        Player player4 = createPlayer(4L, "Player 4");
-        Player player5 = createPlayer(5L, "Player 5");
-        Player player6 = createPlayer(6L, "Player 6");
-
         mockCategoryAndGroups(category, groups);
-        mockGroupStandings(1L, player1, player2);
-        mockGroupStandings(2L, player3, player4);
-        mockGroupStandings(3L, player5, player6);
-        mockPlayers(
-                player1,
-                player2,
-                player3,
-                player4,
-                player5,
-                player6
-        );
+        mockQualifiedPlayers(3);
         mockMatchSave();
 
         BracketResponseDTO response =
@@ -227,65 +209,21 @@ class BracketServiceTest {
 
         List<Match> matches = captureSavedMatches(9);
 
-        assertEquals(
-                MatchPhase.QUARTER_FINAL,
-                matches.get(0).getPhase()
-        );
+        assertByeMatch(matches.get(0), 1L);
+        assertByeMatch(matches.get(2), 3L);
 
-        assertEquals(
-                MatchStatus.FINISHED,
-                matches.get(0).getStatus()
-        );
+        assertEquals(MatchPhase.SEMI_FINAL, matches.get(4).getPhase());
+        assertEquals(MatchPhase.SEMI_FINAL, matches.get(5).getPhase());
 
-        assertEquals(
-                1L,
-                matches.get(0).getPlayer1().getId()
-        );
-
-        assertNull(matches.get(0).getPlayer2());
-
-        assertEquals(
-                MatchStatus.FINISHED,
-                matches.get(2).getStatus()
-        );
-
-        assertEquals(
-                3L,
-                matches.get(2).getPlayer1().getId()
-        );
-
-        assertNull(matches.get(2).getPlayer2());
-
-        assertEquals(
-                MatchPhase.SEMI_FINAL,
-                matches.get(4).getPhase()
-        );
-
-        assertEquals(
-                MatchPhase.SEMI_FINAL,
-                matches.get(5).getPhase()
-        );
-
-        assertEquals(
-                1L,
-                matches.get(4).getPlayer1().getId()
-        );
-
-        assertEquals(
-                3L,
-                matches.get(5).getPlayer1().getId()
-        );
+        assertEquals(1L, matches.get(4).getPlayer1().getId());
+        assertEquals(3L, matches.get(5).getPlayer1().getId());
     }
 
     @Test
     void shouldGenerateCorrectSeedingForEightGroups() {
         Category category = createCategory();
 
-        List<Group> groups = createGroups(8, category);
-
-        mockCategoryAndGroups(category, groups);
-        mockQualifiedPlayers(8);
-        mockMatchSave();
+        prepareBracketScenario(category, 8);
 
         BracketResponseDTO response =
                 bracketService.generateKnockoutBracket(CATEGORY_ID);
@@ -309,11 +247,7 @@ class BracketServiceTest {
     void shouldGenerateCorrectSeedingForFourGroups() {
         Category category = createCategory();
 
-        List<Group> groups = createGroups(4, category);
-
-        mockCategoryAndGroups(category, groups);
-        mockQualifiedPlayers(4);
-        mockMatchSave();
+        prepareBracketScenario(category, 4);
 
         BracketResponseDTO response =
                 bracketService.generateKnockoutBracket(CATEGORY_ID);
@@ -328,16 +262,12 @@ class BracketServiceTest {
         assertMatch(matches.get(2), 5L, 2L);
         assertMatch(matches.get(3), 3L, 8L);
     }
-    
+
     @Test
     void shouldDistributeSixByesForFiveGroups() {
         Category category = createCategory();
 
-        List<Group> groups = createGroups(5, category);
-
-        mockCategoryAndGroups(category, groups);
-        mockQualifiedPlayers(5);
-        mockMatchSave();
+        prepareBracketScenario(category, 5);
 
         BracketResponseDTO response =
                 bracketService.generateKnockoutBracket(CATEGORY_ID);
@@ -346,23 +276,14 @@ class BracketServiceTest {
         assertEquals(15, response.getMatches().size());
 
         List<Match> matches = captureSavedMatches(21);
-
-        // Primeira fase: 8 partidas
-        List<Match> firstRoundMatches =
-                matches.subList(0, 8);
+        List<Match> firstRoundMatches = matches.subList(0, 8);
 
         long byeCount = firstRoundMatches.stream()
-                .filter(match ->
-                        match.getStatus() == MatchStatus.FINISHED
-                        && ((match.getPlayer1() != null
-                                && match.getPlayer2() == null)
-                            || (match.getPlayer2() != null
-                                && match.getPlayer1() == null)))
+                .filter(this::isByeMatch)
                 .count();
 
         assertEquals(6, byeCount);
 
-        // Os seis BYEs devem ser dos jogadores definidos pela regra
         assertBye(firstRoundMatches, 1L);
         assertBye(firstRoundMatches, 3L);
         assertBye(firstRoundMatches, 5L);
@@ -370,7 +291,6 @@ class BracketServiceTest {
         assertBye(firstRoundMatches, 9L);
         assertBye(firstRoundMatches, 4L);
 
-        // Os quatro jogadores sem BYE devem formar duas partidas
         List<Match> scheduledMatches = firstRoundMatches.stream()
                 .filter(match ->
                         match.getStatus() == MatchStatus.SCHEDULED)
@@ -378,28 +298,54 @@ class BracketServiceTest {
 
         assertEquals(2, scheduledMatches.size());
 
-        assertContainsPlayers(
-                scheduledMatches,
-                6L,
-                8L
-        );
-
-        assertContainsPlayers(
-                scheduledMatches,
-                2L,
-                10L
-        );
+        assertContainsPlayers(scheduledMatches, 6L, 8L);
+        assertContainsPlayers(scheduledMatches, 2L, 10L);
     }
 
+    @Test
+    void shouldDistributeFourByesForSixGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 6);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(19);
+        List<Match> firstRoundMatches = matches.subList(0, 8);
+
+        long byeCount = firstRoundMatches.stream()
+                .filter(this::isByeMatch)
+                .count();
+
+        assertEquals(4, byeCount);
+
+        assertBye(firstRoundMatches, 1L);
+        assertBye(firstRoundMatches, 3L);
+        assertBye(firstRoundMatches, 5L);
+        assertBye(firstRoundMatches, 7L);
+
+        List<Match> scheduledMatches = firstRoundMatches.stream()
+                .filter(match ->
+                        match.getStatus() == MatchStatus.SCHEDULED)
+                .toList();
+
+        assertEquals(4, scheduledMatches.size());
+
+        assertContainsPlayers(scheduledMatches, 11L, 6L);
+        assertContainsPlayers(scheduledMatches, 8L, 10L);
+        assertContainsPlayers(scheduledMatches, 9L, 2L);
+        assertContainsPlayers(scheduledMatches, 4L, 12L);
+    }
+    
     @Test
     void shouldGenerateCorrectSeedingForTwoGroups() {
         Category category = createCategory();
 
-        List<Group> groups = createGroups(2, category);
-
-        mockCategoryAndGroups(category, groups);
-        mockQualifiedPlayers(2);
-        mockMatchSave();
+        prepareBracketScenario(category, 2);
 
         BracketResponseDTO response =
                 bracketService.generateKnockoutBracket(CATEGORY_ID);
@@ -411,6 +357,18 @@ class BracketServiceTest {
 
         assertMatch(matches.get(0), 1L, 4L);
         assertMatch(matches.get(1), 2L, 3L);
+    }
+
+    private void prepareBracketScenario(
+            Category category,
+            int groupCount) {
+
+        List<Group> groups =
+                createGroups(groupCount, category);
+
+        mockCategoryAndGroups(category, groups);
+        mockQualifiedPlayers(groupCount);
+        mockMatchSave();
     }
 
     private void mockQualifiedPlayers(int groupCount) {
@@ -434,7 +392,8 @@ class BracketServiceTest {
             long groupId,
             Player... players) {
 
-        List<GroupStandingDTO> standings = new ArrayList<>();
+        List<GroupStandingDTO> standings =
+                new ArrayList<>();
 
         for (Player player : players) {
             standings.add(createStanding(player));
@@ -488,32 +447,46 @@ class BracketServiceTest {
             long player1Id,
             long player2Id) {
 
-        assertEquals(
-                player1Id,
-                match.getPlayer1().getId()
-        );
-
-        assertEquals(
-                player2Id,
-                match.getPlayer2().getId()
-        );
+        assertEquals(player1Id, match.getPlayer1().getId());
+        assertEquals(player2Id, match.getPlayer2().getId());
     }
 
     private void assertBye(
             List<Match> matches,
             long playerId) {
 
-        boolean found = matches.stream()
-                .anyMatch(match ->
-                        match.getStatus() == MatchStatus.FINISHED
-                        && ((match.getPlayer1() != null
-                                && match.getPlayer1().getId() == playerId
-                                && match.getPlayer2() == null)
-                            || (match.getPlayer2() != null
-                                && match.getPlayer2().getId() == playerId
-                                && match.getPlayer1() == null)));
+        assertTrue(
+                matches.stream()
+                        .anyMatch(match ->
+                                isByeMatch(match)
+                                && getByePlayerId(match) == playerId)
+        );
+    }
 
-        assertEquals(true, found);
+    private void assertByeMatch(
+            Match match,
+            long playerId) {
+
+        assertEquals(MatchStatus.FINISHED, match.getStatus());
+        assertEquals(playerId, getByePlayerId(match));
+    }
+
+    private boolean isByeMatch(Match match) {
+        return match.getStatus() == MatchStatus.FINISHED
+                && ((match.getPlayer1() != null
+                        && match.getPlayer2() == null)
+                    || (match.getPlayer1() == null
+                        && match.getPlayer2() != null));
+    }
+
+    private long getByePlayerId(Match match) {
+        if (match.getPlayer1() != null) {
+            assertNull(match.getPlayer2());
+            return match.getPlayer1().getId();
+        }
+
+        assertNull(match.getPlayer1());
+        return match.getPlayer2().getId();
     }
 
     private void assertContainsPlayers(
@@ -521,18 +494,36 @@ class BracketServiceTest {
             long player1Id,
             long player2Id) {
 
-        boolean found = matches.stream()
-                .anyMatch(match ->
-                        match.getPlayer1() != null
-                        && match.getPlayer2() != null
-                        && ((match.getPlayer1().getId() == player1Id
-                                && match.getPlayer2().getId() == player2Id)
-                            || (match.getPlayer1().getId() == player2Id
-                                && match.getPlayer2().getId() == player1Id)));
-
-        assertEquals(true, found);
+        assertTrue(
+                matches.stream()
+                        .anyMatch(match ->
+                                match.getPlayer1() != null
+                                && match.getPlayer2() != null
+                                && samePlayers(
+                                        match,
+                                        player1Id,
+                                        player2Id
+                                ))
+        );
     }
-    
+
+    private boolean samePlayers(
+            Match match,
+            long player1Id,
+            long player2Id) {
+
+        long actualPlayer1 =
+                match.getPlayer1().getId();
+
+        long actualPlayer2 =
+                match.getPlayer2().getId();
+
+        return (actualPlayer1 == player1Id
+                && actualPlayer2 == player2Id)
+                || (actualPlayer1 == player2Id
+                && actualPlayer2 == player1Id);
+    }
+
     private List<Group> createGroups(
             int quantity,
             Category category) {
@@ -541,11 +532,11 @@ class BracketServiceTest {
 
         for (int i = 1; i <= quantity; i++) {
             groups.add(
-            		createGroup(
-            		        (long) i,
-            		        "Grupo " + (char) ('A' + i - 1),
-            		        category
-            		)
+                    createGroup(
+                            (long) i,
+                            "Grupo " + (char) ('A' + i - 1),
+                            category
+                    )
             );
         }
 
@@ -566,6 +557,7 @@ class BracketServiceTest {
             Category category) {
 
         Group group = new Group();
+
         group.setId(id);
         group.setName(name);
         group.setCategory(category);
@@ -579,6 +571,7 @@ class BracketServiceTest {
             String name) {
 
         Player player = new Player();
+
         player.setId(id);
         player.setName(name);
         player.setEmail(
@@ -594,8 +587,11 @@ class BracketServiceTest {
         return player;
     }
 
-    private GroupStandingDTO createStanding(Player player) {
-        GroupStandingDTO standing = new GroupStandingDTO();
+    private GroupStandingDTO createStanding(
+            Player player) {
+
+        GroupStandingDTO standing =
+                new GroupStandingDTO();
 
         standing.setPlayerId(player.getId());
         standing.setPlayerName(player.getName());
