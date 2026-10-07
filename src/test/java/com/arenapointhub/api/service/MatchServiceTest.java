@@ -285,6 +285,53 @@ class MatchServiceTest {
 
         verify(matchRepository).findAll();
     }
+    
+    @Test
+    void shouldReturnMatchesByCategory() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+
+        Match match1 = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        Match match2 = createMatch(
+                11L,
+                category,
+                player2,
+                player3,
+                MatchPhase.GROUP,
+                MatchStatus.FINISHED,
+                2,
+                1
+        );
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(match1, match2));
+
+        List<MatchResponseDTO> response =
+                matchService.getMatchesByCategory(1L);
+
+        assertEquals(2, response.size());
+
+        assertEquals(10L, response.get(0).getId());
+        assertEquals(11L, response.get(1).getId());
+
+        assertEquals(1L, response.get(0).getCategoryId());
+        assertEquals(1L, response.get(1).getCategoryId());
+
+        verify(matchRepository).findByCategoryId(1L);
+    }
 
     @Test
     void shouldNotReturnMatchWhenIdDoesNotExist() {
