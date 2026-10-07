@@ -614,6 +614,61 @@ class MatchServiceTest {
     }
     
     @Test
+    void shouldAdvanceByeWinnerFromQuarterFinalToSemiFinal() {
+        Category category = createCategory(1L);
+
+        Player byeWinner = createPlayer(1L, "Bye Winner");
+
+        Match quarterFinal = createMatch(
+                10L,
+                category,
+                byeWinner,
+                null,
+                MatchPhase.QUARTER_FINAL,
+                MatchStatus.FINISHED,
+                0,
+                0
+        );
+
+        Match semiFinal = createMatch(
+                20L,
+                category,
+                null,
+                null,
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(quarterFinal));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(
+                        quarterFinal,
+                        semiFinal
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(0);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        matchService.updateScore(10L, dto);
+
+        assertEquals(
+                byeWinner,
+                semiFinal.getPlayer1()
+        );
+
+        verify(matchRepository).save(semiFinal);
+    }
+    
+    @Test
     void shouldAdvanceWinnerFromSecondQuarterFinalToSemiFinalPlayer2() {
         Category category = createCategory(1L);
 
