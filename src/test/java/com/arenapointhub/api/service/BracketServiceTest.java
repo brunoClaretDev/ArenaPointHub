@@ -396,6 +396,34 @@ class BracketServiceTest {
     }
     
     @Test
+    void shouldGenerateCorrectSeedingForSevenGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 7);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(17);
+
+        List<Match> firstRoundMatches =
+                matches.subList(0, 8);
+
+        assertBye(firstRoundMatches, 1L);
+        assertBye(firstRoundMatches, 3L);
+
+        assertContainsPlayers(firstRoundMatches, 2L, 4L);
+        assertContainsPlayers(firstRoundMatches, 11L, 6L);
+        assertContainsPlayers(firstRoundMatches, 7L, 8L);
+        assertContainsPlayers(firstRoundMatches, 5L, 10L);
+        assertContainsPlayers(firstRoundMatches, 9L, 12L);
+        assertContainsPlayers(firstRoundMatches, 13L, 14L);
+    }
+    
+    @Test
     void shouldGenerateCorrectSeedingForTwoGroups() {
         Category category = createCategory();
 
