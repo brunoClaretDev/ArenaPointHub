@@ -636,7 +636,7 @@ public class BracketService {
                     new int[]{2, 1};
 
             case 3 ->
-                    new int[]{5, 1, 3};
+            		new int[]{3, 7, 2};
 
             case 4 ->
                     new int[]{5, 3, 1, 7};
