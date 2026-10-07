@@ -614,6 +614,75 @@ class MatchServiceTest {
     }
     
     @Test
+    void shouldAdvanceWinnerFromSecondQuarterFinalToSemiFinalPlayer2() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player winner = createPlayer(3L, "Winner");
+        Player opponent = createPlayer(4L, "Opponent");
+
+        Match quarter1 = createMatch(
+                10L,
+                category,
+                player1,
+                createPlayer(2L, "Player 2"),
+                MatchPhase.QUARTER_FINAL,
+                MatchStatus.FINISHED,
+                3,
+                1
+        );
+
+        Match quarter2 = createMatch(
+                11L,
+                category,
+                winner,
+                opponent,
+                MatchPhase.QUARTER_FINAL,
+                MatchStatus.FINISHED,
+                3,
+                1
+        );
+
+        Match semiFinal = createMatch(
+                20L,
+                category,
+                null,
+                null,
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(11L))
+                .thenReturn(Optional.of(quarter2));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(
+                        quarter1,
+                        quarter2,
+                        semiFinal
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(3);
+        dto.setScorePlayer2(1);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        matchService.updateScore(11L, dto);
+
+        assertEquals(
+                winner,
+                semiFinal.getPlayer2()
+        );
+
+        verify(matchRepository).save(semiFinal);
+    }
+    
+    @Test
     void shouldAdvanceWinnerFromSemiFinalToFinal() {
         Category category = createCategory(1L);
 
