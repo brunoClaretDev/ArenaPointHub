@@ -332,6 +332,101 @@ class MatchServiceTest {
 
         verify(matchRepository).findByCategoryId(1L);
     }
+    
+    @Test
+    void shouldReturnMatchesByStatus() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+
+        Match match1 = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.FINISHED,
+                2,
+                1
+        );
+
+        Match match2 = createMatch(
+                11L,
+                category,
+                player2,
+                player3,
+                MatchPhase.GROUP,
+                MatchStatus.FINISHED,
+                2,
+                0
+        );
+
+        when(matchRepository.findByStatus(MatchStatus.FINISHED))
+                .thenReturn(List.of(match1, match2));
+
+        List<MatchResponseDTO> response =
+                matchService.getMatchesByStatus(MatchStatus.FINISHED);
+
+        assertEquals(2, response.size());
+
+        assertEquals(10L, response.get(0).getId());
+        assertEquals(11L, response.get(1).getId());
+
+        assertEquals(MatchStatus.FINISHED, response.get(0).getStatus());
+        assertEquals(MatchStatus.FINISHED, response.get(1).getStatus());
+
+        verify(matchRepository).findByStatus(MatchStatus.FINISHED);
+    }
+    
+    @Test
+    void shouldReturnMatchesByPlayer() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+
+        Match match1 = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.FINISHED,
+                2,
+                1
+        );
+
+        Match match2 = createMatch(
+                11L,
+                category,
+                player3,
+                player1,
+                MatchPhase.GROUP,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findByPlayer1IdOrPlayer2Id(1L, 1L))
+                .thenReturn(List.of(match1, match2));
+
+        List<MatchResponseDTO> response =
+                matchService.getMatchesByPlayer(1L);
+
+        assertEquals(2, response.size());
+
+        assertEquals(10L, response.get(0).getId());
+        assertEquals(11L, response.get(1).getId());
+
+        assertEquals(1L, response.get(0).getPlayer1().getId());
+        assertEquals(1L, response.get(1).getPlayer2().getId());
+
+        verify(matchRepository)
+                .findByPlayer1IdOrPlayer2Id(1L, 1L);
+    }
 
     @Test
     void shouldNotReturnMatchWhenIdDoesNotExist() {
