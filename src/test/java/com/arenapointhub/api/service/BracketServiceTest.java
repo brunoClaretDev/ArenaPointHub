@@ -478,6 +478,97 @@ class BracketServiceTest {
         assertEquals(16L, matches.get(7).getPlayer2().getId());
     }
     
+    @Test
+    void shouldGenerateCorrectSeedingForFourGroups() {
+
+        Category category = createCategory(1L);
+
+        List<Group> groups = new ArrayList<>();
+
+        for (int i = 1; i <= 4; i++) {
+            groups.add(
+                    createGroup(
+                            (long) i,
+                            "Grupo " + (char) ('A' + i - 1),
+                            category
+                    )
+            );
+        }
+
+        for (int i = 1; i <= 4; i++) {
+
+            Player first =
+                    createPlayer(
+                            (long) (i * 2 - 1),
+                            "1." + i
+                    );
+
+            Player second =
+                    createPlayer(
+                            (long) (i * 2),
+                            "2." + i
+                    );
+
+            when(playerRepository.findById(first.getId()))
+                    .thenReturn(Optional.of(first));
+
+            when(playerRepository.findById(second.getId()))
+                    .thenReturn(Optional.of(second));
+
+            when(groupService.calculateGroupStandings((long) i))
+                    .thenReturn(List.of(
+                            createStanding(first),
+                            createStanding(second)
+                    ));
+        }
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(groupRepository.findByCategoryId(1L))
+                .thenReturn(new ArrayList<>(groups));
+
+        long[] nextId = {100L};
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> {
+                    Match match = invocation.getArgument(0);
+                    match.setId(nextId[0]++);
+                    return match;
+                });
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(1L);
+
+        assertEquals(8, response.getTargetBracketSize());
+        assertEquals(7, response.getMatches().size());
+
+        org.mockito.ArgumentCaptor<Match> matchCaptor =
+                org.mockito.ArgumentCaptor.forClass(Match.class);
+
+        verify(matchRepository, org.mockito.Mockito.times(7))
+                .save(matchCaptor.capture());
+
+        List<Match> matches =
+                matchCaptor.getAllValues();
+
+        // QF1 → 1.1 × 2.3
+        assertEquals(1L, matches.get(0).getPlayer1().getId());
+        assertEquals(6L, matches.get(0).getPlayer2().getId());
+
+        // QF2 → 1.4 × 2.2
+        assertEquals(7L, matches.get(1).getPlayer1().getId());
+        assertEquals(4L, matches.get(1).getPlayer2().getId());
+
+        // QF3 → 1.3 × 2.1
+        assertEquals(5L, matches.get(2).getPlayer1().getId());
+        assertEquals(2L, matches.get(2).getPlayer2().getId());
+
+        // QF4 → 1.2 × 2.4
+        assertEquals(3L, matches.get(3).getPlayer1().getId());
+        assertEquals(8L, matches.get(3).getPlayer2().getId());
+    }
+    
     private Category createCategory(Long id) {
         Category category = new Category();
         category.setId(id);
