@@ -149,32 +149,44 @@ public class BracketService {
 
         List<Player> playersWithBye = new ArrayList<>();
 
-        for (Player player : firstPlacePlayers) {
+        int firstPlaceByes =
+                Math.min(numberOfByes, firstPlacePlayers.size());
 
-            if (playersWithBye.size() >= numberOfByes) {
-                break;
-            }
+        playersWithBye.addAll(
+                firstPlacePlayers.subList(0, firstPlaceByes)
+        );
 
-            playersWithBye.add(player);
+        int remainingByes =
+                numberOfByes - playersWithBye.size();
+
+        if (remainingByes == 0) {
+            return playersWithBye;
         }
 
-        if (playersWithBye.size() < numberOfByes) {
-
-            for (Player player : secondPlacePlayers) {
-
-                if (playersWithBye.size() >= numberOfByes) {
-                    break;
-                }
-
-                playersWithBye.add(player);
-            }
-        }
-
-        if (playersWithBye.size() < numberOfByes) {
+        if (remainingByes > secondPlacePlayers.size()) {
             throw new BusinessException(
                     "Não existem jogadores classificados suficientes para distribuir todos os Byes."
             );
         }
+
+        /*
+         * Os BYEs restantes devem ser distribuídos estruturalmente
+         * para equilibrar as duas metades da chave.
+         *
+         * Para 5 grupos:
+         * 6 BYEs → 5 primeiros colocados + 2.2
+         */
+        if (firstPlacePlayers.size() == 5
+                && remainingByes == 1) {
+
+            playersWithBye.add(secondPlacePlayers.get(1));
+
+            return playersWithBye;
+        }
+
+        playersWithBye.addAll(
+                secondPlacePlayers.subList(0, remainingByes)
+        );
 
         return playersWithBye;
     }
@@ -630,7 +642,7 @@ public class BracketService {
                     new int[]{5, 3, 1, 7};
 
             case 5 ->
-                    new int[]{5, 3, 1, 7, 9};
+            		new int[]{14, 8, 2, 3, 15};
 
             case 6 ->
                     new int[]{9, 3, 5, 11, 1, 7};

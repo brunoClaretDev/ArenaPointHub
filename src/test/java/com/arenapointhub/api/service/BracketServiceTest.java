@@ -328,6 +328,68 @@ class BracketServiceTest {
         assertMatch(matches.get(2), 5L, 2L);
         assertMatch(matches.get(3), 3L, 8L);
     }
+    
+    @Test
+    void shouldDistributeSixByesForFiveGroups() {
+        Category category = createCategory();
+
+        List<Group> groups = createGroups(5, category);
+
+        mockCategoryAndGroups(category, groups);
+        mockQualifiedPlayers(5);
+        mockMatchSave();
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(21);
+
+        // Primeira fase: 8 partidas
+        List<Match> firstRoundMatches =
+                matches.subList(0, 8);
+
+        long byeCount = firstRoundMatches.stream()
+                .filter(match ->
+                        match.getStatus() == MatchStatus.FINISHED
+                        && ((match.getPlayer1() != null
+                                && match.getPlayer2() == null)
+                            || (match.getPlayer2() != null
+                                && match.getPlayer1() == null)))
+                .count();
+
+        assertEquals(6, byeCount);
+
+        // Os seis BYEs devem ser dos jogadores definidos pela regra
+        assertBye(firstRoundMatches, 1L);
+        assertBye(firstRoundMatches, 3L);
+        assertBye(firstRoundMatches, 5L);
+        assertBye(firstRoundMatches, 7L);
+        assertBye(firstRoundMatches, 9L);
+        assertBye(firstRoundMatches, 4L);
+
+        // Os quatro jogadores sem BYE devem formar duas partidas
+        List<Match> scheduledMatches = firstRoundMatches.stream()
+                .filter(match ->
+                        match.getStatus() == MatchStatus.SCHEDULED)
+                .toList();
+
+        assertEquals(2, scheduledMatches.size());
+
+        assertContainsPlayers(
+                scheduledMatches,
+                6L,
+                8L
+        );
+
+        assertContainsPlayers(
+                scheduledMatches,
+                2L,
+                10L
+        );
+    }
 
     @Test
     void shouldGenerateCorrectSeedingForTwoGroups() {
@@ -437,6 +499,40 @@ class BracketServiceTest {
         );
     }
 
+    private void assertBye(
+            List<Match> matches,
+            long playerId) {
+
+        boolean found = matches.stream()
+                .anyMatch(match ->
+                        match.getStatus() == MatchStatus.FINISHED
+                        && ((match.getPlayer1() != null
+                                && match.getPlayer1().getId() == playerId
+                                && match.getPlayer2() == null)
+                            || (match.getPlayer2() != null
+                                && match.getPlayer2().getId() == playerId
+                                && match.getPlayer1() == null)));
+
+        assertEquals(true, found);
+    }
+
+    private void assertContainsPlayers(
+            List<Match> matches,
+            long player1Id,
+            long player2Id) {
+
+        boolean found = matches.stream()
+                .anyMatch(match ->
+                        match.getPlayer1() != null
+                        && match.getPlayer2() != null
+                        && ((match.getPlayer1().getId() == player1Id
+                                && match.getPlayer2().getId() == player2Id)
+                            || (match.getPlayer1().getId() == player2Id
+                                && match.getPlayer2().getId() == player1Id)));
+
+        assertEquals(true, found);
+    }
+    
     private List<Group> createGroups(
             int quantity,
             Category category) {
