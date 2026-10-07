@@ -352,6 +352,57 @@ class MatchServiceTest {
 
         verify(matchRepository).save(match);
     }
+    
+    @Test
+    void shouldKeepMatchInProgressWhenSetsAreNotEnoughToWin() {
+        Category category = createCategory(1L);
+        category.setSetsToWinMatch(2);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.IN_PROGRESS,
+                0,
+                0
+        );
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5)
+        ));
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(match));
+
+        when(matchSetRepository.findByMatchIdAndSetNumber(
+                10L,
+                1
+        )).thenReturn(Optional.empty());
+
+        when(matchSetRepository.findByMatchId(10L))
+                .thenReturn(List.of(
+                        createMatchSet(match, 1, 11, 5)
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        matchService.saveMatchSets(10L, dto);
+
+        assertEquals(1, match.getScorePlayer1());
+        assertEquals(0, match.getScorePlayer2());
+        assertEquals(MatchStatus.IN_PROGRESS, match.getStatus());
+
+        verify(matchSetRepository).save(any(MatchSet.class));
+        verify(matchRepository).save(match);
+    }
 
     @Test
     void shouldNotSaveInvalidSetScore() {
