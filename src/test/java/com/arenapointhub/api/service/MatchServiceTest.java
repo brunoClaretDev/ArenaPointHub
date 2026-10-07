@@ -747,6 +747,75 @@ class MatchServiceTest {
 
         verify(matchRepository).save(finalMatch);
     }
+    
+    @Test
+    void shouldAdvanceWinnerFromSecondSemiFinalToFinalPlayer2() {
+        Category category = createCategory(1L);
+
+        Player otherWinner = createPlayer(1L, "Other Winner");
+        Player winner = createPlayer(3L, "Winner");
+        Player opponent = createPlayer(4L, "Opponent");
+
+        Match semiFinal1 = createMatch(
+                20L,
+                category,
+                otherWinner,
+                createPlayer(2L, "Other Opponent"),
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.FINISHED,
+                2,
+                0
+        );
+
+        Match semiFinal2 = createMatch(
+                21L,
+                category,
+                winner,
+                opponent,
+                MatchPhase.SEMI_FINAL,
+                MatchStatus.FINISHED,
+                2,
+                0
+        );
+
+        Match finalMatch = createMatch(
+                30L,
+                category,
+                null,
+                null,
+                MatchPhase.FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(21L))
+                .thenReturn(Optional.of(semiFinal2));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(
+                        semiFinal1,
+                        semiFinal2,
+                        finalMatch
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        matchService.updateScore(21L, dto);
+
+        assertEquals(
+                winner,
+                finalMatch.getPlayer2()
+        );
+
+        verify(matchRepository).save(finalMatch);
+    }
 
     @Test
     void shouldAdvanceWalkoverWinnerFromSemiFinalToFinal() {
