@@ -342,6 +342,60 @@ class BracketServiceTest {
     }
     
     @Test
+    void shouldDistributeTwoByesForSevenGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 7);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(17);
+
+        List<Match> firstRoundMatches =
+                matches.subList(0, 8);
+
+        long byeCount = firstRoundMatches.stream()
+                .filter(this::isByeMatch)
+                .count();
+
+        assertEquals(2, byeCount);
+
+        assertBye(firstRoundMatches, 1L);
+        assertBye(firstRoundMatches, 3L);
+
+        List<Match> scheduledMatches =
+                firstRoundMatches.stream()
+                        .filter(match ->
+                                match.getStatus()
+                                        == MatchStatus.SCHEDULED)
+                        .toList();
+
+        assertEquals(6, scheduledMatches.size());
+
+        for (long playerId = 1L; playerId <= 14L; playerId++) {
+
+            boolean playerFound = false;
+
+            for (Match match : firstRoundMatches) {
+                if (containsPlayer(match, playerId)) {
+                    playerFound = true;
+                    break;
+                }
+            }
+
+            assertTrue(
+                    playerFound,
+                    "Jogador " + playerId
+                            + " não foi encontrado na primeira rodada."
+            );
+        }
+    }
+    
+    @Test
     void shouldGenerateCorrectSeedingForTwoGroups() {
         Category category = createCategory();
 
@@ -477,6 +531,16 @@ class BracketServiceTest {
                         && match.getPlayer2() == null)
                     || (match.getPlayer1() == null
                         && match.getPlayer2() != null));
+    }
+    
+    private boolean containsPlayer(
+            Match match,
+            long playerId) {
+
+        return (match.getPlayer1() != null
+                && match.getPlayer1().getId() == playerId)
+                || (match.getPlayer2() != null
+                && match.getPlayer2().getId() == playerId);
     }
 
     private long getByePlayerId(Match match) {

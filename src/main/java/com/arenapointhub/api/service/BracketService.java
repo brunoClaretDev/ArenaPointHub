@@ -48,30 +48,24 @@ public class BracketService {
     }
 
     @Transactional
-    public BracketResponseDTO generateKnockoutBracket(
-            Long categoryId) {
+    public BracketResponseDTO generateKnockoutBracket(Long categoryId) {
 
         Category category = findCategory(categoryId);
+        List<Group> groups = getOrderedGroups(categoryId);
 
-        List<Group> groups =
-                getOrderedGroups(categoryId);
-
-        int totalQualifiedPlayers =
-                groups.size() * 2;
-
-        int targetBracketSize =
-                calculateBracketSize(totalQualifiedPlayers);
+        int totalQualifiedPlayers = groups.size() * 2;
+        int bracketSize = calculateBracketSize(totalQualifiedPlayers);
 
         List<Player> firstPlacePlayers =
-                getOrderedGroupWinners(categoryId);
+                getPlayersByStandingPosition(categoryId, 0);
 
         List<Player> secondPlacePlayers =
-                getOrderedGroupSecondPlaces(categoryId);
+                getPlayersByStandingPosition(categoryId, 1);
 
         int numberOfByes =
                 calculateRequiredByes(
                         totalQualifiedPlayers,
-                        targetBracketSize
+                        bracketSize
                 );
 
         List<Player> playersWithBye =
@@ -81,53 +75,53 @@ public class BracketService {
                         numberOfByes
                 );
 
-        List<Match> createdMatches =
+        List<Match> matches =
                 createFirstRoundKnockoutMatches(
                         category,
                         firstPlacePlayers,
                         secondPlacePlayers,
                         playersWithBye,
-                        targetBracketSize
+                        bracketSize
                 );
 
-        createdMatches.addAll(
+        matches.addAll(
                 createSubsequentRoundMatches(
                         category,
-                        targetBracketSize
+                        bracketSize
                 )
         );
 
-        advancePlayersWithBye(
-                createdMatches,
-                targetBracketSize
+        advancePlayersWithBye(matches, bracketSize);
+
+        return buildBracketResponse(
+                category,
+                bracketSize,
+                matches
         );
+    }
+
+    private BracketResponseDTO buildBracketResponse(
+            Category category,
+            int bracketSize,
+            List<Match> matches) {
 
         BracketResponseDTO response =
                 new BracketResponseDTO();
 
-        response.setCategoryId(
-                category.getId()
-        );
-
-        response.setCategoryName(
-                category.getName()
-        );
-
-        response.setTargetBracketSize(
-                targetBracketSize
-        );
+        response.setCategoryId(category.getId());
+        response.setCategoryName(category.getName());
+        response.setTargetBracketSize(bracketSize);
 
         response.setMatches(
-                createdMatches.stream()
+                matches.stream()
                         .map(this::mapMatchToResponseDTO)
                         .toList()
         );
 
         return response;
     }
-    
-    private int calculateBracketSize(
-            int totalQualifiedPlayers) {
+
+    private int calculateBracketSize(int totalQualifiedPlayers) {
 
         if (totalQualifiedPlayers <= 2) {
             return 2;
@@ -169,17 +163,12 @@ public class BracketService {
             );
         }
 
-        /*
-         * Os BYEs restantes devem ser distribuídos estruturalmente
-         * para equilibrar as duas metades da chave.
-         *
-         * Para 5 grupos:
-         * 6 BYEs → 5 primeiros colocados + 2.2
-         */
         if (firstPlacePlayers.size() == 5
                 && remainingByes == 1) {
 
-            playersWithBye.add(secondPlacePlayers.get(1));
+            playersWithBye.add(
+                    secondPlacePlayers.get(1)
+            );
 
             return playersWithBye;
         }
@@ -192,7 +181,7 @@ public class BracketService {
     }
 
     private void advancePlayersWithBye(
-            List<Match> createdMatches,
+            List<Match> matches,
             int bracketSize) {
 
         MatchPhase firstRoundPhase =
@@ -206,24 +195,15 @@ public class BracketService {
         }
 
         List<Match> firstRoundMatches =
-                createdMatches.stream()
-                        .filter(match ->
-                                match.getPhase() == firstRoundPhase)
-                        .sorted(Comparator.comparing(Match::getId))
-                        .toList();
+                getMatchesByPhase(matches, firstRoundPhase);
 
         List<Match> nextRoundMatches =
-                createdMatches.stream()
-                        .filter(match ->
-                                match.getPhase() == nextPhase)
-                        .sorted(Comparator.comparing(Match::getId))
-                        .toList();
+                getMatchesByPhase(matches, nextPhase);
 
         for (int i = 0; i < firstRoundMatches.size(); i++) {
 
-            Match match = firstRoundMatches.get(i);
-
-            Player winner = getByeWinner(match);
+            Player winner =
+                    getByeWinner(firstRoundMatches.get(i));
 
             if (winner == null) {
                 continue;
@@ -238,14 +218,37 @@ public class BracketService {
             Match targetMatch =
                     nextRoundMatches.get(targetMatchIndex);
 
-            if (i % 2 == 0) {
-                targetMatch.setPlayer1(winner);
-            } else {
-                targetMatch.setPlayer2(winner);
-            }
+            setByeWinner(
+                    targetMatch,
+                    winner,
+                    i
+            );
 
             matchRepository.save(targetMatch);
         }
+    }
+
+    private List<Match> getMatchesByPhase(
+            List<Match> matches,
+            MatchPhase phase) {
+
+        return matches.stream()
+                .filter(match -> match.getPhase() == phase)
+                .sorted(Comparator.comparing(Match::getId))
+                .toList();
+    }
+
+    private void setByeWinner(
+            Match targetMatch,
+            Player winner,
+            int firstRoundIndex) {
+
+        if (firstRoundIndex % 2 == 0) {
+            targetMatch.setPlayer1(winner);
+            return;
+        }
+
+        targetMatch.setPlayer2(winner);
     }
 
     private Player getByeWinner(Match match) {
@@ -270,12 +273,21 @@ public class BracketService {
     }
 
     public List<Player> getOrderedGroupWinners(Long categoryId) {
+        return getPlayersByStandingPosition(categoryId, 0);
+    }
+
+    private List<Player> getOrderedGroupSecondPlaces(Long categoryId) {
+        return getPlayersByStandingPosition(categoryId, 1);
+    }
+
+    private List<Player> getPlayersByStandingPosition(
+            Long categoryId,
+            int position) {
 
         List<Group> groups =
                 getOrderedGroups(categoryId);
 
-        List<Player> winners =
-                new ArrayList<>();
+        List<Player> players = new ArrayList<>();
 
         for (Group group : groups) {
 
@@ -286,42 +298,15 @@ public class BracketService {
 
             addPlayerFromStanding(
                     standings,
-                    0,
-                    winners
+                    position,
+                    players
             );
         }
 
-        return winners;
+        return players;
     }
 
-    private List<Player> getOrderedGroupSecondPlaces(
-            Long categoryId) {
-
-        List<Group> groups =
-                getOrderedGroups(categoryId);
-
-        List<Player> secondPlaces =
-                new ArrayList<>();
-
-        for (Group group : groups) {
-
-            List<GroupStandingDTO> standings =
-                    groupService.calculateGroupStandings(
-                            group.getId()
-                    );
-
-            addPlayerFromStanding(
-                    standings,
-                    1,
-                    secondPlaces
-            );
-        }
-
-        return secondPlaces;
-    }
-
-    public List<Player> getOrderedQualifiedPlayers(
-            Long categoryId) {
+    public List<Player> getOrderedQualifiedPlayers(Long categoryId) {
 
         List<Player> firstPlaces =
                 getOrderedGroupWinners(categoryId);
@@ -402,13 +387,11 @@ public class BracketService {
 
     private void validateBracketSize(int bracketSize) {
 
-        if (bracketSize != 2
-                && bracketSize != 4
-                && bracketSize != 8
-                && bracketSize != 16
-                && bracketSize != 32) {
-
-            throw new BusinessException(
+        switch (bracketSize) {
+            case 2, 4, 8, 16, 32 -> {
+                return;
+            }
+            default -> throw new BusinessException(
                     "Tamanho de chave inválido para gerar Playoffs."
             );
         }
@@ -418,21 +401,14 @@ public class BracketService {
             int bracketSize) {
 
         return switch (bracketSize) {
-
             case 32 -> MatchPhase.ROUND_OF_32;
-
             case 16 -> MatchPhase.ROUND_OF_16;
-
             case 8 -> MatchPhase.QUARTER_FINAL;
-
             case 4 -> MatchPhase.SEMI_FINAL;
-
             case 2 -> MatchPhase.FINAL;
-
-            default ->
-                    throw new BusinessException(
-                            "Tamanho de chave inválido para gerar Playoffs."
-                    );
+            default -> throw new BusinessException(
+                    "Tamanho de chave inválido para gerar Playoffs."
+            );
         };
     }
 
@@ -440,19 +416,10 @@ public class BracketService {
             MatchPhase currentPhase) {
 
         return switch (currentPhase) {
-
-            case ROUND_OF_32 ->
-                    MatchPhase.ROUND_OF_16;
-
-            case ROUND_OF_16 ->
-                    MatchPhase.QUARTER_FINAL;
-
-            case QUARTER_FINAL ->
-                    MatchPhase.SEMI_FINAL;
-
-            case SEMI_FINAL ->
-                    MatchPhase.FINAL;
-
+            case ROUND_OF_32 -> MatchPhase.ROUND_OF_16;
+            case ROUND_OF_16 -> MatchPhase.QUARTER_FINAL;
+            case QUARTER_FINAL -> MatchPhase.SEMI_FINAL;
+            case SEMI_FINAL -> MatchPhase.FINAL;
             default -> null;
         };
     }
@@ -464,14 +431,10 @@ public class BracketService {
             List<Player> playersWithBye,
             int bracketSize) {
 
-        List<Match> matches =
-                new ArrayList<>();
+        List<Match> matches = new ArrayList<>();
 
         MatchPhase firstRoundPhase =
                 determineFirstRoundPhase(bracketSize);
-
-        int numberOfMatches =
-                bracketSize / 2;
 
         List<Player> seededPlayers =
                 buildSeededPlayers(
@@ -480,44 +443,24 @@ public class BracketService {
                         bracketSize
                 );
 
+        int numberOfMatches = bracketSize / 2;
+
         for (int i = 0; i < numberOfMatches; i++) {
 
             Player player1 =
-                    getPlayerAt(
-                            seededPlayers,
-                            i * 2
-                    );
+                    getPlayerAt(seededPlayers, i * 2);
 
             Player player2 =
-                    getPlayerAt(
-                            seededPlayers,
-                            i * 2 + 1
+                    getPlayerAt(seededPlayers, i * 2 + 1);
+
+            Match match =
+                    createFirstRoundMatch(
+                            category,
+                            firstRoundPhase,
+                            player1,
+                            player2,
+                            playersWithBye
                     );
-
-            Match match = new Match();
-
-            match.setCategory(category);
-            match.setPhase(firstRoundPhase);
-            match.setPlayer1(player1);
-            match.setPlayer2(player2);
-
-            if (player1 != null
-                    && playersWithBye.contains(player1)) {
-
-                match.setPlayer2(null);
-                match.setStatus(MatchStatus.FINISHED);
-
-            } else if (player2 != null
-                    && playersWithBye.contains(player2)) {
-
-                match.setPlayer1(player2);
-                match.setPlayer2(null);
-                match.setStatus(MatchStatus.FINISHED);
-
-            } else {
-
-                match.setStatus(MatchStatus.SCHEDULED);
-            }
 
             matches.add(
                     matchRepository.save(match)
@@ -527,27 +470,61 @@ public class BracketService {
         return matches;
     }
 
+    private Match createFirstRoundMatch(
+            Category category,
+            MatchPhase phase,
+            Player player1,
+            Player player2,
+            List<Player> playersWithBye) {
+
+        Match match = new Match();
+
+        match.setCategory(category);
+        match.setPhase(phase);
+        match.setPlayer1(player1);
+        match.setPlayer2(player2);
+
+        if (player1 != null
+                && playersWithBye.contains(player1)) {
+
+            match.setPlayer2(null);
+            match.setStatus(MatchStatus.FINISHED);
+
+        } else if (player2 != null
+                && playersWithBye.contains(player2)) {
+
+            match.setPlayer1(player2);
+            match.setPlayer2(null);
+            match.setStatus(MatchStatus.FINISHED);
+
+        } else {
+
+            match.setStatus(MatchStatus.SCHEDULED);
+        }
+
+        return match;
+    }
+
     private List<Player> buildSeededPlayers(
             List<Player> firstPlacePlayers,
             List<Player> secondPlacePlayers,
             int bracketSize) {
 
         List<Player> slots =
-                new ArrayList<>();
+                new ArrayList<>(
+                        java.util.Collections.nCopies(
+                                bracketSize,
+                                null
+                        )
+                );
 
-        for (int i = 0; i < bracketSize; i++) {
-            slots.add(null);
-        }
-
-        int groups =
-                firstPlacePlayers.size();
+        int groups = firstPlacePlayers.size();
 
         if (groups == 0) {
             return slots;
         }
 
         if (groups == 1) {
-
             slots.set(0, firstPlacePlayers.get(0));
 
             if (!secondPlacePlayers.isEmpty()) {
@@ -557,30 +534,31 @@ public class BracketService {
             return slots;
         }
 
-        int[] firstPlacePositions =
-                getFirstPlacePositions(groups);
+        assignPlayersToSlots(
+                slots,
+                firstPlacePlayers,
+                getFirstPlacePositions(groups)
+        );
 
-        int[] secondPlacePositions =
-                getSecondPlacePositions(groups);
+        assignPlayersToSlots(
+                slots,
+                secondPlacePlayers,
+                getSecondPlacePositions(groups)
+        );
+
+        return slots;
+    }
+
+    private void assignPlayersToSlots(
+            List<Player> slots,
+            List<Player> players,
+            int[] positions) {
 
         for (int i = 0;
-             i < firstPlacePositions.length
-                     && i < firstPlacePlayers.size();
+             i < positions.length && i < players.size();
              i++) {
 
-            slots.set(
-                    firstPlacePositions[i],
-                    firstPlacePlayers.get(i)
-            );
-        }
-
-        for (int i = 0;
-             i < secondPlacePositions.length
-                     && i < secondPlacePlayers.size();
-             i++) {
-
-            int position =
-                    secondPlacePositions[i];
+            int position = positions[i];
 
             if (position >= 0
                     && position < slots.size()
@@ -588,75 +566,44 @@ public class BracketService {
 
                 slots.set(
                         position,
-                        secondPlacePlayers.get(i)
+                        players.get(i)
                 );
             }
         }
-
-        return slots;
     }
 
     private int[] getFirstPlacePositions(int groups) {
 
         return switch (groups) {
-
-            case 2 ->
-                    new int[]{0, 3};
-
-            case 3 ->
-                    new int[]{0, 4, 6};
-
-            case 4 ->
-                    new int[]{0, 6, 4, 2};
-
-            case 5 ->
-                    new int[]{0, 6, 12, 10, 4};
-
-            case 6 ->
-                    new int[]{0, 6, 12, 14, 8, 2};
-
-            case 7 ->
-                    new int[]{0, 6, 12, 14, 8, 4, 2};
-
-            case 8 ->
-                    new int[]{0, 14, 8, 6, 10, 4, 12, 2};
-
-            default ->
-                    throw new BusinessException(
-                            "Quantidade de grupos não suportada para geração do chaveamento."
-                    );
+            case 2 -> new int[]{0, 3};
+            case 3 -> new int[]{0, 4, 6};
+            case 4 -> new int[]{0, 6, 4, 2};
+            case 5 -> new int[]{0, 6, 12, 10, 4};
+            case 6 -> new int[]{0, 6, 12, 14, 8, 2};
+            case 7 -> new int[]{0, 14, 8, 6, 10, 4, 12};
+            case 8 -> new int[]{0, 14, 8, 6, 10, 4, 12, 2};
+            default -> throw new BusinessException(
+                    "Quantidade de grupos não suportada para geração do chaveamento."
+            );
         };
     }
 
     private int[] getSecondPlacePositions(int groups) {
 
         return switch (groups) {
+            case 2 -> new int[]{2, 1};
+            case 3 -> new int[]{3, 7, 2};
+            case 4 -> new int[]{5, 3, 1, 7};
+            case 5 -> new int[]{14, 8, 2, 3, 15};
+            case 6 -> new int[]{9, 10, 3, 4, 5, 11};
 
-            case 2 ->
-                    new int[]{2, 1};
+            // 7 grupos: posições 1 e 15 ficam livres para os BYEs.
+            case 7 -> new int[]{2, 3, 5, 7, 9, 11, 13};
 
-            case 3 ->
-            		new int[]{3, 7, 2};
-
-            case 4 ->
-                    new int[]{5, 3, 1, 7};
-
-            case 5 ->
-            		new int[]{14, 8, 2, 3, 15};
-
-            case 6 ->
-            		new int[]{9, 10, 3, 4, 5, 11};
-
-            case 7 ->
-                    new int[]{9, 3, 5, 11, 1, 7, 13};
-
-            case 8 ->
-                    new int[]{11, 5, 7, 13, 3, 9, 1, 15};
-
-            default ->
-                    throw new BusinessException(
-                            "Quantidade de grupos não suportada para geração do chaveamento."
-                    );
+            case 8 -> new int[]{11, 5, 7, 13, 3, 9, 1, 15};
+            default -> throw new BusinessException(
+                    "Quantidade de grupos não suportada para geração do chaveamento."
+            );
         };
     }
 
@@ -664,27 +611,21 @@ public class BracketService {
             Category category,
             int bracketSize) {
 
-        List<Match> matches =
-                new ArrayList<>();
+        List<Match> matches = new ArrayList<>();
 
-        int matchesInRound =
-                bracketSize / 4;
-
+        int matchesInRound = bracketSize / 4;
         MatchPhase currentPhase =
                 determineFirstRoundPhase(bracketSize);
 
         while (currentPhase != MatchPhase.FINAL) {
 
-            currentPhase =
-                    getNextPhase(currentPhase);
+            currentPhase = getNextPhase(currentPhase);
 
             if (currentPhase == null) {
                 break;
             }
 
-            for (int i = 0;
-                 i < matchesInRound;
-                 i++) {
+            for (int i = 0; i < matchesInRound; i++) {
 
                 Match match = new Match();
 
@@ -707,9 +648,7 @@ public class BracketService {
             List<Player> players,
             int index) {
 
-        if (index < 0
-                || index >= players.size()) {
-
+        if (index < 0 || index >= players.size()) {
             return null;
         }
 
@@ -723,54 +662,27 @@ public class BracketService {
                 new MatchResponseDTO();
 
         dto.setId(match.getId());
-
-        dto.setCategoryId(
-                match.getCategory().getId()
-        );
-
-        dto.setCategoryName(
-                match.getCategory().getName()
-        );
+        dto.setCategoryId(match.getCategory().getId());
+        dto.setCategoryName(match.getCategory().getName());
 
         if (match.getPlayer1() != null) {
             dto.setPlayer1(
-                    toPlayerSummary(
-                            match.getPlayer1()
-                    )
+                    toPlayerSummary(match.getPlayer1())
             );
         }
 
         if (match.getPlayer2() != null) {
             dto.setPlayer2(
-                    toPlayerSummary(
-                            match.getPlayer2()
-                    )
+                    toPlayerSummary(match.getPlayer2())
             );
         }
 
-        dto.setScorePlayer1(
-                match.getScorePlayer1()
-        );
-
-        dto.setScorePlayer2(
-                match.getScorePlayer2()
-        );
-
-        dto.setStatus(
-                match.getStatus()
-        );
-
-        dto.setPhase(
-                match.getPhase()
-        );
-
-        dto.setTableOrCourt(
-                match.getTableOrCourt()
-        );
-
-        dto.setScheduledTime(
-                match.getScheduledTime()
-        );
+        dto.setScorePlayer1(match.getScorePlayer1());
+        dto.setScorePlayer2(match.getScorePlayer2());
+        dto.setStatus(match.getStatus());
+        dto.setPhase(match.getPhase());
+        dto.setTableOrCourt(match.getTableOrCourt());
+        dto.setScheduledTime(match.getScheduledTime());
 
         return dto;
     }
