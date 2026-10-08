@@ -244,6 +244,214 @@ class MatchServiceTest {
 
         verify(matchRepository, never()).save(any(Match.class));
     }
+    
+    @Test
+    void shouldNotCreateMatchWhenPlayer1DoesNotExist() {
+        Category category = createCategory(1L);
+
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
+
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto)
+        );
+
+        assertEquals(
+                "Jogador 1 não encontrado: 1",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+    }
+    
+    @Test
+    void shouldNotCreateMatchWhenPlayer2DoesNotExist() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
+
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto)
+        );
+
+        assertEquals(
+                "Jogador 2 não encontrado: 2",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+    }
+    
+    @Test
+    void shouldNotCreateMatchWhenGroupDoesNotExist() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
+
+        dto.setGroupId(10L);
+
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.of(player2));
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto)
+        );
+
+        assertEquals(
+                "Grupo não encontrado: 10",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+    }
+    
+    @Test
+    void shouldCreateMatchWithGroup() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        com.arenapointhub.api.model.Group group =
+                new com.arenapointhub.api.model.Group();
+        group.setId(10L);
+        group.setName("Grupo A");
+
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
+
+        dto.setGroupId(10L);
+
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.of(player2));
+
+        when(groupRepository.findById(10L))
+                .thenReturn(Optional.of(group));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> {
+                    Match match = invocation.getArgument(0);
+                    match.setId(10L);
+                    return match;
+                });
+
+        MatchResponseDTO response =
+                matchService.createMatch(dto);
+
+        assertEquals(10L, response.getId());
+        assertEquals(1L, response.getPlayer1().getId());
+        assertEquals(2L, response.getPlayer2().getId());
+        assertEquals(MatchStatus.SCHEDULED, response.getStatus());
+
+        verify(groupRepository).findById(10L);
+        verify(matchRepository).save(any(Match.class));
+    }
+    
+    
 
     @Test
     void shouldReturnMatchById() {
@@ -464,6 +672,20 @@ class MatchServiceTest {
         verify(matchRepository)
                 .findByPlayer1IdOrPlayer2Id(1L, 1L);
     }
+    
+    @Test
+    void shouldReturnEmptyMatchesByPlayer() {
+        when(matchRepository.findByPlayer1IdOrPlayer2Id(1L, 1L))
+                .thenReturn(List.of());
+
+        List<MatchResponseDTO> response =
+                matchService.getMatchesByPlayer(1L);
+
+        assertTrue(response.isEmpty());
+
+        verify(matchRepository)
+                .findByPlayer1IdOrPlayer2Id(1L, 1L);
+    }
 
     @Test
     void shouldNotReturnMatchWhenIdDoesNotExist() {
@@ -517,6 +739,98 @@ class MatchServiceTest {
         assertEquals(MatchStatus.FINISHED, response.getStatus());
 
         verify(matchRepository).save(match);
+    }
+    
+    @Test
+    void shouldSetChampionWhenFinalIsFinished() {
+        Category category = createCategory(1L);
+
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L,
+                category,
+                winner,
+                loser,
+                MatchPhase.FINAL,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        when(matchRepository.findById(30L))
+                .thenReturn(Optional.of(finalMatch));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(finalMatch));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        matchService.updateScore(30L, dto);
+
+        assertEquals(winner, category.getChampion());
+
+        verify(categoryRepository).save(category);
+    }
+    
+    @Test
+    void shouldNotUpdateScoreWhenMatchDoesNotExist() {
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(1);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateScore(10L, dto)
+        );
+
+        assertEquals(
+                "Partida não encontrada com ID: 10",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+    }
+    
+    @Test
+    void shouldNotSaveMatchSetsWhenMatchDoesNotExist() {
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5)
+        ));
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto)
+        );
+
+        assertEquals(
+                "Partida não encontrada com ID: 10",
+                exception.getMessage()
+        );
+
+        verify(matchSetRepository, never())
+                .save(any(MatchSet.class));
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
     }
 
     @Test
@@ -673,6 +987,56 @@ class MatchServiceTest {
         verify(matchSetRepository, never())
                 .save(any(MatchSet.class));
     }
+    
+    @Test
+    void shouldAcceptValidDeuceSetScore() {
+        Category category = createCategory(1L);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.IN_PROGRESS,
+                0,
+                0
+        );
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 12, 10)
+        ));
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(match));
+
+        when(matchSetRepository.findByMatchIdAndSetNumber(
+                10L,
+                1
+        )).thenReturn(Optional.empty());
+
+        when(matchSetRepository.findByMatchId(10L))
+                .thenReturn(List.of(
+                        createMatchSet(match, 1, 12, 10)
+                ));
+
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        matchService.saveMatchSets(10L, dto);
+
+        assertEquals(1, match.getScorePlayer1());
+        assertEquals(0, match.getScorePlayer2());
+        assertEquals(MatchStatus.IN_PROGRESS, match.getStatus());
+
+        verify(matchSetRepository).save(any(MatchSet.class));
+        verify(matchRepository).save(match);
+    }
 
     @Test
     void shouldReturnSetsByMatchId() {
@@ -821,7 +1185,38 @@ class MatchServiceTest {
 
         verify(matchRepository).save(match);
     }
+    
+    @Test
+    void shouldNotUpdateMatchWhenMatchDoesNotExist() {
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
 
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(1);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto)
+        );
+
+        assertEquals(
+                "Partida não encontrada com ID: 10",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+    }
+
+    
+    
     @Test
     void shouldAdvanceWinnerFromQuarterFinalToSemiFinal() {
         Category category = createCategory(1L);
