@@ -207,6 +207,43 @@ class MatchServiceTest {
 
         verify(matchRepository, never()).save(any(Match.class));
     }
+    
+    @Test
+    void shouldNotCreateMatchWhenCategoryDoesNotExist() {
+        MatchRequestDTO dto = createMatchRequest(
+                1L,
+                1L,
+                2L
+        );
+
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED
+        )).thenReturn(false);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto)
+        );
+
+        assertEquals(
+                "Categoria não encontrada: 1",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
 
     @Test
     void shouldReturnMatchById() {
