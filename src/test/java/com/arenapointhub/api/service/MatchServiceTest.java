@@ -1656,6 +1656,41 @@ class MatchServiceTest {
         );
     }
     
+    @Test
+    void shouldNotRegisterWalkoverWhenWinnerIsNull() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L,
+                category,
+                player1,
+                player2,
+                MatchPhase.GROUP,
+                MatchStatus.SCHEDULED,
+                0,
+                0
+        );
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(null);
+
+        when(matchRepository.findById(10L))
+                .thenReturn(Optional.of(match));
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(10L, dto)
+        );
+
+        verify(matchRepository, never())
+                .save(any(Match.class));
+
+        verify(matchSetRepository, never())
+                .save(any(MatchSet.class));
+    }
+    
     private MatchRequestDTO createMatchRequest(
             Long categoryId,
             Long player1Id,

@@ -389,6 +389,11 @@ public class MatchService {
 
         Long winnerId = dto.getWinnerPlayerId();
 
+        if (winnerId == null) {
+            throw new BusinessException(
+                    "O jogador vencedor do W.O. deve ser informado.");
+        }
+
         boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
         boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
 

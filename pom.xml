@@ -50,11 +50,11 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Banco H2 -->
+		<!-- Banco H2 exclusivo para testes -->
 		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
-			<scope>runtime</scope>
+		    <groupId>com.h2database</groupId>
+		    <artifactId>h2</artifactId>
+		    <scope>test</scope>
 		</dependency>
 		
 		<!-- Banco MySQL -->
