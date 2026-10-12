@@ -345,6 +345,38 @@ class StandingServiceTest {
         assertEquals(0, loser.getSetsWon());
         assertEquals(3, loser.getSetsLost());
     }
+    
+    @Test
+    void shouldIgnoreGroupMatchesWithMissingPlayers() {
+        Category category = createCategory(1L);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Group group = createGroup(10L, category, player1, player2);
+
+        Match incompleteMatch = createMatch(
+                10L,
+                category,
+                player1,
+                null,
+                MatchStatus.FINISHED,
+                3,
+                0
+        );
+
+        when(groupRepository.findById(10L))
+                .thenReturn(java.util.Optional.of(group));
+
+        when(matchRepository.findByCategoryId(1L))
+                .thenReturn(List.of(incompleteMatch));
+
+        List<StandingDTO> standings =
+                standingService.calculateGroupStandings(10L);
+
+        assertEquals(2, standings.size());
+        assertEquals(0, standings.get(0).getPlayed());
+        assertEquals(0, standings.get(1).getPlayed());
+    }
 
     private Category createCategory(Long id) {
         Category category = new Category();

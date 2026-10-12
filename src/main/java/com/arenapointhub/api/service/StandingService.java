@@ -22,75 +22,74 @@ import com.arenapointhub.api.repository.MatchRepository;
 @Service
 public class StandingService {
 
-    private final GroupRepository groupRepository;
-    private final MatchRepository matchRepository;
+	private final GroupRepository groupRepository;
+	private final MatchRepository matchRepository;
 
-    public StandingService(GroupRepository groupRepository, MatchRepository matchRepository) {
-        this.groupRepository = groupRepository;
-        this.matchRepository = matchRepository;
-    }
+	public StandingService(GroupRepository groupRepository, MatchRepository matchRepository) {
+		this.groupRepository = groupRepository;
+		this.matchRepository = matchRepository;
+	}
 
-    @Transactional(readOnly = true)
-    public List<StandingDTO> calculateGroupStandings(Long groupId) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
+	@Transactional(readOnly = true)
+	public List<StandingDTO> calculateGroupStandings(Long groupId) {
+		Group group = groupRepository.findById(groupId)
+				.orElseThrow(() -> new BusinessException("Grupo não encontrado com ID: " + groupId));
 
-        Map<Long, StandingDTO> standingsMap = new HashMap<>();
+		Map<Long, StandingDTO> standingsMap = new HashMap<>();
 
-        // Inicializa a tabela com todos os jogadores do grupo com 0 pontos/estatísticas
-        for (Player player : group.getPlayers()) {
-            standingsMap.put(player.getId(), new StandingDTO(
-                player.getId(),
-                player.getName(),
-                player.getClubAcademy(),
-                0, 0, 0, 0, 0, 0
-            ));
-        }
+		// Inicializa a tabela com todos os jogadores do grupo com 0 pontos/estatísticas
+		for (Player player : group.getPlayers()) {
+			standingsMap.put(player.getId(),
+					new StandingDTO(player.getId(), player.getName(), player.getClubAcademy(), 0, 0, 0, 0, 0, 0));
+		}
 
-        // Busca todas as partidas da categoria vinculada ao grupo
-        // (Ou filtra por partidas cujos jogadores pertençam ao grupo)
-        List<Match> matches = matchRepository.findByCategoryId(group.getCategory().getId());
+		// Busca todas as partidas da categoria vinculada ao grupo
+		// (Ou filtra por partidas cujos jogadores pertençam ao grupo)
+		List<Match> matches = matchRepository.findByCategoryId(group.getCategory().getId());
 
-        for (Match match : matches) {
-            // Considera apenas partidas finalizadas e que envolvem jogadores deste grupo
-        	if (match.getPhase() == MatchPhase.GROUP
-        	        && (match.getStatus() == MatchStatus.FINISHED
-        	        || match.getStatus() == MatchStatus.WO)) {
-                Long p1Id = match.getPlayer1().getId();
-                Long p2Id = match.getPlayer2().getId();
+		for (Match match : matches) {
+			if (match.getPhase() != MatchPhase.GROUP
+					|| (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO)
+					|| match.getPlayer1() == null || match.getPlayer2() == null) {
+				continue;
+			}
 
-                if (standingsMap.containsKey(p1Id) && standingsMap.containsKey(p2Id)) {
-                    StandingDTO s1 = standingsMap.get(p1Id);
-                    StandingDTO s2 = standingsMap.get(p2Id);
+			Long player1Id = match.getPlayer1().getId();
+			Long player2Id = match.getPlayer2().getId();
 
-                    s1.setPlayed(s1.getPlayed() + 1);
-                    s2.setPlayed(s2.getPlayed() + 1);
+			if (!standingsMap.containsKey(player1Id) || !standingsMap.containsKey(player2Id)) {
+				continue;
+			}
 
-                    int score1 = match.getScorePlayer1() != null ? match.getScorePlayer1() : 0;
-                    int score2 = match.getScorePlayer2() != null ? match.getScorePlayer2() : 0;
+			StandingDTO standing1 = standingsMap.get(player1Id);
+			StandingDTO standing2 = standingsMap.get(player2Id);
 
-                    s1.setSetsWon(s1.getSetsWon() + score1);
-                    s1.setSetsLost(s1.getSetsLost() + score2);
-                    s2.setSetsWon(s2.getSetsWon() + score2);
-                    s2.setSetsLost(s2.getSetsLost() + score1);
+			int score1 = match.getScorePlayer1() != null ? match.getScorePlayer1() : 0;
+			int score2 = match.getScorePlayer2() != null ? match.getScorePlayer2() : 0;
 
-                    if (score1 > score2) {
-                        s1.setWins(s1.getWins() + 1);
-                        s1.setPoints(s1.getPoints() + 3); // Ex: 2 pontos por vitória
-                        s2.setLosses(s2.getLosses() + 1);
-                        s2.setPoints(s2.getPoints() + 1); // Ex: 1 ponto por derrota
-                    } else if (score2 > score1) {
-                        s2.setWins(s2.getWins() + 1);
-                        s2.setPoints(s2.getPoints() + 3);
-                        s1.setLosses(s1.getLosses() + 1);
-                        s1.setPoints(s1.getPoints() + 1);
-                    }
-                }
-            }
-        }
+			standing1.setPlayed(standing1.getPlayed() + 1);
+			standing2.setPlayed(standing2.getPlayed() + 1);
 
-        List<StandingDTO> standingsList = new ArrayList<>(standingsMap.values());
-        Collections.sort(standingsList); // Ordena de acordo com os critérios definidos no DTO
-        return standingsList;
-    }
+			standing1.setSetsWon(standing1.getSetsWon() + score1);
+			standing1.setSetsLost(standing1.getSetsLost() + score2);
+			standing2.setSetsWon(standing2.getSetsWon() + score2);
+			standing2.setSetsLost(standing2.getSetsLost() + score1);
+
+			if (score1 > score2) {
+				standing1.setWins(standing1.getWins() + 1);
+				standing1.setPoints(standing1.getPoints() + 3);
+				standing2.setLosses(standing2.getLosses() + 1);
+				standing2.setPoints(standing2.getPoints() + 1);
+			} else if (score2 > score1) {
+				standing2.setWins(standing2.getWins() + 1);
+				standing2.setPoints(standing2.getPoints() + 3);
+				standing1.setLosses(standing1.getLosses() + 1);
+				standing1.setPoints(standing1.getPoints() + 1);
+			}
+		}
+
+		List<StandingDTO> standingsList = new ArrayList<>(standingsMap.values());
+		Collections.sort(standingsList); // Ordena de acordo com os critérios definidos no DTO
+		return standingsList;
+	}
 }
