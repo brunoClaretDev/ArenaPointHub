@@ -496,6 +496,27 @@ class BracketServiceTest {
         verify(matchRepository).deleteAll(List.of(existingMatch));
         verify(matchRepository).flush();
     }
+    
+    @Test
+    void shouldGenerateFinalDirectlyForOneGroup() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 1);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(2, response.getTargetBracketSize());
+        assertEquals(1, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(1);
+
+        assertEquals(MatchPhase.FINAL, matches.get(0).getPhase());
+        assertMatch(matches.get(0), 1L, 2L);
+        assertEquals(
+                MatchStatus.SCHEDULED,
+                matches.get(0).getStatus());
+    }
 
     private void prepareBracketScenario(
             Category category,
