@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.arenapointhub.api.dto.BracketResponseDTO;
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.service.TournamentService;
@@ -65,11 +66,10 @@ public class TournamentController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/generate-playoffs")
-    public ResponseEntity<String> generatePlayoffs(@PathVariable Long id) {
-        return ResponseEntity.ok(
-                "Playoffs gerados com sucesso para o torneio ID: " + id
-        );
-    }
+	@PostMapping("/{id}/generate-playoffs")
+	public ResponseEntity<List<BracketResponseDTO>> generatePlayoffs(
+	        @PathVariable Long id) {
+	    return ResponseEntity.ok(tournamentService.generatePlayoffs(id));
+	}
 
 }

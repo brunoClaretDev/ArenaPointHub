@@ -440,6 +440,62 @@ class BracketServiceTest {
         assertMatch(matches.get(0), 1L, 4L);
         assertMatch(matches.get(1), 2L, 3L);
     }
+    
+
+    @Test
+    void shouldBlockRegenerationWhenKnockoutMatchIsInProgress() {
+        Category category = createCategory();
+
+        Match existingMatch = new Match();
+        existingMatch.setCategory(category);
+        existingMatch.setPhase(MatchPhase.SEMI_FINAL);
+        existingMatch.setStatus(MatchStatus.IN_PROGRESS);
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of(existingMatch));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.",
+                exception.getMessage());
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .deleteAll(any());
+    }
+
+    @Test
+    void shouldDeleteScheduledKnockoutMatchesBeforeRegeneration() {
+        Category category = createCategory();
+        List<Group> groups = createGroups(2, category);
+
+        Match existingMatch = new Match();
+        existingMatch.setCategory(category);
+        existingMatch.setPhase(MatchPhase.SEMI_FINAL);
+        existingMatch.setStatus(MatchStatus.SCHEDULED);
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of(existingMatch));
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        mockQualifiedPlayers(2);
+        mockMatchSave();
+
+        bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        verify(matchRepository).deleteAll(List.of(existingMatch));
+        verify(matchRepository).flush();
+    }
 
     private void prepareBracketScenario(
             Category category,
@@ -501,6 +557,9 @@ class BracketServiceTest {
 
         when(groupRepository.findByCategoryId(category.getId()))
                 .thenReturn(new ArrayList<>(groups));
+
+        when(matchRepository.findByCategoryId(category.getId()))
+                .thenReturn(new ArrayList<>());
     }
 
     private void mockMatchSave() {

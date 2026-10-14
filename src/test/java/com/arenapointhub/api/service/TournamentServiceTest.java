@@ -1,6 +1,7 @@
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -15,11 +16,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.arenapointhub.api.dto.BracketResponseDTO;
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.TournamentStatus;
+import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
 class TournamentServiceTest {
@@ -27,12 +31,22 @@ class TournamentServiceTest {
     @Mock
     private TournamentRepository tournamentRepository;
 
+    @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
+    private BracketService bracketService;
+
     private TournamentService tournamentService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        tournamentService = new TournamentService(tournamentRepository);
+
+        tournamentService = new TournamentService(
+                tournamentRepository,
+                categoryRepository,
+                bracketService);
     }
 
     @Test
@@ -249,6 +263,86 @@ class TournamentServiceTest {
 
         verify(tournamentRepository).existsById(1L);
         verify(tournamentRepository, never()).deleteById(1L);
+    }
+    
+    @Test
+    void shouldGeneratePlayoffsForTournamentCategories() {
+        Long tournamentId = 1L;
+
+        Category category1 = new Category();
+        category1.setId(10L);
+
+        Category category2 = new Category();
+        category2.setId(20L);
+
+        BracketResponseDTO bracket1 = new BracketResponseDTO();
+        BracketResponseDTO bracket2 = new BracketResponseDTO();
+
+        when(tournamentRepository.existsById(tournamentId))
+                .thenReturn(true);
+
+        when(categoryRepository.findByTournamentId(tournamentId))
+                .thenReturn(List.of(category1, category2));
+
+        when(bracketService.generateKnockoutBracket(10L))
+                .thenReturn(bracket1);
+
+        when(bracketService.generateKnockoutBracket(20L))
+                .thenReturn(bracket2);
+
+        List<BracketResponseDTO> response =
+                tournamentService.generatePlayoffs(tournamentId);
+
+        assertEquals(2, response.size());
+        assertSame(bracket1, response.get(0));
+        assertSame(bracket2, response.get(1));
+
+        verify(bracketService).generateKnockoutBracket(10L);
+        verify(bracketService).generateKnockoutBracket(20L);
+    }
+
+    @Test
+    void shouldNotGeneratePlayoffsWhenTournamentDoesNotExist() {
+        Long tournamentId = 1L;
+
+        when(tournamentRepository.existsById(tournamentId))
+                .thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> tournamentService.generatePlayoffs(tournamentId));
+
+        assertEquals(
+                "Torneio não encontrado com o ID: 1",
+                exception.getMessage());
+
+        verify(categoryRepository, never())
+                .findByTournamentId(tournamentId);
+
+        verify(bracketService, never())
+                .generateKnockoutBracket(any());
+    }
+
+    @Test
+    void shouldNotGeneratePlayoffsWhenTournamentHasNoCategories() {
+        Long tournamentId = 1L;
+
+        when(tournamentRepository.existsById(tournamentId))
+                .thenReturn(true);
+
+        when(categoryRepository.findByTournamentId(tournamentId))
+                .thenReturn(List.of());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> tournamentService.generatePlayoffs(tournamentId));
+
+        assertEquals(
+                "O torneio não possui categorias cadastradas.",
+                exception.getMessage());
+
+        verify(bracketService, never())
+                .generateKnockoutBracket(any());
     }
 
     private TournamentRequestDTO createTournamentRequest() {

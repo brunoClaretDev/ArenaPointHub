@@ -50,19 +50,25 @@ public class BracketService {
     @Transactional
     public BracketResponseDTO generateKnockoutBracket(Long categoryId) {
         Category category = findCategory(categoryId);
+
+        removeExistingKnockoutIfNotStarted(categoryId);
+
         List<Group> groups = getOrderedGroups(categoryId);
+        List<Player> firstPlaces =
+                getPlayersByStandingPosition(categoryId, 0);
+        List<Player> secondPlaces =
+                getPlayersByStandingPosition(categoryId, 1);
 
-        List<Player> firstPlaces = getPlayersByStandingPosition(categoryId, 0);
-        List<Player> secondPlaces = getPlayersByStandingPosition(categoryId, 1);
-
-        validateQualifiedPlayers(groups.size(), firstPlaces, secondPlaces);
+        validateQualifiedPlayers(
+                groups.size(), firstPlaces, secondPlaces);
 
         int totalQualified = firstPlaces.size() + secondPlaces.size();
         int bracketSize = calculateBracketSize(totalQualified);
-        int numberOfByes = calculateRequiredByes(totalQualified, bracketSize);
+        int numberOfByes =
+                calculateRequiredByes(totalQualified, bracketSize);
 
-        List<Player> playersWithBye =
-                determinePlayersWithBye(firstPlaces, secondPlaces, numberOfByes);
+        List<Player> playersWithBye = determinePlayersWithBye(
+                firstPlaces, secondPlaces, numberOfByes);
 
         List<Player> seededPlayers =
                 buildSeededPlayers(firstPlaces, secondPlaces, bracketSize);
@@ -72,10 +78,36 @@ public class BracketService {
         List<Match> matches = createFirstRoundMatches(
                 category, seededPlayers, bracketSize);
 
-        matches.addAll(createSubsequentRoundMatches(category, bracketSize));
+        matches.addAll(
+                createSubsequentRoundMatches(category, bracketSize));
+
         advancePlayersWithBye(matches, bracketSize);
 
         return buildBracketResponse(category, bracketSize, matches);
+    }
+
+    private void removeExistingKnockoutIfNotStarted(Long categoryId) {
+        List<Match> existingMatches = matchRepository
+                .findByCategoryId(categoryId)
+                .stream()
+                .filter(match -> match.getPhase() != MatchPhase.GROUP)
+                .toList();
+
+        boolean knockoutStarted = existingMatches.stream()
+                .anyMatch(match ->
+                        match.getStatus() == MatchStatus.IN_PROGRESS
+                        || match.getStatus() == MatchStatus.FINISHED
+                        || match.getStatus() == MatchStatus.WO);
+
+        if (knockoutStarted) {
+            throw new BusinessException(
+                    "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.");
+        }
+
+        if (!existingMatches.isEmpty()) {
+            matchRepository.deleteAll(existingMatches);
+            matchRepository.flush();
+        }
     }
 
     private void validateQualifiedPlayers(
@@ -128,18 +160,16 @@ public class BracketService {
         return size;
     }
 
+    public int calculateRequiredByes(int totalPlayers, int bracketSize) {
+        validateBracketSize(bracketSize);
 
-	public int calculateRequiredByes(int totalPlayers, int bracketSize) {
-	    validateBracketSize(bracketSize);
-	
-	    if (totalPlayers > bracketSize) {
-	        throw new BusinessException(
-	                "O número de classificados não pode ser maior que o tamanho da chave.");
-	    }
-	
-	    return bracketSize - totalPlayers;
-	}
+        if (totalPlayers > bracketSize) {
+            throw new BusinessException(
+                    "O número de classificados não pode ser maior que o tamanho da chave.");
+        }
 
+        return bracketSize - totalPlayers;
+    }
 
     private List<Player> determinePlayersWithBye(
             List<Player> firstPlaces,

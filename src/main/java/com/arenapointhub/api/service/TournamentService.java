@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import java.util.List;
@@ -6,20 +7,30 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.arenapointhub.api.dto.BracketResponseDTO;
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.TournamentStatus;
+import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
 @Service
 public class TournamentService {
 
     private final TournamentRepository tournamentRepository;
+    private final CategoryRepository categoryRepository;
+    private final BracketService bracketService;
 
-    public TournamentService(TournamentRepository tournamentRepository) {
+    public TournamentService(
+            TournamentRepository tournamentRepository,
+            CategoryRepository categoryRepository,
+            BracketService bracketService) {
         this.tournamentRepository = tournamentRepository;
+        this.categoryRepository = categoryRepository;
+        this.bracketService = bracketService;
     }
 
     @Transactional
@@ -48,16 +59,21 @@ public class TournamentService {
     @Transactional(readOnly = true)
     public TournamentResponseDTO getTournamentById(Long id) {
         Tournament tournament = tournamentRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Torneio não encontrado com o ID: " + id));
+                .orElseThrow(() -> new BusinessException(
+                        "Torneio não encontrado com o ID: " + id));
         return mapToResponseDTO(tournament);
     }
 
     @Transactional
-    public TournamentResponseDTO updateTournament(Long id, TournamentRequestDTO dto) {
+    public TournamentResponseDTO updateTournament(
+            Long id,
+            TournamentRequestDTO dto) {
         Tournament tournament = tournamentRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Torneio não encontrado com o ID: " + id));
+                .orElseThrow(() -> new BusinessException(
+                        "Torneio não encontrado com o ID: " + id));
 
         copyDtoToEntity(dto, tournament);
+
         if (dto.getStatus() != null) {
             tournament.setStatus(dto.getStatus());
         }
@@ -69,12 +85,37 @@ public class TournamentService {
     @Transactional
     public void deleteTournament(Long id) {
         if (!tournamentRepository.existsById(id)) {
-            throw new BusinessException("Torneio não encontrado com o ID: " + id);
+            throw new BusinessException(
+                    "Torneio não encontrado com o ID: " + id);
         }
+
         tournamentRepository.deleteById(id);
     }
 
-    private void copyDtoToEntity(TournamentRequestDTO dto, Tournament entity) {
+    @Transactional
+    public List<BracketResponseDTO> generatePlayoffs(Long tournamentId) {
+        if (!tournamentRepository.existsById(tournamentId)) {
+            throw new BusinessException(
+                    "Torneio não encontrado com o ID: " + tournamentId);
+        }
+
+        List<Category> categories =
+                categoryRepository.findByTournamentId(tournamentId);
+
+        if (categories.isEmpty()) {
+            throw new BusinessException(
+                    "O torneio não possui categorias cadastradas.");
+        }
+
+        return categories.stream()
+                .map(category ->
+                        bracketService.generateKnockoutBracket(category.getId()))
+                .toList();
+    }
+
+    private void copyDtoToEntity(
+            TournamentRequestDTO dto,
+            Tournament entity) {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setSchedule(dto.getSchedule());
