@@ -241,6 +241,20 @@ class BracketServiceTest {
         assertMatch(matches.get(5), 9L, 2L);
         assertMatch(matches.get(6), 13L, 8L);
         assertMatch(matches.get(7), 3L, 16L);
+        
+
+        List<Match> firstRoundMatches = matches.subList(0, 8);
+
+        long byeCount = firstRoundMatches.stream()
+                .filter(this::isByeMatch)
+                .count();
+
+        assertEquals(0, byeCount);
+
+        assertTrue(firstRoundMatches.stream()
+                .allMatch(match ->
+                        match.getStatus() == MatchStatus.SCHEDULED));
+
     }
 
     @Test
@@ -366,6 +380,9 @@ class BracketServiceTest {
 
         assertBye(firstRoundMatches, 1L);
         assertBye(firstRoundMatches, 3L);
+        assertByeMatch(firstRoundMatches.get(0), 1L);
+        assertByeMatch(firstRoundMatches.get(7), 3L);
+
 
         List<Match> scheduledMatches =
                 firstRoundMatches.stream()
@@ -517,6 +534,83 @@ class BracketServiceTest {
                 MatchStatus.SCHEDULED,
                 matches.get(0).getStatus());
     }
+    
+	@Test
+	void shouldGenerateCorrectSeedingForThreeGroups() {
+	    Category category = createCategory();
+	
+	    prepareBracketScenario(category, 3);
+	
+	    BracketResponseDTO response =
+	            bracketService.generateKnockoutBracket(CATEGORY_ID);
+	
+	    assertEquals(8, response.getTargetBracketSize());
+	    assertEquals(7, response.getMatches().size());
+	
+	    List<Match> matches = captureSavedMatches(9);
+	
+	    // Primeira rodada: BYE para o primeiro colocado do grupo 1.
+	    assertByeMatch(matches.get(0), 1L);
+	
+	    // Confronto entre segundos colocados.
+	    assertMatch(matches.get(1), 4L, 6L);
+	
+	    // Primeira rodada: BYE para o primeiro colocado do grupo 2.
+	    assertByeMatch(matches.get(2), 3L);
+	
+	    // Primeiro colocado do grupo 3 contra segundo do grupo 1.
+	    assertMatch(matches.get(3), 5L, 2L);
+	}
+
+    @Test
+    void shouldGenerateCorrectSeedingForFiveGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 5);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(21);
+
+        assertByeMatch(matches.get(0), 1L);
+        assertMatch(matches.get(1), 6L, 8L);
+        assertByeMatch(matches.get(2), 9L);
+        assertByeMatch(matches.get(3), 3L);
+        assertByeMatch(matches.get(4), 4L);
+        assertByeMatch(matches.get(5), 7L);
+        assertByeMatch(matches.get(6), 5L);
+        assertMatch(matches.get(7), 2L, 10L);
+    }
+    
+
+    @Test
+    void shouldGenerateCorrectSeedingForSixGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 6);
+
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
+
+        List<Match> matches = captureSavedMatches(19);
+
+        assertByeMatch(matches.get(0), 1L);
+        assertMatch(matches.get(1), 11L, 6L);
+        assertMatch(matches.get(2), 8L, 10L);
+        assertByeMatch(matches.get(3), 3L);
+        assertMatch(matches.get(4), 9L, 2L);
+        assertMatch(matches.get(5), 4L, 12L);
+        assertByeMatch(matches.get(6), 5L);
+        assertByeMatch(matches.get(7), 7L);
+    }
+
 
     private void prepareBracketScenario(
             Category category,
