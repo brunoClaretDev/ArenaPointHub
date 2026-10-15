@@ -1,6 +1,7 @@
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -314,6 +315,34 @@ class BracketServiceTest {
 
         assertContainsPlayers(scheduledMatches, 6L, 8L);
         assertContainsPlayers(scheduledMatches, 2L, 10L);
+        
+
+        List<Match> quarterFinals = matches.subList(8, 12);
+
+        assertEquals(
+                1L,
+                quarterFinals.get(0).getPlayer1().getId());
+
+        assertEquals(
+                9L,
+                quarterFinals.get(1).getPlayer1().getId());
+
+        assertEquals(
+                3L,
+                quarterFinals.get(1).getPlayer2().getId());
+
+        assertEquals(
+                4L,
+                quarterFinals.get(2).getPlayer1().getId());
+
+        assertEquals(
+                7L,
+                quarterFinals.get(2).getPlayer2().getId());
+
+        assertEquals(
+                5L,
+                quarterFinals.get(3).getPlayer1().getId());
+
     }
 
     @Test
@@ -353,6 +382,26 @@ class BracketServiceTest {
         assertContainsPlayers(scheduledMatches, 8L, 10L);
         assertContainsPlayers(scheduledMatches, 9L, 2L);
         assertContainsPlayers(scheduledMatches, 4L, 12L);
+        
+
+        List<Match> quarterFinals = matches.subList(8, 12);
+
+        assertEquals(
+                1L,
+                quarterFinals.get(0).getPlayer1().getId());
+
+        assertEquals(
+                3L,
+                quarterFinals.get(1).getPlayer2().getId());
+
+        assertEquals(
+                5L,
+                quarterFinals.get(3).getPlayer1().getId());
+
+        assertEquals(
+                7L,
+                quarterFinals.get(3).getPlayer2().getId());
+
     }
     
     @Test
@@ -410,6 +459,22 @@ class BracketServiceTest {
                             + " não foi encontrado na primeira rodada."
             );
         }
+        
+        List<Match> roundOf16 = matches.subList(0, 8);
+        List<Match> quarterFinals = matches.subList(8, 12);
+
+        assertByeMatch(roundOf16.get(0), 1L);
+        assertByeMatch(roundOf16.get(7), 3L);
+
+        assertTrue(
+                quarterFinals.stream()
+                        .anyMatch(match -> containsPlayer(match, 1L)),
+                "O jogador 1 deve avançar para as quartas de final.");
+
+        assertTrue(
+                quarterFinals.stream()
+                        .anyMatch(match -> containsPlayer(match, 3L)),
+                "O jogador 3 deve avançar para as quartas de final.");
     }
     
     @Test
@@ -459,31 +524,39 @@ class BracketServiceTest {
     }
     
 
+
     @Test
     void shouldBlockRegenerationWhenKnockoutMatchIsInProgress() {
         Category category = createCategory();
 
-        Match existingMatch = new Match();
-        existingMatch.setCategory(category);
-        existingMatch.setPhase(MatchPhase.SEMI_FINAL);
-        existingMatch.setStatus(MatchStatus.IN_PROGRESS);
+        List<MatchStatus> blockedStatuses = List.of(
+                MatchStatus.IN_PROGRESS,
+                MatchStatus.FINISHED,
+                MatchStatus.WO);
 
-        when(categoryRepository.findById(CATEGORY_ID))
-                .thenReturn(Optional.of(category));
+        for (MatchStatus status : blockedStatuses) {
+            Match existingMatch = new Match();
+            existingMatch.setCategory(category);
+            existingMatch.setPhase(MatchPhase.SEMI_FINAL);
+            existingMatch.setStatus(status);
 
-        when(matchRepository.findByCategoryId(CATEGORY_ID))
-                .thenReturn(List.of(existingMatch));
+            when(categoryRepository.findById(CATEGORY_ID))
+                    .thenReturn(Optional.of(category));
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+            when(matchRepository.findByCategoryId(CATEGORY_ID))
+                    .thenReturn(List.of(existingMatch));
 
-        assertEquals(
-                "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.",
-                exception.getMessage());
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
 
-        verify(matchRepository, org.mockito.Mockito.never())
-                .deleteAll(any());
+            assertEquals(
+                    "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.",
+                    exception.getMessage());
+
+            verify(matchRepository, org.mockito.Mockito.never())
+                    .deleteAll(any());
+        }
     }
 
     @Test
@@ -510,9 +583,66 @@ class BracketServiceTest {
 
         bracketService.generateKnockoutBracket(CATEGORY_ID);
 
-        verify(matchRepository).deleteAll(List.of(existingMatch));
-        verify(matchRepository).flush();
+        org.mockito.InOrder inOrder =
+                org.mockito.Mockito.inOrder(matchRepository);
+
+        inOrder.verify(matchRepository)
+                .deleteAll(List.of(existingMatch));
+
+        inOrder.verify(matchRepository).flush();
+
+        inOrder.verify(matchRepository, org.mockito.Mockito.atLeastOnce())
+                .save(any(Match.class));
     }
+
+
+    @Test
+    void shouldPreserveGroupMatchesWhenRegeneratingKnockout() {
+        Category category = createCategory();
+        List<Group> groups = createGroups(2, category);
+
+        Match groupMatch = new Match();
+        groupMatch.setCategory(category);
+        groupMatch.setPhase(MatchPhase.GROUP);
+        groupMatch.setStatus(MatchStatus.FINISHED);
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        Match knockoutMatch = new Match();
+        knockoutMatch.setCategory(category);
+        knockoutMatch.setPhase(MatchPhase.SEMI_FINAL);
+        knockoutMatch.setStatus(MatchStatus.SCHEDULED);
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of(groupMatch, knockoutMatch));
+
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        mockQualifiedPlayers(2);
+        mockMatchSave();
+
+        bracketService.generateKnockoutBracket(CATEGORY_ID);
+
+
+        org.mockito.ArgumentCaptor<List<Match>> captor =
+                org.mockito.ArgumentCaptor.captor();
+        
+        verify(matchRepository).deleteAll(captor.capture());
+
+        assertTrue(captor.getValue().contains(knockoutMatch));
+        assertFalse(captor.getValue().contains(groupMatch));
+
+
+        verify(matchRepository).flush();
+
+        verify(matchRepository, org.mockito.Mockito.atLeastOnce())
+                .save(any(Match.class));
+
+    }
+
     
     @Test
     void shouldGenerateFinalDirectlyForOneGroup() {
