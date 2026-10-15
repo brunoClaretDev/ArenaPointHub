@@ -741,6 +741,122 @@ class BracketServiceTest {
         assertByeMatch(matches.get(7), 7L);
     }
 
+    @Test
+    void shouldRejectMoreThanEightGroups() {
+        Category category = createCategory();
+
+        List<Group> groups = createGroups(9, category);
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of());
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "A geração do chaveamento suporta de 1 a 8 grupos.",
+                exception.getMessage());
+    }
+    
+    @Test
+    void shouldRejectGroupWithIncompleteClassification() {
+        Category category = createCategory();
+        List<Group> groups = createGroups(2, category);
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of());
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        Player firstPlace = createPlayer(1L, "Player 1");
+        Player secondPlace = createPlayer(2L, "Player 2");
+        Player thirdPlace = createPlayer(3L, "Player 3");
+
+        mockGroupStandings(1L, firstPlace, secondPlace);
+        mockGroupStandings(2L, thirdPlace);
+        mockPlayers(firstPlace, secondPlace, thirdPlace);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "Cada grupo precisa ter dois jogadores classificados.",
+                exception.getMessage());
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .save(any(Match.class));
+    }
+       
+    @Test
+    void shouldRejectDuplicateQualifiedPlayers() {
+        Category category = createCategory();
+        List<Group> groups = createGroups(2, category);
+
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of());
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        GroupStandingDTO firstGroupWinner =
+                org.mockito.Mockito.mock(GroupStandingDTO.class);
+        GroupStandingDTO firstGroupSecond =
+                org.mockito.Mockito.mock(GroupStandingDTO.class);
+        GroupStandingDTO secondGroupWinner =
+                org.mockito.Mockito.mock(GroupStandingDTO.class);
+        GroupStandingDTO secondGroupSecond =
+                org.mockito.Mockito.mock(GroupStandingDTO.class);
+
+        when(firstGroupWinner.getPlayerId()).thenReturn(1L);
+        when(firstGroupSecond.getPlayerId()).thenReturn(2L);
+        when(secondGroupWinner.getPlayerId()).thenReturn(3L);
+        when(secondGroupSecond.getPlayerId()).thenReturn(2L);
+
+        when(groupService.calculateGroupStandings(groups.get(0).getId()))
+                .thenReturn(List.of(firstGroupWinner, firstGroupSecond));
+
+        when(groupService.calculateGroupStandings(groups.get(1).getId()))
+                .thenReturn(List.of(secondGroupWinner, secondGroupSecond));
+
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.of(player2));
+        when(playerRepository.findById(3L))
+                .thenReturn(Optional.of(player3));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "Existem jogadores duplicados entre os classificados.",
+                exception.getMessage());
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .save(any(Match.class));
+    }
+
+
 
     private void prepareBracketScenario(
             Category category,
