@@ -595,7 +595,6 @@ class BracketServiceTest {
                 .save(any(Match.class));
     }
 
-
     @Test
     void shouldPreserveGroupMatchesWhenRegeneratingKnockout() {
         Category category = createCategory();
@@ -606,17 +605,16 @@ class BracketServiceTest {
         groupMatch.setPhase(MatchPhase.GROUP);
         groupMatch.setStatus(MatchStatus.FINISHED);
 
-        when(categoryRepository.findById(CATEGORY_ID))
-                .thenReturn(Optional.of(category));
-
         Match knockoutMatch = new Match();
         knockoutMatch.setCategory(category);
         knockoutMatch.setPhase(MatchPhase.SEMI_FINAL);
         knockoutMatch.setStatus(MatchStatus.SCHEDULED);
 
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of(groupMatch, knockoutMatch));
-
 
         when(groupRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(new ArrayList<>(groups));
@@ -626,21 +624,19 @@ class BracketServiceTest {
 
         bracketService.generateKnockoutBracket(CATEGORY_ID);
 
-
         org.mockito.ArgumentCaptor<List<Match>> captor =
                 org.mockito.ArgumentCaptor.captor();
-        
-        verify(matchRepository).deleteAll(captor.capture());
+
+        org.mockito.InOrder inOrder =
+                org.mockito.Mockito.inOrder(matchRepository);
+
+        inOrder.verify(matchRepository).deleteAll(captor.capture());
+        inOrder.verify(matchRepository).flush();
+        inOrder.verify(matchRepository, org.mockito.Mockito.atLeastOnce())
+                .save(any(Match.class));
 
         assertTrue(captor.getValue().contains(knockoutMatch));
         assertFalse(captor.getValue().contains(groupMatch));
-
-
-        verify(matchRepository).flush();
-
-        verify(matchRepository, org.mockito.Mockito.atLeastOnce())
-                .save(any(Match.class));
-
     }
 
     
