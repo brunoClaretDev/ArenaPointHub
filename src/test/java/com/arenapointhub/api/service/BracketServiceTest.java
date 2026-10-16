@@ -758,6 +758,31 @@ class BracketServiceTest {
     }
     
     @Test
+    void shouldRejectKnockoutGenerationWhenCategoryHasNoGroups() {
+        Category category = createCategory();
+
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of());
+
+        when(groupRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(new ArrayList<>());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "Não existem grupos para esta categoria.",
+                exception.getMessage());
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .save(any(Match.class));
+    }
+    
+    @Test
     void shouldRejectMoreThanEightGroups() {
         Category category = createCategory();
 
