@@ -804,6 +804,9 @@ class BracketServiceTest {
         assertEquals(
                 "A geração do chaveamento suporta de 1 a 8 grupos.",
                 exception.getMessage());
+        
+        verify(matchRepository, org.mockito.Mockito.never())
+        		.save(any(Match.class));
     }
     
     @Test
@@ -811,7 +814,7 @@ class BracketServiceTest {
         Category category = createCategory();
         List<Group> groups = createGroups(2, category);
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository.findById(CATEGORY_ID))	
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
