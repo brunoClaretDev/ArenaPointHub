@@ -301,48 +301,32 @@ class BracketServiceTest {
 
         assertBye(firstRoundMatches, 1L);
         assertBye(firstRoundMatches, 3L);
+        assertBye(firstRoundMatches, 4L);
         assertBye(firstRoundMatches, 5L);
         assertBye(firstRoundMatches, 7L);
         assertBye(firstRoundMatches, 9L);
-        assertBye(firstRoundMatches, 4L);
 
         List<Match> scheduledMatches = firstRoundMatches.stream()
-                .filter(match ->
-                        match.getStatus() == MatchStatus.SCHEDULED)
+                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
                 .toList();
 
         assertEquals(2, scheduledMatches.size());
-
         assertContainsPlayers(scheduledMatches, 6L, 8L);
         assertContainsPlayers(scheduledMatches, 2L, 10L);
-        
 
         List<Match> quarterFinals = matches.subList(8, 12);
 
-        assertEquals(
-                1L,
-                quarterFinals.get(0).getPlayer1().getId());
+        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
+        assertNull(quarterFinals.get(0).getPlayer2());
 
-        assertEquals(
-                9L,
-                quarterFinals.get(1).getPlayer1().getId());
+        assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
+        assertEquals(3L, quarterFinals.get(1).getPlayer2().getId());
 
-        assertEquals(
-                3L,
-                quarterFinals.get(1).getPlayer2().getId());
+        assertEquals(4L, quarterFinals.get(2).getPlayer1().getId());
+        assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
 
-        assertEquals(
-                4L,
-                quarterFinals.get(2).getPlayer1().getId());
-
-        assertEquals(
-                7L,
-                quarterFinals.get(2).getPlayer2().getId());
-
-        assertEquals(
-                5L,
-                quarterFinals.get(3).getPlayer1().getId());
-
+        assertEquals(5L, quarterFinals.get(3).getPlayer1().getId());
+        assertNull(quarterFinals.get(3).getPlayer2());
     }
 
     @Test
