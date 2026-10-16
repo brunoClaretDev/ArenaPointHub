@@ -752,6 +752,9 @@ class BracketServiceTest {
 
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
+        
+        verify(matchRepository, org.mockito.Mockito.never())
+        		.findByCategoryId(CATEGORY_ID);
     }
     
     @Test
