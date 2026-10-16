@@ -736,7 +736,24 @@ class BracketServiceTest {
         assertByeMatch(matches.get(6), 5L);
         assertByeMatch(matches.get(7), 7L);
     }
+    
+    @Test
+    void shouldRejectKnockoutGenerationWhenCategoryDoesNotExist() {
+        when(categoryRepository.findById(CATEGORY_ID))
+                .thenReturn(Optional.empty());
 
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+
+        assertEquals(
+                "Categoria não encontrada com ID: 1",
+                exception.getMessage());
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .save(any(Match.class));
+    }
+    
     @Test
     void shouldRejectMoreThanEightGroups() {
         Category category = createCategory();
