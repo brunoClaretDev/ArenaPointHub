@@ -7,10 +7,13 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.arenapointhub.api.security.JwtAuthenticationFilter;
 import com.arenapointhub.api.service.AdministratorDetailsService;
 
 @Configuration
@@ -18,10 +21,13 @@ import com.arenapointhub.api.service.AdministratorDetailsService;
 public class SecurityConfig {
 
     private final AdministratorDetailsService administratorDetailsService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     public SecurityConfig(
-            AdministratorDetailsService administratorDetailsService) {
+            AdministratorDetailsService administratorDetailsService,
+            JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.administratorDetailsService = administratorDetailsService;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
@@ -44,15 +50,18 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authenticationProvider(authenticationProvider())
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .httpBasic(basic -> {});
+                .anyRequest().authenticated())
+            .addFilterBefore(
+                jwtAuthenticationFilter,
+                UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
-    
+
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration configuration) throws Exception {

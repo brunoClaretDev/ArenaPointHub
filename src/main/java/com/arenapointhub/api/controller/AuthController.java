@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.arenapointhub.api.security.JwtService;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -19,9 +21,13 @@ import jakarta.validation.constraints.NotBlank;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
 
-    public AuthController(AuthenticationManager authenticationManager) {
+    public AuthController(
+            AuthenticationManager authenticationManager,
+            JwtService jwtService) {
         this.authenticationManager = authenticationManager;
+        this.jwtService = jwtService;
     }
 
     @PostMapping("/login")
@@ -34,8 +40,12 @@ public class AuthController {
                                 request.username(),
                                 request.password()));
 
+        String token = jwtService.generateToken(
+                authentication.getName());
+
         return ResponseEntity.ok(Map.of(
                 "username", authentication.getName(),
+                "token", token,
                 "message", "Autenticação realizada com sucesso."));
     }
 
