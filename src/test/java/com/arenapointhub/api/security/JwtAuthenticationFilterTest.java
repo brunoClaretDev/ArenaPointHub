@@ -3,25 +3,32 @@ package com.arenapointhub.api.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
+
+import javax.crypto.SecretKey;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.mock.web.MockFilterChain;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
-import com.arenapointhub.api.security.JwtAuthenticationFilter;
-
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.ServletException;
 
 class JwtAuthenticationFilterTest {
@@ -90,6 +97,36 @@ class JwtAuthenticationFilterTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token-invalido");
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verifyNoInteractions(userDetailsService);
+    }
+    
+    @Test
+    void shouldNotAuthenticateRequestWithExpiredToken()
+            throws ServletException, IOException {
+
+        String secret = Base64.getEncoder().encodeToString(
+                "ArenaPointHubTestSecretKeyForJwtTests123456".getBytes());
+
+        SecretKey secretKey = Keys.hmacShaKeyFor(
+                Decoders.BASE64.decode(secret));
+
+        Date now = new Date();
+
+        String expiredToken = Jwts.builder()
+                .subject("admin")
+                .issuedAt(new Date(now.getTime() - 2000))
+                .expiration(new Date(now.getTime() - 1000))
+                .signWith(secretKey)
+                .compact();
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + expiredToken);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
 
