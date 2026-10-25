@@ -1,13 +1,15 @@
 package com.arenapointhub.api.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.Instant;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -40,6 +42,24 @@ public class GlobalExceptionHandler {
                 e.getMessage(),
                 request.getRequestURI()
         );
+        return ResponseEntity.status(status).body(err);
+    }
+    
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<StandardError> badCredentials(
+            BadCredentialsException e,
+            HttpServletRequest request) {
+
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+
+        StandardError err = new StandardError(
+                Instant.now(),
+                status.value(),
+                "Não autorizado",
+                "Usuário ou senha inválidos.",
+                request.getRequestURI()
+        );
+
         return ResponseEntity.status(status).body(err);
     }
 }

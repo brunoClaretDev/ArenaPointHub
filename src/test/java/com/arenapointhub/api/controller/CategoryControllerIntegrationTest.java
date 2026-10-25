@@ -25,54 +25,65 @@ class CategoryControllerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Test
-    @WithMockUser
-    void shouldCreateAndPersistCategory() throws Exception {
 
-        String tournamentJson = """
-                {
-                    "name": "Torneio Integração"
-                }
-                """;
+	@Test
+	@WithMockUser
+	void shouldCreateAndPersistCategory() throws Exception {
+	
+	    String tournamentJson = """
+	            {
+	                "name": "Torneio Integração"
+	            }
+	            """;
+	
+	    String tournamentResponse = mockMvc.perform(
+	            post("/api/tournaments")
+	                    .contentType(MediaType.APPLICATION_JSON)
+	                    .content(tournamentJson))
+	            .andExpect(status().isCreated())
+	            .andReturn()
+	            .getResponse()
+	            .getContentAsString();
+	
+	    Long tournamentId = ((Number) JsonPath.read(
+	            tournamentResponse,
+	            "$.id"
+	    )).longValue();
+	
+	    String categoryJson = """
+	            {
+	                "name": "Sub-13",
+	                "type": "AGE",
+	                "minAge": 10,
+	                "maxAge": 13,
+	                "setsToWinMatch": 2,
+	                "tournamentId": %d
+	            }
+	            """.formatted(tournamentId);
+	
+	    String categoryResponse = mockMvc.perform(
+	            post("/api/categories")
+	                    .contentType(MediaType.APPLICATION_JSON)
+	                    .content(categoryJson))
+	            .andExpect(status().isCreated())
+	            .andExpect(content()
+	                    .contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+	            .andReturn()
+	            .getResponse()
+	            .getContentAsString();
+	
+	    Long categoryId = ((Number) JsonPath.read(
+	            categoryResponse,
+	            "$.id"
+	    )).longValue();
+	
+	    mockMvc.perform(get("/api/categories/{id}", categoryId))
+	            .andExpect(status().isOk())
+	            .andExpect(jsonPath("$.id").value(categoryId))
+	            .andExpect(jsonPath("$.name").value("Sub-13"))
+	            .andExpect(jsonPath("$.type").value("AGE"));
+	}
 
-        String tournamentResponse = mockMvc.perform(
-                post("/api/tournaments")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(tournamentJson))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        Long tournamentId = ((Number) JsonPath.read(
-                tournamentResponse,
-                "$.id"
-        )).longValue();
-
-        String categoryJson = """
-                {
-                    "name": "Sub-13",
-                    "type": "AGE",
-                    "minAge": 10,
-                    "maxAge": 13,
-                    "setsToWinMatch": 2,
-                    "tournamentId": %d
-                }
-                """.formatted(tournamentId);
-
-        mockMvc.perform(
-                post("/api/categories")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(categoryJson))
-                .andExpect(status().isCreated())
-                .andExpect(content()
-                        .contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
-
-        mockMvc.perform(get("/api/categories"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].name").value("Sub-13"));
-    }
     
     @Test
     @WithMockUser

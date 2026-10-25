@@ -2,8 +2,10 @@ package com.arenapointhub.api.controller;
 
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,19 +36,23 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> login(
             @Valid @RequestBody LoginRequest request) {
 
-        Authentication authentication =
-                authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(
-                                request.username(),
-                                request.password()));
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.username(),
+                            request.password()));
 
-        String token = jwtService.generateToken(
-                authentication.getName());
+            String token = jwtService.generateToken(authentication.getName());
 
-        return ResponseEntity.ok(Map.of(
-                "username", authentication.getName(),
-                "token", token,
-                "message", "Autenticação realizada com sucesso."));
+            return ResponseEntity.ok(Map.of(
+                    "username", authentication.getName(),
+                    "token", token,
+                    "message", "Autenticação realizada com sucesso."));
+
+        } catch (BadCredentialsException exception) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "message", "Usuário ou senha inválidos."));
+        }
     }
 
     public record LoginRequest(

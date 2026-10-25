@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.TestConstructor.AutowireMode;
 
@@ -20,6 +21,7 @@ import com.arenapointhub.api.model.Tournament;
 @DataJpaTest(properties = {
 	    "spring.jpa.hibernate.ddl-auto=create-drop"
 	})
+@ActiveProfiles("test")
 @TestConstructor(autowireMode = AutowireMode.ALL)
 class PlayerGlobalRankingRepositoryTest {
 

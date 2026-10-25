@@ -71,29 +71,33 @@ class AuthControllerTest {
         verify(jwtService).generateToken("admin");
     }
 
-    @Test
-    void shouldRejectInvalidCredentials() {
-        when(authenticationManager.authenticate(any(
-                UsernamePasswordAuthenticationToken.class)))
-                .thenThrow(new BadCredentialsException("Credenciais inválidas"));
-
-        Map<String, String> request = Map.of(
-                "username", "admin",
-                "password", "senha-errada");
-
-        assertThrows(
-                jakarta.servlet.ServletException.class,
-                () -> mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .post("/auth/login")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request))));
-
-        verify(authenticationManager).authenticate(any(
-                UsernamePasswordAuthenticationToken.class));
-        verifyNoInteractions(jwtService);
-    }
-
+	@Test
+	void shouldRejectInvalidCredentials() throws Exception {
+	    when(authenticationManager.authenticate(any(
+	            UsernamePasswordAuthenticationToken.class)))
+	            .thenThrow(new BadCredentialsException("Credenciais inválidas"));
+	
+	    Map<String, String> request = Map.of(
+	            "username", "admin",
+	            "password", "senha-errada");
+	
+	    mockMvc.perform(
+	            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+	                    .post("/auth/login")
+	                    .contentType(MediaType.APPLICATION_JSON)
+	                    .content(objectMapper.writeValueAsString(request)))
+	            .andExpect(
+	                    org.springframework.test.web.servlet.result.MockMvcResultMatchers
+	                            .status().isUnauthorized())
+	            .andExpect(
+	                    org.springframework.test.web.servlet.result.MockMvcResultMatchers
+	                            .jsonPath("$.message")
+	                            .value("Usuário ou senha inválidos."));
+	
+	    verify(authenticationManager).authenticate(any(
+	            UsernamePasswordAuthenticationToken.class));
+	    verifyNoInteractions(jwtService);
+	}
 
     @Test
     void shouldRejectBlankCredentials() throws Exception {

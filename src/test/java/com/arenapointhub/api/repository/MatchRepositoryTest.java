@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 
 import com.arenapointhub.api.model.Category;
@@ -18,6 +19,7 @@ import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
 
 @DataJpaTest
+@ActiveProfiles("test")
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MatchRepositoryTest {
 

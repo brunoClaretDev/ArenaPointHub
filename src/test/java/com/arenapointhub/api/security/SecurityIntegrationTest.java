@@ -3,6 +3,8 @@ package com.arenapointhub.api.security;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -18,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.arenapointhub.api.service.AdministratorDetailsService;
 
@@ -29,6 +32,7 @@ class SecurityIntegrationTest {
 
     private final MockMvc mockMvc;
     private final JwtService jwtService;
+    private final PasswordEncoder passwordEncoder;
 
     @MockitoBean
     private AdministratorDetailsService administratorDetailsService;
@@ -37,15 +41,16 @@ class SecurityIntegrationTest {
 
     SecurityIntegrationTest(
             MockMvc mockMvc,
-            JwtService jwtService) {
+            JwtService jwtService, PasswordEncoder passwordEncoder) {
         this.mockMvc = mockMvc;
         this.jwtService = jwtService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @BeforeEach
     void setUp() {
         userDetails = User.withUsername("admin")
-                .password("password")
+                .password(passwordEncoder.encode("password"))
                 .authorities(List.of(
                         new SimpleGrantedAuthority("ROLE_ADMIN")))
                 .build();
@@ -75,4 +80,25 @@ class SecurityIntegrationTest {
                 .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
+    
+
+	@Test
+	void shouldRejectLoginWithInvalidCredentials() throws Exception {
+		  when(administratorDetailsService.loadUserByUsername("admin"))
+	        .thenReturn(userDetails);
+		
+		mockMvc.perform(post("/auth/login")
+	            .contentType("application/json")
+	            .content("""
+	                    {
+	                        "username": "admin",
+	                        "password": "senha-incorreta"
+	                    }
+	                    """))
+	            .andDo(print());
+	    
+	  
+	}
+
+
 }

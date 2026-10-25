@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 
 import com.arenapointhub.api.model.Category;
@@ -16,6 +17,7 @@ import com.arenapointhub.api.model.MatchSet;
 import com.arenapointhub.api.model.Tournament;
 
 @DataJpaTest
+@ActiveProfiles("test")
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MatchSetRepositoryTest {
 
