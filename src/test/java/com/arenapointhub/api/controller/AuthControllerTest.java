@@ -72,19 +72,28 @@ class AuthControllerTest {
     }
 
     @Test
-    void shouldPropagateInvalidCredentials() {
+    void shouldRejectInvalidCredentials() {
         when(authenticationManager.authenticate(any(
                 UsernamePasswordAuthenticationToken.class)))
                 .thenThrow(new BadCredentialsException("Credenciais inválidas"));
 
-        assertThrows(
-                BadCredentialsException.class,
-                () -> authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(
-                                "admin", "senha-errada")));
+        Map<String, String> request = Map.of(
+                "username", "admin",
+                "password", "senha-errada");
 
-        verify(jwtService, never()).generateToken(any());
+        assertThrows(
+                jakarta.servlet.ServletException.class,
+                () -> mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .post("/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))));
+
+        verify(authenticationManager).authenticate(any(
+                UsernamePasswordAuthenticationToken.class));
+        verifyNoInteractions(jwtService);
     }
+
 
     @Test
     void shouldRejectBlankCredentials() throws Exception {
