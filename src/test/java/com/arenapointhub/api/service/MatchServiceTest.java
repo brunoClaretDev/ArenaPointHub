@@ -1232,7 +1232,7 @@ class MatchServiceTest {
                 winner,
                 opponent,
                 MatchPhase.QUARTER_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 3,
                 1
         );
@@ -1273,8 +1273,8 @@ class MatchServiceTest {
                 ));
 
         MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(3);
-        dto.setScorePlayer2(1);
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(0);
         dto.setStatus(MatchStatus.FINISHED);
 
         matchService.updateScore(10L, dto);
@@ -1299,7 +1299,7 @@ class MatchServiceTest {
                 byeWinner,
                 null,
                 MatchPhase.QUARTER_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 0,
                 0
         );
@@ -1328,7 +1328,7 @@ class MatchServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(0);
+        dto.setScorePlayer1(2);
         dto.setScorePlayer2(0);
         dto.setStatus(MatchStatus.FINISHED);
 
@@ -1356,7 +1356,7 @@ class MatchServiceTest {
                 player1,
                 createPlayer(2L, "Player 2"),
                 MatchPhase.QUARTER_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 3,
                 1
         );
@@ -1364,10 +1364,10 @@ class MatchServiceTest {
         Match quarter2 = createMatch(
                 11L,
                 category,
-                winner,
                 opponent,
+                winner,
                 MatchPhase.QUARTER_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 3,
                 1
         );
@@ -1397,16 +1397,22 @@ class MatchServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(3);
-        dto.setScorePlayer2(1);
+        dto.setScorePlayer1(0);
+        dto.setScorePlayer2(2);
         dto.setStatus(MatchStatus.FINISHED);
 
+        assertEquals(winner, quarter2.getPlayer2());
+        assertEquals(11L, quarter2.getId());
+        assertEquals(20L, semiFinal.getId());
+        
         matchService.updateScore(11L, dto);
 
         assertEquals(
                 winner,
                 semiFinal.getPlayer2()
         );
+        
+        assertEquals(1, List.of(quarter1, quarter2).indexOf(quarter2));
 
         verify(matchRepository).save(semiFinal);
     }
@@ -1425,7 +1431,7 @@ class MatchServiceTest {
                 winner,
                 opponent,
                 MatchPhase.SEMI_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 2,
                 0
         );
@@ -1491,7 +1497,7 @@ class MatchServiceTest {
                 otherWinner,
                 createPlayer(2L, "Other Opponent"),
                 MatchPhase.SEMI_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 2,
                 0
         );
@@ -1502,7 +1508,7 @@ class MatchServiceTest {
                 winner,
                 opponent,
                 MatchPhase.SEMI_FINAL,
-                MatchStatus.FINISHED,
+                MatchStatus.IN_PROGRESS,
                 2,
                 0
         );

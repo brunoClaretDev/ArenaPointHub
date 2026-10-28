@@ -151,44 +151,93 @@ public class MatchService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
-    public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
-        Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
-        		boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
-        
-        match.setScorePlayer1(dto.getScorePlayer1());
-        match.setScorePlayer2(dto.getScorePlayer2());
 
-        if (dto.getStatus() != null) {
-            match.setStatus(dto.getStatus());
-        }
+@Transactional
+public MatchResponseDTO updateScore(
+        Long matchId,
+        MatchScoreUpdateDTO dto) {
 
-        Match updatedMatch = matchRepository.save(match);
-        
-        if (updatedMatch.getPhase() == MatchPhase.FINAL && updatedMatch.getStatus() == MatchStatus.FINISHED) {
-            Player champion = (updatedMatch.getScorePlayer1() > updatedMatch.getScorePlayer2()) 
-                    ? updatedMatch.getPlayer1() 
-                    : (updatedMatch.getScorePlayer2() > updatedMatch.getScorePlayer1() ? updatedMatch.getPlayer2() : null);
-
-            if (champion != null) {
-                Category category = updatedMatch.getCategory();
-                category.setChampion(champion);
-                categoryRepository.save(category);
-            }
-        }
-
-        // Dispara o avanço caso a partida tenha sido finalizada
-        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
-            advanceWinnerToNextRound(updatedMatch);
-
-            if (!alreadyFinished) {
-                checkAndDistributePointsIfFinalFinished(updatedMatch);
-            }
-        }
-
-        return mapToResponseDTO(updatedMatch);
+    if (dto == null) {
+        throw new BusinessException(
+                "Os dados do placar são obrigatórios.");
     }
+
+    Match match = matchRepository.findById(matchId)
+            .orElseThrow(() -> new BusinessException(
+                    "Partida não encontrada com ID: " + matchId));
+
+    if (match.getStatus() == MatchStatus.FINISHED
+            || match.getStatus() == MatchStatus.WO) {
+        throw new BusinessException(
+                "Não é permitido alterar o placar de uma partida encerrada.");
+    }
+
+    if (match.getStatus() == MatchStatus.CANCELED) {
+        throw new BusinessException(
+                "Não é permitido alterar o placar de uma partida cancelada.");
+    }
+
+    Integer scorePlayer1 = dto.getScorePlayer1();
+    Integer scorePlayer2 = dto.getScorePlayer2();
+
+    if (scorePlayer1 == null || scorePlayer2 == null) {
+        throw new BusinessException(
+                "Os placares dos dois jogadores são obrigatórios.");
+    }
+
+    if (scorePlayer1 < 0 || scorePlayer2 < 0) {
+        throw new BusinessException(
+                "Os placares não podem ser negativos.");
+    }
+
+    MatchStatus requestedStatus = dto.getStatus() != null
+            ? dto.getStatus()
+            : match.getStatus();
+
+    if (requestedStatus == MatchStatus.FINISHED) {
+        if (scorePlayer1.equals(scorePlayer2)) {
+            throw new BusinessException(
+                    "Uma partida não pode ser encerrada empatada.");
+        }
+
+        int setsNeededToWin = determineSetsNeededToWin(match);
+        int winningScore = Math.max(scorePlayer1, scorePlayer2);
+        int losingScore = Math.min(scorePlayer1, scorePlayer2);
+
+        if (winningScore != setsNeededToWin
+                || losingScore >= setsNeededToWin) {
+            throw new BusinessException(
+                    "Placar final inválido. O vencedor deve alcançar "
+                            + setsNeededToWin
+                            + " sets, e o adversário deve ter menos sets.");
+        }
+    }
+
+    match.setScorePlayer1(scorePlayer1);
+    match.setScorePlayer2(scorePlayer2);
+    match.setStatus(requestedStatus);
+
+    Match updatedMatch = matchRepository.save(match);
+
+    if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+        if (updatedMatch.getPhase() == MatchPhase.FINAL) {
+            Player champion = updatedMatch.getScorePlayer1()
+                    > updatedMatch.getScorePlayer2()
+                    ? updatedMatch.getPlayer1()
+                    : updatedMatch.getPlayer2();
+
+            Category category = updatedMatch.getCategory();
+            category.setChampion(champion);
+            categoryRepository.save(category);
+        }
+
+        advanceWinnerToNextRound(updatedMatch);
+        checkAndDistributePointsIfFinalFinished(updatedMatch);
+    }
+
+    return mapToResponseDTO(updatedMatch);
+}
+
 
     @Transactional(readOnly = true)
     public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {

@@ -1,0 +1,1334 @@
+commit 9380502e103412edf2fb161613be7f5f3400dbd7
+Author:     brunoClaretDev <brunoclaret.dev@gmail.com>
+AuthorDate: Tue Oct 27 21:48:47 2026 -0300
+Commit:     brunoClaretDev <brunoclaret.dev@gmail.com>
+CommitDate: Tue Oct 27 21:48:47 2026 -0300
+
+    test: fix match advancement test scenarios
+
+diff --git a/src/main/java/com/arenapointhub/api/controller/CategoryController.java b/src/main/java/com/arenapointhub/api/controller/CategoryController.java
+index ecc9c41..01d82db 100644
+--- a/src/main/java/com/arenapointhub/api/controller/CategoryController.java
++++ b/src/main/java/com/arenapointhub/api/controller/CategoryController.java
+@@ -34,7 +34,6 @@ public class CategoryController {
+     @PostMapping
+     public ResponseEntity<CategoryResponseDTO> createCategory(
+             @Valid @RequestBody CategoryRequestDTO dto) {
+-
+         CategoryResponseDTO createdCategory =
+                 categoryService.createCategory(dto);
+ 
+@@ -44,7 +43,6 @@ public class CategoryController {
+ 
+     @GetMapping
+     public ResponseEntity<List<CategoryResponseDTO>> getAllCategories() {
+-
+         return ResponseEntity.ok(
+                 categoryService.getAllCategories());
+     }
+@@ -52,7 +50,6 @@ public class CategoryController {
+     @GetMapping("/{id}")
+     public ResponseEntity<CategoryResponseDTO> getCategoryById(
+             @PathVariable Long id) {
+-
+         return ResponseEntity.ok(
+                 categoryService.getCategoryById(id));
+     }
+@@ -61,7 +58,6 @@ public class CategoryController {
+     public ResponseEntity<CategoryResponseDTO> updateCategory(
+             @PathVariable Long id,
+             @Valid @RequestBody CategoryRequestDTO dto) {
+-
+         CategoryResponseDTO updatedCategory =
+                 categoryService.updateCategory(id, dto);
+ 
+@@ -71,25 +67,20 @@ public class CategoryController {
+     @DeleteMapping("/{id}")
+     public ResponseEntity<Void> deleteCategory(
+             @PathVariable Long id) {
+-
+         categoryService.deleteCategory(id);
+-
+         return ResponseEntity.noContent().build();
+     }
+ 
+     @PostMapping("/{categoryId}/generate-playoffs")
+     public ResponseEntity<Void> generatePlayoffs(
+             @PathVariable Long categoryId) {
+-
+         categoryService.generatePlayoffs(categoryId);
+-
+         return ResponseEntity.ok().build();
+     }
+ 
+     @GetMapping("/{categoryId}/matches")
+     public ResponseEntity<List<MatchResponseDTO>> getMatchesByCategory(
+             @PathVariable Long categoryId) {
+-
+         return ResponseEntity.ok(
+                 categoryService.getMatchesByCategory(categoryId));
+     }
+@@ -97,7 +88,6 @@ public class CategoryController {
+     @GetMapping("/{id}/champion")
+     public ResponseEntity<Player> getChampion(
+             @PathVariable Long id) {
+-
+         Player champion =
+                 categoryService.getChampionByCategoryId(id);
+ 
+@@ -111,7 +101,6 @@ public class CategoryController {
+     @GetMapping("/{categoryId}/players")
+     public ResponseEntity<List<Player>> getPlayersByCategory(
+             @PathVariable Long categoryId) {
+-
+         return ResponseEntity.ok(
+                 categoryService.getPlayersByCategory(categoryId));
+     }
+@@ -120,26 +109,21 @@ public class CategoryController {
+     public ResponseEntity<Void> addPlayerToCategory(
+             @PathVariable Long categoryId,
+             @PathVariable Long playerId) {
+-
+         categoryService.addPlayerToCategory(categoryId, playerId);
+-
+         return ResponseEntity.status(HttpStatus.CREATED).build();
+     }
+-    
++
+     @DeleteMapping("/{categoryId}/players/{playerId}")
+     public ResponseEntity<Void> removePlayerFromCategory(
+             @PathVariable Long categoryId,
+             @PathVariable Long playerId) {
+-
+         categoryService.removePlayerFromCategory(categoryId, playerId);
+-
+         return ResponseEntity.noContent().build();
+     }
+-    
++
+     @GetMapping("/{categoryId}/draw")
+     public ResponseEntity<List<Player>> drawPlayersByCategory(
+             @PathVariable Long categoryId) {
+-
+         return ResponseEntity.ok(
+                 categoryService.drawPlayersByCategory(categoryId));
+     }
+diff --git a/src/main/java/com/arenapointhub/api/dto/MatchScoreUpdateDTO.java b/src/main/java/com/arenapointhub/api/dto/MatchScoreUpdateDTO.java
+index 5cf54cf..9d15cd2 100644
+--- a/src/main/java/com/arenapointhub/api/dto/MatchScoreUpdateDTO.java
++++ b/src/main/java/com/arenapointhub/api/dto/MatchScoreUpdateDTO.java
+@@ -2,13 +2,16 @@ package com.arenapointhub.api.dto;
+ 
+ import com.arenapointhub.api.model.enums.MatchStatus;
+ import jakarta.validation.constraints.NotNull;
++import jakarta.validation.constraints.PositiveOrZero;
+ 
+ public class MatchScoreUpdateDTO {
+ 
+     @NotNull(message = "O placar do jogador 1 é obrigatório")
++    @PositiveOrZero(message = "O placar não pode ser negativo")
+     private Integer scorePlayer1;
+ 
+     @NotNull(message = "O placar do jogador 2 é obrigatório")
++    @PositiveOrZero(message = "O placar não pode ser negativo")
+     private Integer scorePlayer2;
+ 
+     private MatchStatus status;
+@@ -16,7 +19,10 @@ public class MatchScoreUpdateDTO {
+     public MatchScoreUpdateDTO() {
+     }
+ 
+-    public MatchScoreUpdateDTO(Integer scorePlayer1, Integer scorePlayer2, MatchStatus status) {
++    public MatchScoreUpdateDTO(
++            Integer scorePlayer1,
++            Integer scorePlayer2,
++            MatchStatus status) {
+         this.scorePlayer1 = scorePlayer1;
+         this.scorePlayer2 = scorePlayer2;
+         this.status = status;
+diff --git a/src/main/java/com/arenapointhub/api/dto/MatchSetDTO.java b/src/main/java/com/arenapointhub/api/dto/MatchSetDTO.java
+index b7e46e8..e649e28 100644
+--- a/src/main/java/com/arenapointhub/api/dto/MatchSetDTO.java
++++ b/src/main/java/com/arenapointhub/api/dto/MatchSetDTO.java
+@@ -1,11 +1,13 @@
+ package com.arenapointhub.api.dto;
+ 
++import jakarta.validation.constraints.Min;
+ import jakarta.validation.constraints.NotNull;
+ import jakarta.validation.constraints.PositiveOrZero;
+ 
+ public class MatchSetDTO {
+ 
+     @NotNull(message = "O número do set é obrigatório.")
++    @Min(value = 1, message = "O número do set deve ser maior que zero.")
+     private Integer setNumber;
+ 
+     @NotNull(message = "A pontuação do jogador 1 é obrigatória.")
+@@ -19,7 +21,10 @@ public class MatchSetDTO {
+     public MatchSetDTO() {
+     }
+ 
+-    public MatchSetDTO(Integer setNumber, Integer scorePlayer1, Integer scorePlayer2) {
++    public MatchSetDTO(
++            Integer setNumber,
++            Integer scorePlayer1,
++            Integer scorePlayer2) {
+         this.setNumber = setNumber;
+         this.scorePlayer1 = scorePlayer1;
+         this.scorePlayer2 = scorePlayer2;
+diff --git a/src/main/java/com/arenapointhub/api/repository/MatchSetRepository.java b/src/main/java/com/arenapointhub/api/repository/MatchSetRepository.java
+index 4f12610..a5201a5 100644
+--- a/src/main/java/com/arenapointhub/api/repository/MatchSetRepository.java
++++ b/src/main/java/com/arenapointhub/api/repository/MatchSetRepository.java
+@@ -10,8 +10,12 @@ import com.arenapointhub.api.model.MatchSet;
+ 
+ @Repository
+ public interface MatchSetRepository extends JpaRepository<MatchSet, Long> {
+-    
++
+     List<MatchSet> findByMatchId(Long matchId);
+ 
+-    Optional<MatchSet> findByMatchIdAndSetNumber(Long matchId, Integer setNumber);
++    Optional<MatchSet> findByMatchIdAndSetNumber(
++            Long matchId,
++            Integer setNumber);
++
++    void deleteByMatchId(Long matchId);
+ }
+\ No newline at end of file
+diff --git a/src/main/java/com/arenapointhub/api/service/CategoryService.java b/src/main/java/com/arenapointhub/api/service/CategoryService.java
+index 9f8d2eb..0d64753 100644
+--- a/src/main/java/com/arenapointhub/api/service/CategoryService.java
++++ b/src/main/java/com/arenapointhub/api/service/CategoryService.java
+@@ -3,9 +3,7 @@ package com.arenapointhub.api.service;
+ import java.time.LocalDate;
+ import java.util.ArrayList;
+ import java.util.Collections;
+-import java.util.HashMap;
+ import java.util.List;
+-import java.util.Map;
+ import java.util.stream.Collectors;
+ 
+ import org.springframework.stereotype.Service;
+@@ -17,13 +15,10 @@ import com.arenapointhub.api.dto.MatchResponseDTO;
+ import com.arenapointhub.api.dto.PlayerSummaryDTO;
+ import com.arenapointhub.api.exception.BusinessException;
+ import com.arenapointhub.api.model.Category;
+-import com.arenapointhub.api.model.Group;
+ import com.arenapointhub.api.model.Match;
+ import com.arenapointhub.api.model.Player;
+ import com.arenapointhub.api.model.Tournament;
+ import com.arenapointhub.api.model.enums.CategoryType;
+-import com.arenapointhub.api.model.enums.MatchPhase;
+-import com.arenapointhub.api.model.enums.MatchStatus;
+ import com.arenapointhub.api.repository.CategoryRepository;
+ import com.arenapointhub.api.repository.MatchRepository;
+ import com.arenapointhub.api.repository.PlayerRepository;
+@@ -36,40 +31,39 @@ public class CategoryService {
+     private final TournamentRepository tournamentRepository;
+     private final MatchRepository matchRepository;
+     private final PlayerRepository playerRepository;
++    private final BracketService bracketService;
+ 
+     public CategoryService(
+             CategoryRepository categoryRepository,
+             TournamentRepository tournamentRepository,
+             MatchRepository matchRepository,
+-            PlayerRepository playerRepository) {
+-
++            PlayerRepository playerRepository,
++            BracketService bracketService) {
+         this.categoryRepository = categoryRepository;
+         this.tournamentRepository = tournamentRepository;
+         this.matchRepository = matchRepository;
+         this.playerRepository = playerRepository;
++        this.bracketService = bracketService;
+     }
+ 
+     @Transactional
+     public CategoryResponseDTO createCategory(CategoryRequestDTO dto) {
+-
+         Tournament tournament = tournamentRepository.findById(dto.getTournamentId())
+                 .orElseThrow(() -> new BusinessException(
+-                        "Torneio não encontrado com o ID: " + dto.getTournamentId()));
++                        "Torneio não encontrado com o ID: "
++                                + dto.getTournamentId()));
+ 
+         Category category = new Category();
+-
+         category.setTournament(tournament);
+ 
+         copyDtoToEntity(dto, category);
+ 
+         Category savedCategory = categoryRepository.save(category);
+-
+         return mapToResponseDTO(savedCategory);
+     }
+ 
+     @Transactional(readOnly = true)
+     public List<CategoryResponseDTO> getAllCategories() {
+-
+         return categoryRepository.findAll()
+                 .stream()
+                 .map(this::mapToResponseDTO)
+@@ -78,37 +72,35 @@ public class CategoryService {
+ 
+     @Transactional(readOnly = true)
+     public CategoryResponseDTO getCategoryById(Long id) {
+-
+         Category category = categoryRepository.findById(id)
+-        		.orElseThrow(() -> new BusinessException(
+-        				"Categoria não encontrada com o ID: " + id));
++                .orElseThrow(() -> new BusinessException(
++                        "Categoria não encontrada com o ID: " + id));
+ 
+         return mapToResponseDTO(category);
+     }
+ 
+     @Transactional
+-    public CategoryResponseDTO updateCategory(Long id, CategoryRequestDTO dto) {
+-
++    public CategoryResponseDTO updateCategory(
++            Long id,
++            CategoryRequestDTO dto) {
+         Category category = categoryRepository.findById(id)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com o ID: " + id));
+ 
+         Tournament tournament = tournamentRepository.findById(dto.getTournamentId())
+                 .orElseThrow(() -> new BusinessException(
+-                        "Torneio não encontrado com o ID: " + dto.getTournamentId()));
++                        "Torneio não encontrado com o ID: "
++                                + dto.getTournamentId()));
+ 
+         category.setTournament(tournament);
+-
+         copyDtoToEntity(dto, category);
+ 
+         Category updatedCategory = categoryRepository.save(category);
+-
+         return mapToResponseDTO(updatedCategory);
+     }
+ 
+     @Transactional
+     public void deleteCategory(Long id) {
+-
+         if (!categoryRepository.existsById(id)) {
+             throw new BusinessException(
+                     "Categoria não encontrada com o ID: " + id);
+@@ -120,7 +112,6 @@ public class CategoryService {
+     private void copyDtoToEntity(
+             CategoryRequestDTO dto,
+             Category category) {
+-
+         category.setName(dto.getName());
+         category.setType(dto.getType());
+         category.setMinAge(dto.getMinAge());
+@@ -131,7 +122,6 @@ public class CategoryService {
+     }
+ 
+     private CategoryResponseDTO mapToResponseDTO(Category category) {
+-
+         CategoryResponseDTO dto = new CategoryResponseDTO();
+ 
+         dto.setId(category.getId());
+@@ -152,147 +142,11 @@ public class CategoryService {
+ 
+     @Transactional
+     public void generatePlayoffs(Long categoryId) {
+-
+-    	Category category = categoryRepository.findById(categoryId)
+-    	        .orElseThrow(() -> new BusinessException(
+-    	                "Categoria não encontrada com o ID: " + categoryId));
+-
+-        List<Group> groups = category.getGroups();
+-
+-        if (groups == null || groups.isEmpty()) {
+-            throw new BusinessException(
+-                    "A categoria não possui grupos cadastrados.");
+-        }
+-
+-        List<Player> qualifiedPlayers = new ArrayList<>();
+-
+-        for (Group group : groups) {
+-
+-            List<Match> groupMatches =
+-                    matchRepository.findByGroupId(group.getId());
+-
+-            Map<Player, Integer> playerWins = new HashMap<>();
+-
+-            for (Match m : groupMatches) {
+-
+-                if (m.getPlayer1() != null) {
+-                    playerWins.putIfAbsent(m.getPlayer1(), 0);
+-                }
+-
+-                if (m.getPlayer2() != null) {
+-                    playerWins.putIfAbsent(m.getPlayer2(), 0);
+-                }
+-            }
+-
+-            for (Match m : groupMatches) {
+-
+-                if (m.getStatus() == MatchStatus.FINISHED) {
+-
+-                    if (m.getScorePlayer1() > m.getScorePlayer2()) {
+-
+-                        playerWins.put(
+-                                m.getPlayer1(),
+-                                playerWins.get(m.getPlayer1()) + 1
+-                        );
+-
+-                    } else if (m.getScorePlayer2() > m.getScorePlayer1()) {
+-
+-                        playerWins.put(
+-                                m.getPlayer2(),
+-                                playerWins.get(m.getPlayer2()) + 1
+-                        );
+-                    }
+-                }
+-            }
+-
+-            List<Player> sortedGroupPlayers = playerWins.entrySet()
+-                    .stream()
+-                    .sorted(
+-                            Map.Entry
+-                                    .<Player, Integer>comparingByValue()
+-                                    .reversed()
+-                    )
+-                    .map(Map.Entry::getKey)
+-                    .collect(Collectors.toList());
+-
+-            if (sortedGroupPlayers.size() < 2) {
+-                throw new BusinessException(
+-                        "O grupo precisa ter pelo menos 2 jogadores computados.");
+-            }
+-
+-            qualifiedPlayers.add(sortedGroupPlayers.get(0));
+-            qualifiedPlayers.add(sortedGroupPlayers.get(1));
+-        }
+-
+-        // Limpa playoffs anteriores
+-        matchRepository.deleteByCategoryIdAndPhaseNot(
+-                categoryId,
+-                MatchPhase.GROUP
+-        );
+-
+-        if (qualifiedPlayers.size() < 8) {
+-            throw new BusinessException(
+-                    "São necessários pelo menos 8 jogadores classificados para gerar os playoffs.");
+-        }
+-
+-        List<Match> quarters = new ArrayList<>();
+-
+-        int[][] pairings = {
+-                {0, 7},
+-                {3, 4},
+-                {1, 6},
+-                {2, 5}
+-        };
+-
+-        for (int[] pair : pairings) {
+-
+-            Match match = new Match();
+-
+-            match.setCategory(category);
+-            match.setPlayer1(qualifiedPlayers.get(pair[0]));
+-            match.setPlayer2(qualifiedPlayers.get(pair[1]));
+-            match.setPhase(MatchPhase.QUARTER_FINAL);
+-            match.setStatus(MatchStatus.SCHEDULED);
+-            match.setScorePlayer1(0);
+-            match.setScorePlayer2(0);
+-
+-            quarters.add(matchRepository.save(match));
+-        }
+-
+-        Match semi1 = new Match();
+-
+-        semi1.setCategory(category);
+-        semi1.setPhase(MatchPhase.SEMI_FINAL);
+-        semi1.setStatus(MatchStatus.SCHEDULED);
+-        semi1.setScorePlayer1(0);
+-        semi1.setScorePlayer2(0);
+-
+-        matchRepository.save(semi1);
+-
+-        Match semi2 = new Match();
+-
+-        semi2.setCategory(category);
+-        semi2.setPhase(MatchPhase.SEMI_FINAL);
+-        semi2.setStatus(MatchStatus.SCHEDULED);
+-        semi2.setScorePlayer1(0);
+-        semi2.setScorePlayer2(0);
+-
+-        matchRepository.save(semi2);
+-
+-        Match finalMatch = new Match();
+-
+-        finalMatch.setCategory(category);
+-        finalMatch.setPhase(MatchPhase.FINAL);
+-        finalMatch.setStatus(MatchStatus.SCHEDULED);
+-        finalMatch.setScorePlayer1(0);
+-        finalMatch.setScorePlayer2(0);
+-
+-        matchRepository.save(finalMatch);
++        bracketService.generateKnockoutBracket(categoryId);
+     }
+ 
+     @Transactional(readOnly = true)
+     public List<MatchResponseDTO> getMatchesByCategory(Long categoryId) {
+-
+         if (!categoryRepository.existsById(categoryId)) {
+             throw new BusinessException(
+                     "Categoria não encontrada com ID: " + categoryId);
+@@ -305,35 +159,27 @@ public class CategoryService {
+     }
+ 
+     private MatchResponseDTO mapMatchToResponseDTO(Match match) {
+-
+         MatchResponseDTO dto = new MatchResponseDTO();
+ 
+         dto.setId(match.getId());
+ 
+         if (match.getCategory() != null) {
+-
+             dto.setCategoryId(match.getCategory().getId());
+             dto.setCategoryName(match.getCategory().getName());
+         }
+ 
+         if (match.getPlayer1() != null) {
+-
+-            PlayerSummaryDTO p1 = new PlayerSummaryDTO();
+-
+-            p1.setId(match.getPlayer1().getId());
+-            p1.setName(match.getPlayer1().getName());
+-
+-            dto.setPlayer1(p1);
++            PlayerSummaryDTO player1 = new PlayerSummaryDTO();
++            player1.setId(match.getPlayer1().getId());
++            player1.setName(match.getPlayer1().getName());
++            dto.setPlayer1(player1);
+         }
+ 
+         if (match.getPlayer2() != null) {
+-
+-            PlayerSummaryDTO p2 = new PlayerSummaryDTO();
+-
+-            p2.setId(match.getPlayer2().getId());
+-            p2.setName(match.getPlayer2().getName());
+-
+-            dto.setPlayer2(p2);
++            PlayerSummaryDTO player2 = new PlayerSummaryDTO();
++            player2.setId(match.getPlayer2().getId());
++            player2.setName(match.getPlayer2().getName());
++            dto.setPlayer2(player2);
+         }
+ 
+         dto.setTableOrCourt(match.getTableOrCourt());
+@@ -348,7 +194,6 @@ public class CategoryService {
+ 
+     @Transactional(readOnly = true)
+     public Player getChampionByCategoryId(Long categoryId) {
+-
+         Category category = categoryRepository.findById(categoryId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com o ID: " + categoryId));
+@@ -359,55 +204,54 @@ public class CategoryService {
+     public void validatePlayerAgeForCategory(
+             Player player,
+             Category category) {
++        if (category.getType() != CategoryType.AGE) {
++            return;
++        }
+ 
+-        if (category.getType() == CategoryType.AGE) {
+-
+-            if (player.getBirthDate() == null) {
+-                throw new BusinessException(
+-                        "A data de nascimento do jogador é obrigatória para categorias restritas por idade.");
+-            }
+-
+-            int currentYear = LocalDate.now().getYear();
+-            int birthYear = player.getBirthDate().getYear();
+-            int age = currentYear - birthYear;
+-
+-            if (category.getMaxAge() != null
+-                    && age > category.getMaxAge()) {
+-
+-                throw new BusinessException(
+-                        "O jogador tem " + age
+-                                + " anos e excede a idade máxima de "
+-                                + category.getMaxAge()
+-                                + " anos para a categoria "
+-                                + category.getName());
+-            }
+-
+-            if (category.getMinAge() != null
+-                    && age < category.getMinAge()) {
+-
+-                throw new BusinessException(
+-                        "O jogador tem " + age
+-                                + " anos e está abaixo da idade mínima de "
+-                                + category.getMinAge()
+-                                + " anos para a categoria "
+-                                + category.getName());
+-            }
++        if (player.getBirthDate() == null) {
++            throw new BusinessException(
++                    "A data de nascimento do jogador é obrigatória "
++                            + "para categorias restritas por idade.");
++        }
++
++        int currentYear = LocalDate.now().getYear();
++        int birthYear = player.getBirthDate().getYear();
++        int age = currentYear - birthYear;
++
++        if (category.getMaxAge() != null
++                && age > category.getMaxAge()) {
++            throw new BusinessException(
++                    "O jogador tem " + age
++                            + " anos e excede a idade máxima de "
++                            + category.getMaxAge()
++                            + " anos para a categoria "
++                            + category.getName());
++        }
++
++        if (category.getMinAge() != null
++                && age < category.getMinAge()) {
++            throw new BusinessException(
++                    "O jogador tem " + age
++                            + " anos e está abaixo da idade mínima de "
++                            + category.getMinAge()
++                            + " anos para a categoria "
++                            + category.getName());
+         }
+     }
+ 
+     @Transactional(readOnly = true)
+     public List<Player> getPlayersByCategory(Long categoryId) {
+-
+         Category category = categoryRepository.findById(categoryId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com o ID: " + categoryId));
+ 
+         return category.getPlayers();
+     }
+-    
+-    @Transactional
+-    public void removePlayerFromCategory(Long categoryId, Long playerId) {
+ 
++    @Transactional
++    public void removePlayerFromCategory(
++            Long categoryId,
++            Long playerId) {
+         Category category = categoryRepository.findById(categoryId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com o ID: " + categoryId));
+@@ -418,25 +262,24 @@ public class CategoryService {
+ 
+         boolean registered = category.getPlayers()
+                 .stream()
+-                .anyMatch(p -> p.getId().equals(player.getId()));
++                .anyMatch(candidate ->
++                        candidate.getId().equals(player.getId()));
+ 
+         if (!registered) {
+             throw new BusinessException(
+                     "O jogador não está inscrito na categoria.");
+         }
+ 
+-        category.getPlayers().removeIf(
+-                p -> p.getId().equals(player.getId())
+-        );
++        category.getPlayers().removeIf(candidate ->
++                candidate.getId().equals(player.getId()));
+ 
+         categoryRepository.save(category);
+     }
+-    
++
+     @Transactional
+     public void addPlayerToCategory(
+             Long categoryId,
+             Long playerId) {
+-
+         Category category = categoryRepository.findById(categoryId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com ID: " + categoryId));
+@@ -445,13 +288,12 @@ public class CategoryService {
+                 .orElseThrow(() -> new BusinessException(
+                         "Jogador não encontrado com ID: " + playerId));
+ 
+-        // Valida se o jogador cumpre os requisitos da categoria
+         validatePlayerAgeForCategory(player, category);
+ 
+-        // Verifica se o jogador já está inscrito
+         boolean alreadyRegistered = category.getPlayers()
+                 .stream()
+-                .anyMatch(p -> p.getId().equals(player.getId()));
++                .anyMatch(candidate ->
++                        candidate.getId().equals(player.getId()));
+ 
+         if (alreadyRegistered) {
+             throw new BusinessException(
+@@ -459,13 +301,11 @@ public class CategoryService {
+         }
+ 
+         category.getPlayers().add(player);
+-
+         categoryRepository.save(category);
+     }
+-    
++
+     @Transactional(readOnly = true)
+     public List<Player> drawPlayersByCategory(Long categoryId) {
+-
+         Category category = categoryRepository.findById(categoryId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Categoria não encontrada com o ID: " + categoryId));
+@@ -478,7 +318,6 @@ public class CategoryService {
+         }
+ 
+         Collections.shuffle(players);
+-
+         return players;
+     }
+ }
+\ No newline at end of file
+diff --git a/src/main/java/com/arenapointhub/api/service/MatchService.java b/src/main/java/com/arenapointhub/api/service/MatchService.java
+index 4957461..7db162a 100644
+--- a/src/main/java/com/arenapointhub/api/service/MatchService.java
++++ b/src/main/java/com/arenapointhub/api/service/MatchService.java
+@@ -1,9 +1,12 @@
+ package com.arenapointhub.api.service;
+ 
++import java.util.ArrayList;
+ import java.util.Comparator;
+ import java.util.HashMap;
++import java.util.HashSet;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Set;
+ import java.util.stream.Collectors;
+ 
+ import org.springframework.stereotype.Service;
+@@ -152,39 +155,63 @@ public class MatchService {
+     }
+ 
+     @Transactional
+-    public MatchResponseDTO updateScore(Long matchId, MatchScoreUpdateDTO dto) {
++    public MatchResponseDTO updateScore(
++            Long matchId,
++            MatchScoreUpdateDTO dto) {
+         Match match = matchRepository.findById(matchId)
+-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + matchId));
+-        		boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
+-        
+-        match.setScorePlayer1(dto.getScorePlayer1());
+-        match.setScorePlayer2(dto.getScorePlayer2());
++                .orElseThrow(() -> new BusinessException(
++                        "Partida não encontrada com ID: " + matchId));
+ 
+-        if (dto.getStatus() != null) {
+-            match.setStatus(dto.getStatus());
++        if (match.getStatus() == MatchStatus.FINISHED
++                || match.getStatus() == MatchStatus.WO) {
++            throw new BusinessException(
++                    "Não é permitido alterar o placar de uma partida encerrada.");
+         }
+ 
+-        Match updatedMatch = matchRepository.save(match);
+-        
+-        if (updatedMatch.getPhase() == MatchPhase.FINAL && updatedMatch.getStatus() == MatchStatus.FINISHED) {
+-            Player champion = (updatedMatch.getScorePlayer1() > updatedMatch.getScorePlayer2()) 
+-                    ? updatedMatch.getPlayer1() 
+-                    : (updatedMatch.getScorePlayer2() > updatedMatch.getScorePlayer1() ? updatedMatch.getPlayer2() : null);
+-
+-            if (champion != null) {
+-                Category category = updatedMatch.getCategory();
+-                category.setChampion(champion);
+-                categoryRepository.save(category);
++        if (match.getStatus() == MatchStatus.CANCELED) {
++            throw new BusinessException(
++                    "Não é permitido alterar o placar de uma partida cancelada.");
++        }
++
++        Integer scorePlayer1 = dto.getScorePlayer1();
++        Integer scorePlayer2 = dto.getScorePlayer2();
++
++        if (scorePlayer1 == null || scorePlayer2 == null
++                || scorePlayer1 < 0 || scorePlayer2 < 0) {
++            throw new BusinessException(
++                    "Os placares devem ser maiores ou iguais a zero.");
++        }
++
++        MatchStatus requestedStatus = dto.getStatus() != null
++                ? dto.getStatus()
++                : match.getStatus();
++
++        if (requestedStatus == MatchStatus.FINISHED) {
++            if (scorePlayer1.equals(scorePlayer2)) {
++                throw new BusinessException(
++                        "Uma partida não pode ser encerrada empatada.");
++            }
++
++            int setsNeededToWin = determineSetsNeededToWin(match);
++            int winningScore = Math.max(scorePlayer1, scorePlayer2);
++
++            if (winningScore < setsNeededToWin) {
++                throw new BusinessException(
++                        "O vencedor ainda não alcançou a quantidade "
++                                + "de sets necessária para encerrar a partida.");
+             }
+         }
+ 
+-        // Dispara o avanço caso a partida tenha sido finalizada
++        match.setScorePlayer1(scorePlayer1);
++        match.setScorePlayer2(scorePlayer2);
++        match.setStatus(requestedStatus);
++
++        Match updatedMatch = matchRepository.save(match);
++
+         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
++            updateCategoryChampionIfFinal(updatedMatch);
+             advanceWinnerToNextRound(updatedMatch);
+-
+-            if (!alreadyFinished) {
+-                checkAndDistributePointsIfFinalFinished(updatedMatch);
+-            }
++            checkAndDistributePointsIfFinalFinished(updatedMatch);
+         }
+ 
+         return mapToResponseDTO(updatedMatch);
+@@ -280,85 +307,130 @@ public class MatchService {
+ 
+     @Transactional
+     public void saveMatchSets(Long matchId, MatchScoreRequestDTO dto) {
+-
+         Match match = matchRepository.findById(matchId)
+                 .orElseThrow(() -> new BusinessException(
+                         "Partida não encontrada com ID: " + matchId));
+ 
+-        boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
++        if (match.getStatus() == MatchStatus.FINISHED
++                || match.getStatus() == MatchStatus.WO) {
++            throw new BusinessException(
++                    "Não é permitido alterar sets de uma partida encerrada.");
++        }
++
++        if (match.getStatus() == MatchStatus.CANCELED) {
++            throw new BusinessException(
++                    "Não é permitido registrar sets em uma partida cancelada.");
++        }
++
++        if (dto.getSets() == null || dto.getSets().isEmpty()) {
++            throw new BusinessException(
++                    "É necessário informar ao menos o resultado de um set.");
++        }
++
++        int setsNeededToWin = determineSetsNeededToWin(match);
++        int setsWonPlayer1 = 0;
++        int setsWonPlayer2 = 0;
++        int expectedSetNumber = 1;
++
++        Set<Integer> setNumbers = new HashSet<>();
++        List<MatchSet> newSets = new ArrayList<>();
+ 
+         for (MatchSetDTO setDto : dto.getSets()) {
+-           
+-            int p1Score = setDto.getScorePlayer1();
+-            int p2Score = setDto.getScorePlayer2();
+-
+-            boolean isP1WinnerSet = false;
+-            boolean isP2WinnerSet = false;
+-
+-            // Regra padrão: alguém fez 11 e o oponente tem no máximo 9 (ex: 11x0 até 11x9)
+-            if ((p1Score == 11 && p2Score <= 9) || (p2Score == 11 && p1Score <= 9)) {
+-                if (p1Score == 11) isP1WinnerSet = true;
+-                else isP2WinnerSet = true;
+-            } 
+-            // Regra de vantagem (Deuce): Ambos chegaram a 10 ou mais, e a diferença é exatamente de 2 pontos
+-            else if (p1Score >= 10 && p2Score >= 10) {
+-                int diff = Math.abs(p1Score - p2Score);
+-                if (diff == 2) {
+-                    if (p1Score > p2Score) isP1WinnerSet = true;
+-                    else isP2WinnerSet = true;
+-                }
++            if (setDto.getSetNumber() == null || setDto.getSetNumber() < 1) {
++                throw new BusinessException(
++                        "O número do set deve ser maior que zero.");
+             }
+ 
+-            if (!isP1WinnerSet && !isP2WinnerSet) {
+-                throw new BusinessException("Placar inválido para o set " + setDto.getSetNumber() + 
+-                    ": O set deve terminar em 11 (com no máximo 9 para o perdedor) ou com 2 pontos de diferença a partir de 10x10 (ex: 12x10, 13x11).");
++            if (!setNumbers.add(setDto.getSetNumber())) {
++                throw new BusinessException(
++                        "O número do set " + setDto.getSetNumber()
++                                + " foi informado mais de uma vez.");
+             }
+ 
+-            MatchSet matchSet = matchSetRepository.findByMatchIdAndSetNumber(matchId, setDto.getSetNumber())
+-                    .orElse(new MatchSet());
++            if (setDto.getSetNumber() != expectedSetNumber) {
++                throw new BusinessException(
++                        "Os sets devem ser informados em sequência, "
++                                + "começando pelo set 1.");
++            }
+ 
+-            matchSet.setMatch(match);
+-            matchSet.setSetNumber(setDto.getSetNumber());
+-            matchSet.setScorePlayer1(p1Score);
+-            matchSet.setScorePlayer2(p2Score);
++            if (setDto.getScorePlayer1() == null
++                    || setDto.getScorePlayer2() == null
++                    || setDto.getScorePlayer1() < 0
++                    || setDto.getScorePlayer2() < 0) {
++                throw new BusinessException(
++                        "As pontuações dos sets devem ser maiores ou iguais a zero.");
++            }
+ 
+-            matchSetRepository.save(matchSet);
+-        }
++            if (setsWonPlayer1 >= setsNeededToWin
++                    || setsWonPlayer2 >= setsNeededToWin) {
++                throw new BusinessException(
++                        "Não podem ser registrados sets após a partida ser decidida.");
++            }
+ 
+-        // Recalcula o total de sets ganhos por cada jogador com base nos sets salvos
+-        List<MatchSet> allSets = matchSetRepository.findByMatchId(matchId);
+-        int setsWonPlayer1 = 0;
+-        int setsWonPlayer2 = 0;
++            int setWinner = determineSetWinner(setDto);
++
++            if (setWinner == 0) {
++                throw new BusinessException(
++                        "Placar inválido para o set "
++                                + setDto.getSetNumber()
++                                + ". O set precisa chegar a 11 pontos "
++                                + "com diferença mínima de 2.");
++            }
+ 
+-        for (MatchSet s : allSets) {
+-            if (s.getScorePlayer1() > s.getScorePlayer2()) {
++            if (setWinner == 1) {
+                 setsWonPlayer1++;
+-            } else if (s.getScorePlayer2() > s.getScorePlayer1()) {
++            } else {
+                 setsWonPlayer2++;
+             }
++
++            MatchSet matchSet = new MatchSet();
++            matchSet.setMatch(match);
++            matchSet.setSetNumber(setDto.getSetNumber());
++            matchSet.setScorePlayer1(setDto.getScorePlayer1());
++            matchSet.setScorePlayer2(setDto.getScorePlayer2());
++            newSets.add(matchSet);
++
++            expectedSetNumber++;
+         }
+ 
++        // Só remove os sets atuais depois que a lista nova foi validada.
++        matchSetRepository.deleteByMatchId(matchId);
++        matchSetRepository.saveAll(newSets);
++
+         match.setScorePlayer1(setsWonPlayer1);
+         match.setScorePlayer2(setsWonPlayer2);
+ 
+-        // Pega quantos sets são necessários para vencer com base na configuração da categoria (Global para todas as fases)
+-        int setsNeededToWin = determineSetsNeededToWin(match);
++        boolean player1WonMatch = setsWonPlayer1 >= setsNeededToWin;
++        boolean player2WonMatch = setsWonPlayer2 >= setsNeededToWin;
+ 
+-        if (setsWonPlayer1 >= setsNeededToWin || setsWonPlayer2 >= setsNeededToWin) {
++        if (player1WonMatch || player2WonMatch) {
+             match.setStatus(MatchStatus.FINISHED);
+-            
+-            Match savedMatch = matchRepository.save(match);
++        } else {
++            match.setStatus(MatchStatus.IN_PROGRESS);
++        }
+ 
+-            // Dispara o avanço para a próxima fase apenas quando fechar o confronto
++        Match savedMatch = matchRepository.save(match);
++
++        if (savedMatch.getStatus() == MatchStatus.FINISHED) {
++            updateCategoryChampionIfFinal(savedMatch);
+             advanceWinnerToNextRound(savedMatch);
++            checkAndDistributePointsIfFinalFinished(savedMatch);
++        }
++    }
+ 
+-            if (!alreadyFinished) {
+-                checkAndDistributePointsIfFinalFinished(savedMatch);
+-            }
+-        } else {
+-            match.setStatus(MatchStatus.IN_PROGRESS);
+-            matchRepository.save(match);
++    private int determineSetWinner(MatchSetDTO setDto) {
++        int scorePlayer1 = setDto.getScorePlayer1();
++        int scorePlayer2 = setDto.getScorePlayer2();
++
++        if (scorePlayer1 >= 11 && scorePlayer1 - scorePlayer2 >= 2) {
++            return 1;
+         }
++
++        if (scorePlayer2 >= 11 && scorePlayer2 - scorePlayer1 >= 2) {
++            return 2;
++        }
++
++        return 0;
+     }
+ 
+     // Método auxiliar para buscar a regra global da categoria
+@@ -581,4 +653,25 @@ public class MatchService {
+             default: return null;
+         }
+     }
++    
++    private void updateCategoryChampionIfFinal(Match match) {
++        if (match.getPhase() != MatchPhase.FINAL) {
++            return;
++        }
++
++        Player champion;
++
++        if (match.getScorePlayer1() > match.getScorePlayer2()) {
++            champion = match.getPlayer1();
++        } else if (match.getScorePlayer2() > match.getScorePlayer1()) {
++            champion = match.getPlayer2();
++        } else {
++            throw new BusinessException(
++                    "A final não pode ser encerrada empatada.");
++        }
++
++        Category category = match.getCategory();
++        category.setChampion(champion);
++        categoryRepository.save(category);
++    }
+ }
+\ No newline at end of file
+diff --git a/src/test/java/com/arenapointhub/api/service/CategoryServiceTest.java b/src/test/java/com/arenapointhub/api/service/CategoryServiceTest.java
+index c7898c8..0e18cbe 100644
+--- a/src/test/java/com/arenapointhub/api/service/CategoryServiceTest.java
++++ b/src/test/java/com/arenapointhub/api/service/CategoryServiceTest.java
+@@ -28,6 +28,7 @@ import com.arenapointhub.api.repository.MatchRepository;
+ import com.arenapointhub.api.repository.PlayerRepository;
+ import com.arenapointhub.api.repository.TournamentRepository;
+ 
++
+ @ExtendWith(MockitoExtension.class)
+ class CategoryServiceTest {
+ 
+@@ -42,9 +43,14 @@ class CategoryServiceTest {
+ 
+     @Mock
+     private PlayerRepository playerRepository;
++    
++    @Mock
++    private BracketService bracketService;
+ 
+     @InjectMocks
+     private CategoryService categoryService;
++    
++    
+ 
+     private Category category;
+     private Player player;
+@@ -358,16 +364,16 @@ class CategoryServiceTest {
+     
+     @Test
+     void shouldNotGeneratePlayoffsWhenCategoryDoesNotExist() {
+-
+-        when(categoryRepository.findById(99L))
+-                .thenReturn(Optional.empty());
++        when(bracketService.generateKnockoutBracket(99L))
++                .thenThrow(new BusinessException(
++                        "Categoria não encontrada com ID: 99"));
+ 
+         BusinessException exception = assertThrows(
+                 BusinessException.class,
+                 () -> categoryService.generatePlayoffs(99L));
+ 
+         assertEquals(
+-                "Categoria não encontrada com o ID: 99",
++                "Categoria não encontrada com ID: 99",
+                 exception.getMessage());
+     }
+ }
+\ No newline at end of file
+diff --git a/src/test/java/com/arenapointhub/api/service/GroupServiceTest.java b/src/test/java/com/arenapointhub/api/service/GroupServiceTest.java
+index 797582e..fcfcb77 100644
+--- a/src/test/java/com/arenapointhub/api/service/GroupServiceTest.java
++++ b/src/test/java/com/arenapointhub/api/service/GroupServiceTest.java
+@@ -3,7 +3,6 @@ package com.arenapointhub.api.service;
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+ import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+-import static org.junit.jupiter.api.Assertions.assertTrue;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+@@ -18,6 +17,7 @@ import java.util.Optional;
+ import org.junit.jupiter.api.BeforeEach;
+ import org.junit.jupiter.api.Test;
+ import org.mockito.ArgumentCaptor;
++import org.mockito.InjectMocks;
+ import org.mockito.Mock;
+ import org.mockito.MockitoAnnotations;
+ 
+@@ -50,7 +50,7 @@ class GroupServiceTest {
+ 
+     @Mock
+     private MatchRepository matchRepository;
+-
++    
+     private GroupService groupService;
+ 
+     @BeforeEach
+diff --git a/src/test/java/com/arenapointhub/api/service/MatchServiceTest.java b/src/test/java/com/arenapointhub/api/service/MatchServiceTest.java
+index f2d8b4b..94bcd3b 100644
+--- a/src/test/java/com/arenapointhub/api/service/MatchServiceTest.java
++++ b/src/test/java/com/arenapointhub/api/service/MatchServiceTest.java
+@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.ArgumentMatchers.anyList;
+ import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+@@ -826,11 +827,9 @@ class MatchServiceTest {
+                 exception.getMessage()
+         );
+ 
+-        verify(matchSetRepository, never())
+-                .save(any(MatchSet.class));
+-
+-        verify(matchRepository, never())
+-                .save(any(Match.class));
++        verify(matchSetRepository, never()).deleteByMatchId(10L);
++        verify(matchSetRepository, never()).saveAll(anyList());
++        verify(matchRepository, never()).save(any(Match.class));
+     }
+ 
+     @Test
+@@ -853,33 +852,14 @@ class MatchServiceTest {
+         );
+ 
+         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+-
+-        List<MatchSetDTO> sets = List.of(
++        dto.setSets(List.of(
+                 new MatchSetDTO(1, 11, 5),
+                 new MatchSetDTO(2, 11, 7)
+-        );
+-
+-        dto.setSets(sets);
++        ));
+ 
+         when(matchRepository.findById(10L))
+                 .thenReturn(Optional.of(match));
+ 
+-        when(matchSetRepository.findByMatchIdAndSetNumber(
+-                10L,
+-                1
+-        )).thenReturn(Optional.empty());
+-
+-        when(matchSetRepository.findByMatchIdAndSetNumber(
+-                10L,
+-                2
+-        )).thenReturn(Optional.empty());
+-
+-        when(matchSetRepository.findByMatchId(10L))
+-                .thenReturn(List.of(
+-                        createMatchSet(match, 1, 11, 5),
+-                        createMatchSet(match, 2, 11, 7)
+-                ));
+-
+         when(matchRepository.save(any(Match.class)))
+                 .thenAnswer(invocation -> invocation.getArgument(0));
+ 
+@@ -889,9 +869,8 @@ class MatchServiceTest {
+         assertEquals(0, match.getScorePlayer2());
+         assertEquals(MatchStatus.FINISHED, match.getStatus());
+ 
+-        verify(matchSetRepository, times(2))
+-                .save(any(MatchSet.class));
+-
++        verify(matchSetRepository).deleteByMatchId(10L);
++        verify(matchSetRepository).saveAll(anyList());
+         verify(matchRepository).save(match);
+     }
+     
+@@ -915,7 +894,6 @@ class MatchServiceTest {
+         );
+ 
+         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+-
+         dto.setSets(List.of(
+                 new MatchSetDTO(1, 11, 5)
+         ));
+@@ -923,16 +901,6 @@ class MatchServiceTest {
+         when(matchRepository.findById(10L))
+                 .thenReturn(Optional.of(match));
+ 
+-        when(matchSetRepository.findByMatchIdAndSetNumber(
+-                10L,
+-                1
+-        )).thenReturn(Optional.empty());
+-
+-        when(matchSetRepository.findByMatchId(10L))
+-                .thenReturn(List.of(
+-                        createMatchSet(match, 1, 11, 5)
+-                ));
+-
+         when(matchRepository.save(any(Match.class)))
+                 .thenAnswer(invocation -> invocation.getArgument(0));
+ 
+@@ -942,7 +910,8 @@ class MatchServiceTest {
+         assertEquals(0, match.getScorePlayer2());
+         assertEquals(MatchStatus.IN_PROGRESS, match.getStatus());
+ 
+-        verify(matchSetRepository).save(any(MatchSet.class));
++        verify(matchSetRepository).deleteByMatchId(10L);
++        verify(matchSetRepository).saveAll(anyList());
+         verify(matchRepository).save(match);
+     }
+ 
+@@ -984,8 +953,8 @@ class MatchServiceTest {
+                 )
+         );
+ 
+-        verify(matchSetRepository, never())
+-                .save(any(MatchSet.class));
++        verify(matchSetRepository, never()).deleteByMatchId(10L);
++        verify(matchSetRepository, never()).saveAll(anyList());
+     }
+     
+     @Test
+@@ -1007,7 +976,6 @@ class MatchServiceTest {
+         );
+ 
+         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+-
+         dto.setSets(List.of(
+                 new MatchSetDTO(1, 12, 10)
+         ));
+@@ -1015,16 +983,6 @@ class MatchServiceTest {
+         when(matchRepository.findById(10L))
+                 .thenReturn(Optional.of(match));
+ 
+-        when(matchSetRepository.findByMatchIdAndSetNumber(
+-                10L,
+-                1
+-        )).thenReturn(Optional.empty());
+-
+-        when(matchSetRepository.findByMatchId(10L))
+-                .thenReturn(List.of(
+-                        createMatchSet(match, 1, 12, 10)
+-                ));
+-
+         when(matchRepository.save(any(Match.class)))
+                 .thenAnswer(invocation -> invocation.getArgument(0));
+ 
+@@ -1034,7 +992,8 @@ class MatchServiceTest {
+         assertEquals(0, match.getScorePlayer2());
+         assertEquals(MatchStatus.IN_PROGRESS, match.getStatus());
+ 
+-        verify(matchSetRepository).save(any(MatchSet.class));
++        verify(matchSetRepository).deleteByMatchId(10L);
++        verify(matchSetRepository).saveAll(anyList());
+         verify(matchRepository).save(match);
+     }
+ 
+@@ -1232,9 +1191,9 @@ class MatchServiceTest {
+                 winner,
+                 opponent,
+                 MatchPhase.QUARTER_FINAL,
+-                MatchStatus.FINISHED,
+-                3,
+-                1
++                MatchStatus.IN_PROGRESS,
++                0,
++                0
+         );
+ 
+         Match quarter2 = createMatch(
+@@ -1243,7 +1202,7 @@ class MatchServiceTest {
+                 other1,
+                 other2,
+                 MatchPhase.QUARTER_FINAL,
+-                MatchStatus.SCHEDULED,
++                MatchStatus.IN_PROGRESS,
+                 0,
+                 0
+         );
+@@ -1299,7 +1258,7 @@ class MatchServiceTest {
+                 byeWinner,
+                 null,
+                 MatchPhase.QUARTER_FINAL,
+-                MatchStatus.FINISHED,
++                MatchStatus.IN_PROGRESS, 
+                 0,
+                 0
+         );
+@@ -1328,7 +1287,7 @@ class MatchServiceTest {
+                 .thenAnswer(invocation -> invocation.getArgument(0));
+ 
+         MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+-        dto.setScorePlayer1(0);
++        dto.setScorePlayer1(3);
+         dto.setScorePlayer2(0);
+         dto.setStatus(MatchStatus.FINISHED);
+ 
+@@ -1356,7 +1315,7 @@ class MatchServiceTest {
+                 player1,
+                 createPlayer(2L, "Player 2"),
+                 MatchPhase.QUARTER_FINAL,
+-                MatchStatus.FINISHED,
++                MatchStatus.IN_PROGRESS,
+                 3,
+                 1
+         );
+@@ -1367,9 +1326,9 @@ class MatchServiceTest {
+                 winner,
+                 opponent,
+                 MatchPhase.QUARTER_FINAL,
+-                MatchStatus.FINISHED,
+-                3,
+-                1
++                MatchStatus.IN_PROGRESS,
++                0,
++                0
+         );
+ 
+         Match semiFinal = createMatch(
+@@ -1425,7 +1384,7 @@ class MatchServiceTest {
+                 winner,
+                 opponent,
+                 MatchPhase.SEMI_FINAL,
+-                MatchStatus.FINISHED,
++                MatchStatus.IN_PROGRESS,
+                 2,
+                 0
+         );
+@@ -1502,8 +1461,8 @@ class MatchServiceTest {
+                 winner,
+                 opponent,
+                 MatchPhase.SEMI_FINAL,
+-                MatchStatus.FINISHED,
+-                2,
++                MatchStatus.IN_PROGRESS,
++                0,
+                 0
+         );
+ 
+@@ -1833,4 +1792,4 @@ class MatchServiceTest {
+ 
+         verify(matchRepository, never()).save(any(Match.class));
+     }
+-}
+\ No newline at end of file
++}
