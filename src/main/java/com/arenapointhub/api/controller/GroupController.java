@@ -77,4 +77,13 @@ public class GroupController {
         groupService.removePlayerFromGroup(groupId, playerId);
         return ResponseEntity.noContent().build();
     }
+    
+    @PostMapping("/category/{categoryId}/generate-matches")
+    public ResponseEntity<Void> generateMatchesForCategory(
+            @PathVariable Long categoryId) {
+
+        groupService.generateMatchesForCategory(categoryId);
+
+        return ResponseEntity.ok().build();
+    }
 }
