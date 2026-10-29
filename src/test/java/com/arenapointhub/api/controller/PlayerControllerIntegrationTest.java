@@ -178,4 +178,59 @@ class PlayerControllerIntegrationTest {
 	            .andExpect(status().isBadRequest());
 	}
 
+    @Test
+    @WithMockUser
+    void shouldRejectUpdatePlayerWithExistingEmail() throws Exception {
+        String firstPlayerJson = """
+                {
+                    "name": "Primeiro Jogador",
+                    "email": "primeiro@teste.com",
+                    "birthDate": "2000-05-10"
+                }
+                """;
+
+        String firstResponse = mockMvc.perform(
+                post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(firstPlayerJson))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long firstPlayerId = ((Number) JsonPath.read(firstResponse, "$.id"))
+                .longValue();
+
+        String secondPlayerJson = """
+                {
+                    "name": "Segundo Jogador",
+                    "email": "segundo@teste.com",
+                    "birthDate": "2001-06-15"
+                }
+                """;
+
+        mockMvc.perform(
+                post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(secondPlayerJson))
+                .andExpect(status().isCreated());
+
+        String updateJson = """
+                {
+                    "name": "Primeiro Jogador Atualizado",
+                    "email": "segundo@teste.com",
+                    "birthDate": "2000-05-10"
+                }
+                """;
+
+        mockMvc.perform(
+                put("/api/players/{id}", firstPlayerId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error")
+                        .value("Regra de negócio violada"));
+    }
+
+
 }
