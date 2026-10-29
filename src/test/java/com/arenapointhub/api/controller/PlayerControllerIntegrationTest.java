@@ -232,5 +232,25 @@ class PlayerControllerIntegrationTest {
                         .value("Regra de negócio violada"));
     }
 
+    @Test
+    @WithMockUser
+    void shouldRejectUpdatePlayerWhenPlayerDoesNotExist() throws Exception {
+        String playerJson = """
+                {
+                    "name": "Jogador Inexistente",
+                    "email": "inexistente@teste.com",
+                    "birthDate": "2000-05-10"
+                }
+                """;
+
+        mockMvc.perform(
+                put("/api/players/{id}", 999999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(playerJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Jogador não encontrado com o ID: 999999"));
+    }
+
 
 }
