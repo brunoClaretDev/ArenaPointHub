@@ -142,7 +142,7 @@ class BracketServiceTest {
         );
 
         assertEquals(
-                "O número de classificados não pode ser maior que o tamanho da chave.",
+        		"O número de classificados não pode ser maior que o tamanho da chave.",
                 exception.getMessage()
         );
     }
@@ -300,8 +300,8 @@ class BracketServiceTest {
         assertEquals(6, byeCount);
 
         assertBye(firstRoundMatches, 1L);
+        assertBye(firstRoundMatches, 2L);
         assertBye(firstRoundMatches, 3L);
-        assertBye(firstRoundMatches, 4L);
         assertBye(firstRoundMatches, 5L);
         assertBye(firstRoundMatches, 7L);
         assertBye(firstRoundMatches, 9L);
@@ -311,21 +311,21 @@ class BracketServiceTest {
                 .toList();
 
         assertEquals(2, scheduledMatches.size());
-        assertContainsPlayers(scheduledMatches, 6L, 8L);
-        assertContainsPlayers(scheduledMatches, 2L, 10L);
+        assertContainsPlayers(scheduledMatches, 4L, 8L);
+        assertContainsPlayers(scheduledMatches, 6L, 10L);
 
         List<Match> quarterFinals = matches.subList(8, 12);
 
         assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
-        assertNull(quarterFinals.get(0).getPlayer2());
+        assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
 
         assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
-        assertEquals(3L, quarterFinals.get(1).getPlayer2().getId());
+        assertNull(quarterFinals.get(1).getPlayer2());
 
-        assertEquals(4L, quarterFinals.get(2).getPlayer1().getId());
+        assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
         assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
 
-        assertEquals(5L, quarterFinals.get(3).getPlayer1().getId());
+        assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
         assertNull(quarterFinals.get(3).getPlayer2());
     }
 
@@ -483,10 +483,10 @@ class BracketServiceTest {
 
         assertContainsPlayers(firstRoundMatches, 2L, 4L);
         assertContainsPlayers(firstRoundMatches, 11L, 6L);
-        assertContainsPlayers(firstRoundMatches, 7L, 8L);
-        assertContainsPlayers(firstRoundMatches, 5L, 10L);
-        assertContainsPlayers(firstRoundMatches, 9L, 12L);
-        assertContainsPlayers(firstRoundMatches, 13L, 14L);
+        assertContainsPlayers(firstRoundMatches, 7L, 10L);
+        assertContainsPlayers(firstRoundMatches, 5L, 8L);
+        assertContainsPlayers(firstRoundMatches, 9L, 14L);
+        assertContainsPlayers(firstRoundMatches, 13L, 12L);
     }
     
     @Test
@@ -672,29 +672,54 @@ class BracketServiceTest {
 	    assertMatch(matches.get(3), 5L, 2L);
 	}
 
-    @Test
-    void shouldGenerateCorrectSeedingForFiveGroups() {
-        Category category = createCategory();
+	@Test
+	void shouldGenerateCorrectSeedingForFiveGroups() {
+	    Category category = createCategory();
 
-        prepareBracketScenario(category, 5);
+	    prepareBracketScenario(category, 5);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+	    BracketResponseDTO response =
+	            bracketService.generateKnockoutBracket(CATEGORY_ID);
 
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
+	    assertEquals(16, response.getTargetBracketSize());
+	    assertEquals(15, response.getMatches().size());
 
-        List<Match> matches = captureSavedMatches(21);
+	    List<Match> matches = captureSavedMatches(21);
 
-        assertByeMatch(matches.get(0), 1L);
-        assertMatch(matches.get(1), 6L, 8L);
-        assertByeMatch(matches.get(2), 9L);
-        assertByeMatch(matches.get(3), 3L);
-        assertByeMatch(matches.get(4), 4L);
-        assertByeMatch(matches.get(5), 7L);
-        assertByeMatch(matches.get(6), 5L);
-        assertMatch(matches.get(7), 2L, 10L);
-    }
+	    List<Match> firstRound = matches.subList(0, 8);
+
+	    assertByeMatch(firstRound.get(0), 1L);
+	    assertByeMatch(firstRound.get(1), 5L);
+	    assertByeMatch(firstRound.get(2), 9L);
+
+	    assertMatch(firstRound.get(3), 4L, 8L);
+
+	    assertByeMatch(firstRound.get(4), 3L);
+	    assertByeMatch(firstRound.get(5), 7L);
+	    assertByeMatch(firstRound.get(6), 2L);
+
+	    assertMatch(firstRound.get(7), 6L, 10L);
+
+	    long byeCount = firstRound.stream()
+	            .filter(this::isByeMatch)
+	            .count();
+
+	    assertEquals(6, byeCount);
+
+	    List<Match> quarterFinals = matches.subList(8, 12);
+
+	    assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
+	    assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
+
+	    assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
+	    assertNull(quarterFinals.get(1).getPlayer2());
+
+	    assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
+	    assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
+
+	    assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
+	    assertNull(quarterFinals.get(3).getPlayer2());
+	}
     
 
     @Test
@@ -767,30 +792,26 @@ class BracketServiceTest {
     }
     
     @Test
-    void shouldRejectMoreThanEightGroups() {
+    void shouldGenerateBracketForNineGroups() {
         Category category = createCategory();
 
-        List<Group> groups = createGroups(9, category);
+        prepareBracketScenario(category, 9);
 
-        when(categoryRepository.findById(CATEGORY_ID))
-                .thenReturn(Optional.of(category));
+        BracketResponseDTO response =
+                bracketService.generateKnockoutBracket(CATEGORY_ID);
 
-        when(matchRepository.findByCategoryId(CATEGORY_ID))
-                .thenReturn(List.of());
+        assertEquals(32, response.getTargetBracketSize());
+        assertEquals(31, response.getMatches().size());
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
-                .thenReturn(new ArrayList<>(groups));
+        List<Match> matches = captureSavedMatches(45);
 
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+        List<Match> firstRound = matches.subList(0, 16);
 
         assertEquals(
-                "A geração do chaveamento suporta de 1 a 8 grupos.",
-                exception.getMessage());
-        
-        verify(matchRepository, org.mockito.Mockito.never())
-        		.save(any(Match.class));
+                14,
+                firstRound.stream()
+                        .filter(this::isByeMatch)
+                        .count());
     }
     
     @Test
