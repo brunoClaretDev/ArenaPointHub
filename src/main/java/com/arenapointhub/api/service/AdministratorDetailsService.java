@@ -1,6 +1,5 @@
 package com.arenapointhub.api.service;
 
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -9,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.arenapointhub.api.model.Administrator;
 import com.arenapointhub.api.repository.AdministratorRepository;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 
 @Service
 public class AdministratorDetailsService implements UserDetailsService {
@@ -28,10 +28,10 @@ public class AdministratorDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "Administrador não encontrado."));
 
-        return User.withUsername(administrator.getUsername())
-                .password(administrator.getPasswordHash())
-                .roles("ADMIN")
-                .disabled(!administrator.isActive())
-                .build();
+        return new AdministratorPrincipal(
+                administrator.getId(),
+                administrator.getUsername(),
+                administrator.getPasswordHash(),
+                administrator.isActive());
     }
 }
