@@ -1,8 +1,6 @@
-
 package com.arenapointhub.api.service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,9 +9,11 @@ import com.arenapointhub.api.dto.BracketResponseDTO;
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Administrator;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.TournamentStatus;
+import com.arenapointhub.api.repository.AdministratorRepository;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
@@ -21,56 +21,66 @@ import com.arenapointhub.api.repository.TournamentRepository;
 public class TournamentService {
 
     private final TournamentRepository tournamentRepository;
+    private final AdministratorRepository administratorRepository;
     private final CategoryRepository categoryRepository;
     private final BracketService bracketService;
 
     public TournamentService(
             TournamentRepository tournamentRepository,
+            AdministratorRepository administratorRepository,
             CategoryRepository categoryRepository,
             BracketService bracketService) {
         this.tournamentRepository = tournamentRepository;
+        this.administratorRepository = administratorRepository;
         this.categoryRepository = categoryRepository;
         this.bracketService = bracketService;
     }
 
     @Transactional
-    public TournamentResponseDTO createTournament(TournamentRequestDTO dto) {
+    public TournamentResponseDTO createTournament(
+            TournamentRequestDTO dto,
+            Long administratorId) {
+
+        Administrator administrator =
+                administratorRepository.getReferenceById(administratorId);
+
         Tournament tournament = new Tournament();
+        tournament.setAdministrator(administrator);
+
         copyDtoToEntity(dto, tournament);
 
-        if (dto.getStatus() == null) {
-            tournament.setStatus(TournamentStatus.UPCOMING);
-        } else {
-            tournament.setStatus(dto.getStatus());
-        }
+        tournament.setStatus(dto.getStatus() == null
+                ? TournamentStatus.UPCOMING
+                : dto.getStatus());
 
-        Tournament savedTournament = tournamentRepository.save(tournament);
-        return mapToResponseDTO(savedTournament);
+        return mapToResponseDTO(tournamentRepository.save(tournament));
     }
 
     @Transactional(readOnly = true)
-    public List<TournamentResponseDTO> getAllTournaments() {
-        return tournamentRepository.findAll()
+    public List<TournamentResponseDTO> getAllTournaments(Long administratorId) {
+        return tournamentRepository
+                .findAllByAdministrator_Id(administratorId)
                 .stream()
                 .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Transactional(readOnly = true)
-    public TournamentResponseDTO getTournamentById(Long id) {
-        Tournament tournament = tournamentRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                        "Torneio não encontrado com o ID: " + id));
+    public TournamentResponseDTO getTournamentById(
+            Long id,
+            Long administratorId) {
+
+        Tournament tournament = findOwnedTournament(id, administratorId);
         return mapToResponseDTO(tournament);
     }
 
     @Transactional
     public TournamentResponseDTO updateTournament(
             Long id,
-            TournamentRequestDTO dto) {
-        Tournament tournament = tournamentRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                        "Torneio não encontrado com o ID: " + id));
+            TournamentRequestDTO dto,
+            Long administratorId) {
+
+        Tournament tournament = findOwnedTournament(id, administratorId);
 
         copyDtoToEntity(dto, tournament);
 
@@ -78,26 +88,21 @@ public class TournamentService {
             tournament.setStatus(dto.getStatus());
         }
 
-        Tournament updatedTournament = tournamentRepository.save(tournament);
-        return mapToResponseDTO(updatedTournament);
+        return mapToResponseDTO(tournamentRepository.save(tournament));
     }
 
     @Transactional
-    public void deleteTournament(Long id) {
-        if (!tournamentRepository.existsById(id)) {
-            throw new BusinessException(
-                    "Torneio não encontrado com o ID: " + id);
-        }
-
-        tournamentRepository.deleteById(id);
+    public void deleteTournament(Long id, Long administratorId) {
+        Tournament tournament = findOwnedTournament(id, administratorId);
+        tournamentRepository.delete(tournament);
     }
 
     @Transactional
-    public List<BracketResponseDTO> generatePlayoffs(Long tournamentId) {
-        if (!tournamentRepository.existsById(tournamentId)) {
-            throw new BusinessException(
-                    "Torneio não encontrado com o ID: " + tournamentId);
-        }
+    public List<BracketResponseDTO> generatePlayoffs(
+            Long tournamentId,
+            Long administratorId) {
+
+        findOwnedTournament(tournamentId, administratorId);
 
         List<Category> categories =
                 categoryRepository.findByTournamentId(tournamentId);
@@ -113,9 +118,20 @@ public class TournamentService {
                 .toList();
     }
 
+    private Tournament findOwnedTournament(
+            Long tournamentId,
+            Long administratorId) {
+
+        return tournamentRepository
+                .findByIdAndAdministrator_Id(tournamentId, administratorId)
+                .orElseThrow(() -> new BusinessException(
+                        "Torneio não encontrado com o ID: " + tournamentId));
+    }
+
     private void copyDtoToEntity(
             TournamentRequestDTO dto,
             Tournament entity) {
+
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setSchedule(dto.getSchedule());

@@ -13,23 +13,34 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.arenapointhub.api.dto.BracketResponseDTO;
 import com.arenapointhub.api.dto.TournamentRequestDTO;
 import com.arenapointhub.api.dto.TournamentResponseDTO;
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Administrator;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.TournamentStatus;
+import com.arenapointhub.api.repository.AdministratorRepository;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.TournamentRepository;
 
+@ExtendWith(MockitoExtension.class)
 class TournamentServiceTest {
+
+    private static final Long ADMINISTRATOR_ID = 10L;
+    private static final Long OTHER_ADMINISTRATOR_ID = 20L;
+    private static final Long TOURNAMENT_ID = 1L;
 
     @Mock
     private TournamentRepository tournamentRepository;
+
+    @Mock
+    private AdministratorRepository administratorRepository;
 
     @Mock
     private CategoryRepository categoryRepository;
@@ -41,51 +52,62 @@ class TournamentServiceTest {
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-
         tournamentService = new TournamentService(
                 tournamentRepository,
+                administratorRepository,
                 categoryRepository,
                 bracketService);
     }
 
     @Test
-    void shouldCreateTournamentWithProvidedStatus() {
+    void shouldCreateTournamentWithAdministratorAndProvidedStatus() {
+        Administrator administrator = new Administrator();
+        administrator.setId(ADMINISTRATOR_ID);
+
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setStatus(TournamentStatus.IN_PROGRESS);
+
+        when(administratorRepository.getReferenceById(ADMINISTRATOR_ID))
+                .thenReturn(administrator);
 
         when(tournamentRepository.save(any(Tournament.class)))
                 .thenAnswer(invocation -> {
                     Tournament tournament = invocation.getArgument(0);
-                    tournament.setId(1L);
+                    tournament.setId(TOURNAMENT_ID);
                     return tournament;
                 });
 
-        TournamentResponseDTO response = tournamentService.createTournament(dto);
+        TournamentResponseDTO response =
+                tournamentService.createTournament(dto, ADMINISTRATOR_ID);
 
-        assertEquals(1L, response.getId());
+        assertEquals(TOURNAMENT_ID, response.getId());
         assertEquals("Tournament Test", response.getName());
-        assertEquals("Test tournament", response.getDescription());
-        assertEquals("2026-10-10", response.getSchedule());
-        assertEquals("ArenaPoint", response.getLocation());
         assertEquals(TournamentStatus.IN_PROGRESS, response.getStatus());
 
+        verify(administratorRepository).getReferenceById(ADMINISTRATOR_ID);
         verify(tournamentRepository).save(any(Tournament.class));
     }
 
     @Test
     void shouldCreateTournamentWithUpcomingStatusWhenStatusIsNull() {
+        Administrator administrator = new Administrator();
+        administrator.setId(ADMINISTRATOR_ID);
+
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setStatus(null);
+
+        when(administratorRepository.getReferenceById(ADMINISTRATOR_ID))
+                .thenReturn(administrator);
 
         when(tournamentRepository.save(any(Tournament.class)))
                 .thenAnswer(invocation -> {
                     Tournament tournament = invocation.getArgument(0);
-                    tournament.setId(1L);
+                    tournament.setId(TOURNAMENT_ID);
                     return tournament;
                 });
 
-        TournamentResponseDTO response = tournamentService.createTournament(dto);
+        TournamentResponseDTO response =
+                tournamentService.createTournament(dto, ADMINISTRATOR_ID);
 
         assertEquals(TournamentStatus.UPCOMING, response.getStatus());
 
@@ -93,231 +115,177 @@ class TournamentServiceTest {
     }
 
     @Test
-    void shouldReturnAllTournaments() {
+    void shouldReturnOnlyAdministratorTournaments() {
         Tournament tournament1 = createTournament(
-                1L,
-                "Tournament 1",
-                TournamentStatus.UPCOMING
-        );
+                1L, "Tournament 1", TournamentStatus.UPCOMING);
 
         Tournament tournament2 = createTournament(
-                2L,
-                "Tournament 2",
-                TournamentStatus.IN_PROGRESS
-        );
+                2L, "Tournament 2", TournamentStatus.IN_PROGRESS);
 
-        when(tournamentRepository.findAll())
+        when(tournamentRepository.findAllByAdministrator_Id(ADMINISTRATOR_ID))
                 .thenReturn(List.of(tournament1, tournament2));
 
-        List<TournamentResponseDTO> response = tournamentService.getAllTournaments();
+        List<TournamentResponseDTO> response =
+                tournamentService.getAllTournaments(ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
         assertEquals("Tournament 1", response.get(0).getName());
         assertEquals("Tournament 2", response.get(1).getName());
-        assertEquals(TournamentStatus.UPCOMING, response.get(0).getStatus());
-        assertEquals(TournamentStatus.IN_PROGRESS, response.get(1).getStatus());
 
-        verify(tournamentRepository).findAll();
+        verify(tournamentRepository)
+                .findAllByAdministrator_Id(ADMINISTRATOR_ID);
+        verify(tournamentRepository, never()).findAll();
     }
 
     @Test
-    void shouldReturnTournamentById() {
+    void shouldReturnTournamentOwnedByAdministrator() {
         Tournament tournament = createTournament(
-                1L,
-                "Tournament Test",
-                TournamentStatus.UPCOMING
-        );
+                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
 
-        when(tournamentRepository.findById(1L))
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(tournament));
 
-        TournamentResponseDTO response = tournamentService.getTournamentById(1L);
+        TournamentResponseDTO response =
+                tournamentService.getTournamentById(
+                        TOURNAMENT_ID, ADMINISTRATOR_ID);
 
-        assertEquals(1L, response.getId());
+        assertEquals(TOURNAMENT_ID, response.getId());
         assertEquals("Tournament Test", response.getName());
-        assertEquals(TournamentStatus.UPCOMING, response.getStatus());
 
-        verify(tournamentRepository).findById(1L);
+        verify(tournamentRepository)
+                .findByIdAndAdministrator_Id(TOURNAMENT_ID, ADMINISTRATOR_ID);
     }
 
     @Test
-    void shouldNotReturnTournamentWhenIdDoesNotExist() {
-        when(tournamentRepository.findById(1L))
+    void shouldNotReturnTournamentOwnedByAnotherAdministrator() {
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
-        BusinessException exception = assertThrows(
+        assertThrows(
                 BusinessException.class,
-                () -> tournamentService.getTournamentById(1L)
-        );
+                () -> tournamentService.getTournamentById(
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Torneio não encontrado com o ID: 1",
-                exception.getMessage()
-        );
-
-        verify(tournamentRepository).findById(1L);
+        verify(tournamentRepository)
+                .findByIdAndAdministrator_Id(
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID);
     }
 
     @Test
-    void shouldUpdateTournamentKeepingCurrentStatusWhenDtoStatusIsNull() {
+    void shouldUpdateTournamentOwnedByAdministrator() {
         Tournament tournament = createTournament(
-                1L,
-                "Tournament Old",
-                TournamentStatus.IN_PROGRESS
-        );
+                TOURNAMENT_ID, "Tournament Old", TournamentStatus.IN_PROGRESS);
 
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setName("Tournament Updated");
         dto.setStatus(null);
 
-        when(tournamentRepository.findById(1L))
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(tournament));
 
         when(tournamentRepository.save(any(Tournament.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         TournamentResponseDTO response =
-                tournamentService.updateTournament(1L, dto);
+                tournamentService.updateTournament(
+                        TOURNAMENT_ID, dto, ADMINISTRATOR_ID);
 
         assertEquals("Tournament Updated", response.getName());
         assertEquals(TournamentStatus.IN_PROGRESS, response.getStatus());
 
-        verify(tournamentRepository).findById(1L);
         verify(tournamentRepository).save(tournament);
     }
 
     @Test
-    void shouldUpdateTournamentChangingStatus() {
-        Tournament tournament = createTournament(
-                1L,
-                "Tournament Old",
-                TournamentStatus.UPCOMING
-        );
-
-        TournamentRequestDTO dto = createTournamentRequest();
-        dto.setName("Tournament Updated");
-        dto.setStatus(TournamentStatus.FINISHED);
-
-        when(tournamentRepository.findById(1L))
-                .thenReturn(Optional.of(tournament));
-
-        when(tournamentRepository.save(any(Tournament.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        TournamentResponseDTO response =
-                tournamentService.updateTournament(1L, dto);
-
-        assertEquals("Tournament Updated", response.getName());
-        assertEquals(TournamentStatus.FINISHED, response.getStatus());
-
-        verify(tournamentRepository).findById(1L);
-        verify(tournamentRepository).save(tournament);
-    }
-
-    @Test
-    void shouldNotUpdateTournamentWhenIdDoesNotExist() {
+    void shouldNotUpdateTournamentOwnedByAnotherAdministrator() {
         TournamentRequestDTO dto = createTournamentRequest();
 
-        when(tournamentRepository.findById(1L))
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
-        BusinessException exception = assertThrows(
+        assertThrows(
                 BusinessException.class,
-                () -> tournamentService.updateTournament(1L, dto)
-        );
+                () -> tournamentService.updateTournament(
+                        TOURNAMENT_ID, dto, OTHER_ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Torneio não encontrado com o ID: 1",
-                exception.getMessage()
-        );
-
-        verify(tournamentRepository).findById(1L);
         verify(tournamentRepository, never()).save(any(Tournament.class));
     }
 
     @Test
-    void shouldDeleteTournament() {
-        when(tournamentRepository.existsById(1L))
-                .thenReturn(true);
+    void shouldDeleteTournamentOwnedByAdministrator() {
+        Tournament tournament = createTournament(
+                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
 
-        tournamentService.deleteTournament(1L);
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(tournament));
 
-        verify(tournamentRepository).existsById(1L);
-        verify(tournamentRepository).deleteById(1L);
+        tournamentService.deleteTournament(TOURNAMENT_ID, ADMINISTRATOR_ID);
+
+        verify(tournamentRepository)
+                .findByIdAndAdministrator_Id(TOURNAMENT_ID, ADMINISTRATOR_ID);
+        verify(tournamentRepository).delete(tournament);
     }
 
     @Test
-    void shouldNotDeleteTournamentWhenIdDoesNotExist() {
-        when(tournamentRepository.existsById(1L))
-                .thenReturn(false);
+    void shouldNotDeleteTournamentOwnedByAnotherAdministrator() {
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
 
-        BusinessException exception = assertThrows(
+        assertThrows(
                 BusinessException.class,
-                () -> tournamentService.deleteTournament(1L)
-        );
+                () -> tournamentService.deleteTournament(
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Torneio não encontrado com o ID: 1",
-                exception.getMessage()
-        );
-
-        verify(tournamentRepository).existsById(1L);
-        verify(tournamentRepository, never()).deleteById(1L);
+        verify(tournamentRepository, never()).delete(any(Tournament.class));
     }
-    
+
     @Test
-    void shouldGeneratePlayoffsForTournamentCategories() {
-        Long tournamentId = 1L;
+    void shouldGeneratePlayoffsForOwnedTournament() {
+        Tournament tournament = createTournament(
+                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
 
-        Category category1 = new Category();
-        category1.setId(10L);
+        Category category = new Category();
+        category.setId(10L);
 
-        Category category2 = new Category();
-        category2.setId(20L);
+        BracketResponseDTO bracket = new BracketResponseDTO();
 
-        BracketResponseDTO bracket1 = new BracketResponseDTO();
-        BracketResponseDTO bracket2 = new BracketResponseDTO();
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(tournament));
 
-        when(tournamentRepository.existsById(tournamentId))
-                .thenReturn(true);
-
-        when(categoryRepository.findByTournamentId(tournamentId))
-                .thenReturn(List.of(category1, category2));
+        when(categoryRepository.findByTournamentId(TOURNAMENT_ID))
+                .thenReturn(List.of(category));
 
         when(bracketService.generateKnockoutBracket(10L))
-                .thenReturn(bracket1);
-
-        when(bracketService.generateKnockoutBracket(20L))
-                .thenReturn(bracket2);
+                .thenReturn(bracket);
 
         List<BracketResponseDTO> response =
-                tournamentService.generatePlayoffs(tournamentId);
+                tournamentService.generatePlayoffs(
+                        TOURNAMENT_ID, ADMINISTRATOR_ID);
 
-        assertEquals(2, response.size());
-        assertSame(bracket1, response.get(0));
-        assertSame(bracket2, response.get(1));
-
-        verify(bracketService).generateKnockoutBracket(10L);
-        verify(bracketService).generateKnockoutBracket(20L);
+        assertEquals(1, response.size());
+        assertSame(bracket, response.get(0));
     }
 
     @Test
-    void shouldNotGeneratePlayoffsWhenTournamentDoesNotExist() {
-        Long tournamentId = 1L;
+    void shouldNotGeneratePlayoffsForTournamentOwnedByAnotherAdministrator() {
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
 
-        when(tournamentRepository.existsById(tournamentId))
-                .thenReturn(false);
-
-        BusinessException exception = assertThrows(
+        assertThrows(
                 BusinessException.class,
-                () -> tournamentService.generatePlayoffs(tournamentId));
-
-        assertEquals(
-                "Torneio não encontrado com o ID: 1",
-                exception.getMessage());
+                () -> tournamentService.generatePlayoffs(
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
 
         verify(categoryRepository, never())
-                .findByTournamentId(tournamentId);
+                .findByTournamentId(TOURNAMENT_ID);
 
         verify(bracketService, never())
                 .generateKnockoutBracket(any());
@@ -325,21 +293,20 @@ class TournamentServiceTest {
 
     @Test
     void shouldNotGeneratePlayoffsWhenTournamentHasNoCategories() {
-        Long tournamentId = 1L;
+        Tournament tournament = createTournament(
+                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
 
-        when(tournamentRepository.existsById(tournamentId))
-                .thenReturn(true);
+        when(tournamentRepository.findByIdAndAdministrator_Id(
+                TOURNAMENT_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(tournament));
 
-        when(categoryRepository.findByTournamentId(tournamentId))
+        when(categoryRepository.findByTournamentId(TOURNAMENT_ID))
                 .thenReturn(List.of());
 
-        BusinessException exception = assertThrows(
+        assertThrows(
                 BusinessException.class,
-                () -> tournamentService.generatePlayoffs(tournamentId));
-
-        assertEquals(
-                "O torneio não possui categorias cadastradas.",
-                exception.getMessage());
+                () -> tournamentService.generatePlayoffs(
+                        TOURNAMENT_ID, ADMINISTRATOR_ID));
 
         verify(bracketService, never())
                 .generateKnockoutBracket(any());

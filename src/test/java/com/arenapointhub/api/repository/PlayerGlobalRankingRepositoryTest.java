@@ -17,6 +17,7 @@ import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.PlayerGlobalRanking;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.model.Administrator;
 
 @DataJpaTest(properties = {
 	    "spring.jpa.hibernate.ddl-auto=create-drop"
@@ -29,17 +30,20 @@ class PlayerGlobalRankingRepositoryTest {
     private final PlayerRepository playerRepository;
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
+    private final AdministratorRepository administratorRepository;
 
     PlayerGlobalRankingRepositoryTest(
             PlayerGlobalRankingRepository playerGlobalRankingRepository,
             PlayerRepository playerRepository,
             CategoryRepository categoryRepository,
-            TournamentRepository tournamentRepository) {
+            TournamentRepository tournamentRepository,
+            AdministratorRepository administratorRepository) {
 
         this.playerGlobalRankingRepository = playerGlobalRankingRepository;
         this.playerRepository = playerRepository;
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
@@ -151,8 +155,17 @@ class PlayerGlobalRankingRepositoryTest {
     }
 
     private Category createAndSaveCategory(String name) {
+        Administrator administrator = new Administrator();
+        administrator.setUsername("admin-ranking-teste");
+        administrator.setPasswordHash("test-password");
+        administrator.setActive(true);
+
+        Administrator savedAdministrator =
+                administratorRepository.save(administrator);
+
         Tournament tournament = new Tournament();
         tournament.setName("Torneio de Teste");
+        tournament.setAdministrator(savedAdministrator);
 
         Tournament savedTournament = tournamentRepository.save(tournament);
 

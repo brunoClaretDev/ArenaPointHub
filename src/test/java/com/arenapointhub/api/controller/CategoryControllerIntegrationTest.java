@@ -1,5 +1,7 @@
 package com.arenapointhub.api.controller;
 
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,21 +10,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.TestConstructor.AutowireMode;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.arenapointhub.api.model.Administrator;
+import com.arenapointhub.api.repository.AdministratorRepository;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 import com.jayway.jsonpath.JsonPath;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -30,22 +41,53 @@ import com.jayway.jsonpath.JsonPath;
 @TestConstructor(autowireMode = AutowireMode.ALL)
 class CategoryControllerIntegrationTest {
 
-	private final MockMvc mockMvc;
+	private MockMvc mockMvc;
+
+	private final WebApplicationContext context;
 	private final CategoryRepository categoryRepository;
 	private final PlayerRepository playerRepository;
+	private final AdministratorRepository administratorRepository;
 
 	CategoryControllerIntegrationTest(
-	        MockMvc mockMvc,
+	        WebApplicationContext context,
 	        CategoryRepository categoryRepository,
-	        PlayerRepository playerRepository) {
+	        PlayerRepository playerRepository,
+	        AdministratorRepository administratorRepository) {
 
-	    this.mockMvc = mockMvc;
+	    this.context = context;
 	    this.categoryRepository = categoryRepository;
 	    this.playerRepository = playerRepository;
+	    this.administratorRepository = administratorRepository;
+	}
+	
+	@BeforeEach
+	void setUp() {
+
+	    Administrator administrator = new Administrator();
+	    administrator.setUsername("admin-test-" + UUID.randomUUID());
+	    administrator.setPasswordHash("test-password");
+	    administrator.setActive(true);
+
+	    Administrator savedAdministrator =
+	            administratorRepository.saveAndFlush(administrator);
+
+	    AdministratorPrincipal principal = new AdministratorPrincipal(
+	            savedAdministrator.getId(),
+	            savedAdministrator.getUsername(),
+	            savedAdministrator.getPasswordHash(),
+	            savedAdministrator.isActive()
+	    );
+
+	    this.mockMvc = MockMvcBuilders
+	            .webAppContextSetup(context)
+	            .apply(springSecurity())
+	            .defaultRequest(
+	                    get("/").with(user(principal))
+	            )
+	            .build();
 	}
 	
 	@Test
-	@WithMockUser
 	void shouldCreateAndPersistCategory() throws Exception {
 	
 	    String tournamentJson = """
@@ -104,7 +146,6 @@ class CategoryControllerIntegrationTest {
 
     
     @Test
-    @WithMockUser
     void shouldRejectCategoryWithoutRequiredFields() throws Exception {
 
         String invalidCategoryJson = """
@@ -121,7 +162,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldGetCategoryById() throws Exception {
 
         String tournamentJson = """
@@ -177,7 +217,6 @@ class CategoryControllerIntegrationTest {
     }
 
 	@Test
-	@WithMockUser
 	void shouldListCategories() throws Exception {
 	
 	    String tournamentJson = """
@@ -225,7 +264,6 @@ class CategoryControllerIntegrationTest {
 	}
 	
     @Test
-    @WithMockUser
     void shouldUpdateCategory() throws Exception {
 
         String tournamentJson = """
@@ -293,7 +331,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldDeleteCategory() throws Exception {
 
         String tournamentJson = """
@@ -345,7 +382,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldReturnNoContentWhenCategoryHasNoChampion() throws Exception {
 
         String tournamentJson = """
@@ -394,7 +430,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldReturnChampionWhenCategoryHasChampion() throws Exception {
 
         String tournamentJson = """
@@ -475,7 +510,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldReturnEmptyMatchListWhenCategoryHasNoMatches() throws Exception {
 
         String tournamentJson = """
@@ -526,7 +560,6 @@ class CategoryControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void shouldRejectMatchListWhenCategoryDoesNotExist() throws Exception {
 
         mockMvc.perform(get("/api/categories/{categoryId}/matches", 999999L))
@@ -534,7 +567,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldReturnEmptyPlayerListWhenCategoryHasNoPlayers() throws Exception {
 
         String tournamentJson = """
@@ -585,7 +617,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldReturnPlayersWhenCategoryHasRegisteredPlayers() throws Exception {
 
         String tournamentJson = """
@@ -661,7 +692,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldRejectAddingPlayerAlreadyRegistered() throws Exception {
 
         String tournamentJson = """
@@ -737,7 +767,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldRemovePlayerFromCategory() throws Exception {
 
         String tournamentJson = """
@@ -818,7 +847,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldRejectRemovingPlayerNotRegisteredInCategory() throws Exception {
 
         String tournamentJson = """
@@ -893,7 +921,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldRejectGeneratingPlayoffsWhenCategoryDoesNotExist() throws Exception {
 
         mockMvc.perform(
@@ -902,7 +929,6 @@ class CategoryControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser
     void shouldRejectGeneratingPlayoffsWhenCategoryHasNoGroups() throws Exception {
 
         String tournamentJson = """
@@ -953,7 +979,6 @@ class CategoryControllerIntegrationTest {
     }
     
     @Test
-    @WithMockUser
     void shouldRejectGeneratingPlayoffsWhenNotEnoughQualifiedPlayers() throws Exception {
 
         String tournamentJson = """

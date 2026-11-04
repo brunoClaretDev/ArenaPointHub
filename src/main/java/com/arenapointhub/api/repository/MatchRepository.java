@@ -38,4 +38,14 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             @Param("p2Id") Long player2Id, 
             @Param("scheduledTime") String scheduledTime, 
             @Param("status") MatchStatus status);
+    
+    boolean existsByCategoryIdAndPhase(
+            Long categoryId,
+            MatchPhase phase);
+
+    boolean existsByCategoryIdAndPhaseAndStatusNotIn(
+            Long categoryId,
+            MatchPhase phase,
+            List<MatchStatus> statuses);
+    
 }

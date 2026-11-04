@@ -14,6 +14,7 @@ import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.model.Administrator;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -24,25 +25,31 @@ class GroupRepositoryTest {
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
     private final PlayerRepository playerRepository;
+    private final AdministratorRepository administratorRepository;
 
     GroupRepositoryTest(
             GroupRepository groupRepository,
             CategoryRepository categoryRepository,
             TournamentRepository tournamentRepository,
-            PlayerRepository playerRepository) {
+            PlayerRepository playerRepository,
+            AdministratorRepository administratorRepository) {
 
         this.groupRepository = groupRepository;
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
         this.playerRepository = playerRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
     void shouldFindGroupsByCategoryId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
+    	Administrator administrator = createAdministrator();
 
-        Tournament savedTournament = tournamentRepository.save(tournament);
+    	Tournament tournament = new Tournament();
+    	tournament.setName("Torneio Teste");
+    	tournament.setAdministrator(administrator);
+
+    	Tournament savedTournament = tournamentRepository.save(tournament);
 
         Category category = new Category();
         category.setName("Categoria Teste");
@@ -71,10 +78,13 @@ class GroupRepositoryTest {
 
     @Test
     void shouldCheckIfPlayerExistsInCategoryGroup() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
+    	Administrator administrator = createAdministrator();
 
-        Tournament savedTournament = tournamentRepository.save(tournament);
+    	Tournament tournament = new Tournament();
+    	tournament.setName("Torneio Teste");
+    	tournament.setAdministrator(administrator);
+
+    	Tournament savedTournament = tournamentRepository.save(tournament);
 
         Category category = new Category();
         category.setName("Categoria Teste");
@@ -102,5 +112,14 @@ class GroupRepositoryTest {
                         savedPlayer.getId());
 
         assertEquals(true, playerExists);
+    }
+    
+    private Administrator createAdministrator() {
+        Administrator administrator = new Administrator();
+        administrator.setUsername("admin-group-test");
+        administrator.setPasswordHash("test-password");
+        administrator.setActive(true);
+
+        return administratorRepository.save(administrator);
     }
 }

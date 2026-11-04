@@ -57,11 +57,20 @@ public class BracketService {
     @Transactional
     public BracketResponseDTO generateKnockoutBracket(Long categoryId) {
 
-        Category category = findCategory(categoryId);
+    	Category category = findCategory(categoryId);
 
-        validateKnockoutCanBeRegenerated(categoryId);
-        
-        List<Group> groups = getOrderedGroups(categoryId);
+    	validateKnockoutCanBeRegenerated(categoryId);
+
+    	List<Group> groups = getOrderedGroups(categoryId);
+
+    	if (groups.isEmpty()) {
+    	    throw new BusinessException(
+    	            "Não existem grupos para esta categoria.");
+    	}
+
+    	validateGroupMatchesCompleted(categoryId);
+
+    	validateKnockoutCanBeRegenerated(categoryId);
 
         List<Player> firstPlaces =
                 getPlayersByStandingPosition(groups, 0);
@@ -924,4 +933,29 @@ public class BracketService {
                     "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.");
         }
     }
+    
+    private void validateGroupMatchesCompleted(Long categoryId) {
+
+        boolean hasGroupMatches = matchRepository
+                .existsByCategoryIdAndPhase(
+                        categoryId,
+                        MatchPhase.GROUP);
+
+        if (!hasGroupMatches) {
+            throw new BusinessException(
+                    "Não existem partidas de grupo cadastradas para esta categoria.");
+        }
+
+        boolean hasPendingMatches = matchRepository
+                .existsByCategoryIdAndPhaseAndStatusNotIn(
+                        categoryId,
+                        MatchPhase.GROUP,
+                        List.of(MatchStatus.FINISHED, MatchStatus.WO));
+
+        if (hasPendingMatches) {
+            throw new BusinessException(
+                    "Não é possível gerar o mata-mata enquanto existirem partidas de grupo pendentes ou canceladas.");
+        }
+    }
+    
 }

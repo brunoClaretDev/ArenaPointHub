@@ -1,33 +1,77 @@
 package com.arenapointhub.api.controller;
 
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import java.time.LocalDate;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestConstructor;
+import org.springframework.test.context.TestConstructor.AutowireMode;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
+import com.arenapointhub.api.model.Administrator;
+import com.arenapointhub.api.repository.AdministratorRepository;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.jayway.jsonpath.JsonPath;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@AutoConfigureMockMvc
-@WithMockUser(roles = "ADMIN")
+@TestConstructor(autowireMode = AutowireMode.ALL)
 class MatchControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+	private MockMvc mockMvc;
+
+	private final WebApplicationContext context;
+	private final AdministratorRepository administratorRepository;
+
+	MatchControllerIntegrationTest(
+	        WebApplicationContext context,
+	        AdministratorRepository administratorRepository) {
+
+	    this.context = context;
+	    this.administratorRepository = administratorRepository;
+	}
+
+	@BeforeEach
+	void setUp() {
+	    Administrator administrator = new Administrator();
+	    administrator.setUsername("admin-test-" + UUID.randomUUID());
+	    administrator.setPasswordHash("test-password");
+	    administrator.setActive(true);
+
+	    Administrator savedAdministrator =
+	            administratorRepository.saveAndFlush(administrator);
+
+	    AdministratorPrincipal principal = new AdministratorPrincipal(
+	            savedAdministrator.getId(),
+	            savedAdministrator.getUsername(),
+	            savedAdministrator.getPasswordHash(),
+	            savedAdministrator.isActive()
+	    );
+
+	    this.mockMvc = MockMvcBuilders
+	            .webAppContextSetup(context)
+	            .apply(springSecurity())
+	            .defaultRequest(
+	                    get("/").with(user(principal))
+	            )
+	            .build();
+	}
 
     @Test
     void shouldCreateAndRetrieveMatch() throws Exception {

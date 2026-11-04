@@ -17,6 +17,7 @@ import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.MatchPhase;
 import com.arenapointhub.api.model.enums.MatchStatus;
+import com.arenapointhub.api.model.Administrator;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -28,35 +29,27 @@ class MatchRepositoryTest {
     private final TournamentRepository tournamentRepository;
     private final PlayerRepository playerRepository;
     private final GroupRepository groupRepository;
+    private final AdministratorRepository administratorRepository;
 
     MatchRepositoryTest(
             MatchRepository matchRepository,
             CategoryRepository categoryRepository,
             TournamentRepository tournamentRepository,
             PlayerRepository playerRepository,
-            GroupRepository groupRepository) {
+            GroupRepository groupRepository,
+            AdministratorRepository administratorRepository) {
 
         this.matchRepository = matchRepository;
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
         this.playerRepository = playerRepository;
         this.groupRepository = groupRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
     void shouldFindMatchesByCategoryId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match match1 = new Match();
         match1.setCategory(savedCategory);
@@ -79,18 +72,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldFindMatchesByStatus() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match scheduledMatch = new Match();
         scheduledMatch.setCategory(savedCategory);
@@ -114,18 +96,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldFindMatchesByPlayer() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Player player1 = new Player();
         player1.setName("Jogador 1");
@@ -160,18 +131,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldFindMatchesByGroupId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Group group = new Group();
         group.setName("Grupo A");
@@ -205,18 +165,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldDeleteMatchesByCategoryAndPhase() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match groupMatch = new Match();
         groupMatch.setCategory(savedCategory);
@@ -244,18 +193,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldCheckIfTableOrCourtIsOccupied() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match match = new Match();
         match.setCategory(savedCategory);
@@ -276,18 +214,7 @@ class MatchRepositoryTest {
     
     @Test
     void shouldCheckIfPlayerIsBusy() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Player player1 = new Player();
         player1.setName("Jogador 1");
@@ -319,5 +246,28 @@ class MatchRepositoryTest {
                         MatchStatus.CANCELED);
 
         assertEquals(true, playerBusy);
+    }
+    
+    private Category createSavedCategory() {
+        Administrator administrator = new Administrator();
+        administrator.setUsername("admin-match-test");
+        administrator.setPasswordHash("test-password");
+        administrator.setActive(true);
+
+        Administrator savedAdministrator =
+                administratorRepository.save(administrator);
+
+        Tournament tournament = new Tournament();
+        tournament.setName("Torneio Teste");
+        tournament.setAdministrator(savedAdministrator);
+
+        Tournament savedTournament =
+                tournamentRepository.save(tournament);
+
+        Category category = new Category();
+        category.setName("Categoria Teste");
+        category.setTournament(savedTournament);
+
+        return categoryRepository.save(category);
     }
 }

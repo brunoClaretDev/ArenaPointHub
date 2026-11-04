@@ -15,6 +15,7 @@ import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.MatchSet;
 import com.arenapointhub.api.model.Tournament;
+import com.arenapointhub.api.model.Administrator;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -25,33 +26,25 @@ class MatchSetRepositoryTest {
     private final MatchRepository matchRepository;
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
-
+    private final AdministratorRepository administratorRepository;
+    
     MatchSetRepositoryTest(
             MatchSetRepository matchSetRepository,
             MatchRepository matchRepository,
             CategoryRepository categoryRepository,
-            TournamentRepository tournamentRepository) {
+            TournamentRepository tournamentRepository,
+            AdministratorRepository administratorRepository) {
 
         this.matchSetRepository = matchSetRepository;
         this.matchRepository = matchRepository;
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
     void shouldFindMatchSetsByMatchId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match match = new Match();
         match.setCategory(savedCategory);
@@ -89,18 +82,7 @@ class MatchSetRepositoryTest {
     
     @Test
     void shouldFindMatchSetByMatchIdAndSetNumber() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
-
-        Tournament savedTournament =
-                tournamentRepository.save(tournament);
-
-        Category category = new Category();
-        category.setName("Categoria Teste");
-        category.setTournament(savedTournament);
-
-        Category savedCategory =
-                categoryRepository.save(category);
+    	Category savedCategory = createSavedCategory();
 
         Match match = new Match();
         match.setCategory(savedCategory);
@@ -132,6 +114,29 @@ class MatchSetRepositoryTest {
         assertEquals(2, foundSet.get().getSetNumber());
         assertEquals(11, foundSet.get().getScorePlayer1());
         assertEquals(9, foundSet.get().getScorePlayer2());
+    }
+    
+    private Category createSavedCategory() {
+        Administrator administrator = new Administrator();
+        administrator.setUsername("admin-match-set-test");
+        administrator.setPasswordHash("test-password");
+        administrator.setActive(true);
+
+        Administrator savedAdministrator =
+                administratorRepository.save(administrator);
+
+        Tournament tournament = new Tournament();
+        tournament.setName("Torneio Teste");
+        tournament.setAdministrator(savedAdministrator);
+
+        Tournament savedTournament =
+                tournamentRepository.save(tournament);
+
+        Category category = new Category();
+        category.setName("Categoria Teste");
+        category.setTournament(savedTournament);
+
+        return categoryRepository.save(category);
     }
     
 }

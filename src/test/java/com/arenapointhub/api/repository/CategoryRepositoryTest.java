@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 
+import com.arenapointhub.api.model.Administrator;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Tournament;
 
@@ -21,21 +22,27 @@ class CategoryRepositoryTest {
 
     private final CategoryRepository categoryRepository;
     private final TournamentRepository tournamentRepository;
+    private final AdministratorRepository administratorRepository;
 
     CategoryRepositoryTest(
             CategoryRepository categoryRepository,
-            TournamentRepository tournamentRepository) {
+            TournamentRepository tournamentRepository,
+            AdministratorRepository administratorRepository) {
 
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
     void shouldSaveAndFindCategory() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
+    	Administrator administrator = createAdministrator();
 
-        Tournament savedTournament = tournamentRepository.save(tournament);
+    	Tournament tournament = new Tournament();
+    	tournament.setName("Torneio Teste");
+    	tournament.setAdministrator(administrator);
+
+    	Tournament savedTournament = tournamentRepository.save(tournament);
 
         Category category = new Category();
         category.setName("Categoria Teste");
@@ -52,10 +59,13 @@ class CategoryRepositoryTest {
 
     @Test
     void shouldFindCategoriesByTournamentId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
+    	Administrator administrator = createAdministrator();
 
-        Tournament savedTournament = tournamentRepository.save(tournament);
+    	Tournament tournament = new Tournament();
+    	tournament.setName("Torneio Teste");
+    	tournament.setAdministrator(administrator);
+
+    	Tournament savedTournament = tournamentRepository.save(tournament);
 
         Category category1 = new Category();
         category1.setName("Categoria A");
@@ -74,5 +84,14 @@ class CategoryRepositoryTest {
         assertEquals(2, categories.size());
         assertEquals("Categoria A", categories.get(0).getName());
         assertEquals("Categoria B", categories.get(1).getName());
+    }
+    
+    private Administrator createAdministrator() {
+        Administrator administrator = new Administrator();
+        administrator.setUsername("admin-teste");
+        administrator.setPasswordHash("test-password");
+        administrator.setActive(true);
+
+        return administratorRepository.save(administrator);
     }
 }

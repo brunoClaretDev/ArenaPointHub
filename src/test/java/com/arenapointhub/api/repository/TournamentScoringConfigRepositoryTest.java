@@ -13,6 +13,7 @@ import org.springframework.test.context.TestConstructor.AutowireMode;
 
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.TournamentScoringConfig;
+import com.arenapointhub.api.model.Administrator;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -21,19 +22,31 @@ class TournamentScoringConfigRepositoryTest {
 
     private final TournamentScoringConfigRepository scoringConfigRepository;
     private final TournamentRepository tournamentRepository;
+    private final AdministratorRepository administratorRepository;
 
     TournamentScoringConfigRepositoryTest(
             TournamentScoringConfigRepository scoringConfigRepository,
-            TournamentRepository tournamentRepository) {
+            TournamentRepository tournamentRepository,
+            AdministratorRepository administratorRepository) {
 
         this.scoringConfigRepository = scoringConfigRepository;
         this.tournamentRepository = tournamentRepository;
+        this.administratorRepository = administratorRepository;
     }
 
     @Test
     void shouldFindScoringConfigByTournamentId() {
-        Tournament tournament = new Tournament();
-        tournament.setName("Torneio Teste");
+    	Administrator administrator = new Administrator();
+    	administrator.setUsername("admin-scoring-teste");
+    	administrator.setPasswordHash("test-password");
+    	administrator.setActive(true);
+
+    	Administrator savedAdministrator =
+    	        administratorRepository.save(administrator);
+    	
+    	Tournament tournament = new Tournament();
+    	tournament.setName("Torneio Teste");
+    	tournament.setAdministrator(savedAdministrator);
 
         Tournament savedTournament =
                 tournamentRepository.save(tournament);
