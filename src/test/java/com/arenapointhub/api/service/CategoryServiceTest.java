@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -31,6 +32,9 @@ import com.arenapointhub.api.repository.TournamentRepository;
 @ExtendWith(MockitoExtension.class)
 class CategoryServiceTest {
 
+    private static final Long ADMINISTRATOR_ID = 1L;
+    private static final Long CATEGORY_ID = 1L;
+
     @Mock
     private CategoryRepository categoryRepository;
 
@@ -52,7 +56,7 @@ class CategoryServiceTest {
     @BeforeEach
     void setUp() {
         category = new Category();
-        category.setId(1L);
+        category.setId(CATEGORY_ID);
         category.setPlayers(new ArrayList<>());
 
         player = new Player();
@@ -63,22 +67,21 @@ class CategoryServiceTest {
     @Test
     void shouldAddPlayerToCategory() {
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
                 .thenReturn(Optional.of(player));
 
         assertDoesNotThrow(() ->
-                categoryService.addPlayerToCategory(1L, 1L));
+                categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
         verify(categoryRepository).save(category);
 
-        boolean playerRegistered = category.getPlayers()
-                .stream()
-                .anyMatch(p -> p.getId().equals(1L));
-
-        assertTrue(playerRegistered);
+        assertTrue(category.getPlayers().contains(player));
     }
 
     @Test
@@ -86,25 +89,30 @@ class CategoryServiceTest {
 
         category.getPlayers().add(player);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
-
+        
         when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(player));
-
+        		.thenReturn(Optional.of(player));
+        
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.addPlayerToCategory(1L, 1L));
+                () -> categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("O jogador já está inscrito na categoria."));
+        assertEquals(
+                "O jogador já está inscrito na categoria.",
+                exception.getMessage());
     }
 
     @Test
     void shouldNotAddPlayerWhenPlayerDoesNotExist() {
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(99L))
@@ -112,26 +120,30 @@ class CategoryServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.addPlayerToCategory(1L, 99L));
+                () -> categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 99L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Jogador não encontrado com ID: 99"));
+        assertEquals(
+                "Jogador não encontrado com o ID: 99",
+                exception.getMessage());
     }
 
     @Test
     void shouldNotAddPlayerWhenCategoryDoesNotExist() {
 
-        when(categoryRepository.findById(99L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        99L, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.addPlayerToCategory(99L, 1L));
+                () -> categoryService.addPlayerToCategory(
+                        99L, 1L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Categoria não encontrada com ID: 99"));
+        assertEquals(
+                "Categoria não encontrada com o ID: 99",
+                exception.getMessage());
     }
 
     @Test
@@ -143,7 +155,9 @@ class CategoryServiceTest {
 
         player.setBirthDate(null);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
@@ -151,11 +165,12 @@ class CategoryServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.addPlayerToCategory(1L, 1L));
+                () -> categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("A data de nascimento do jogador é obrigatória para categorias restritas por idade."));
+        assertEquals(
+                "A data de nascimento do jogador é obrigatória para categorias restritas por idade.",
+                exception.getMessage());
     }
 
     @Test
@@ -168,7 +183,9 @@ class CategoryServiceTest {
         player.setBirthDate(
                 LocalDate.of(LocalDate.now().getYear() - 14, 1, 1));
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
@@ -176,11 +193,11 @@ class CategoryServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.addPlayerToCategory(1L, 1L));
+                () -> categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .contains("excede a idade máxima de 13 anos"));
+        assertTrue(exception.getMessage()
+                .contains("excede a idade máxima de 13 anos"));
     }
 
     @Test
@@ -193,75 +210,86 @@ class CategoryServiceTest {
         player.setBirthDate(
                 LocalDate.of(LocalDate.now().getYear() - 13, 1, 1));
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
                 .thenReturn(Optional.of(player));
 
         assertDoesNotThrow(() ->
-                categoryService.addPlayerToCategory(1L, 1L));
+                categoryService.addPlayerToCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
         verify(categoryRepository).save(category);
 
-        assertTrue(
-                category.getPlayers()
-                        .stream()
-                        .anyMatch(p -> p.getId().equals(1L)));
+        assertTrue(category.getPlayers().contains(player));
     }
-    
+
     @Test
     void shouldReturnPlayersByCategory() {
 
         category.getPlayers().add(player);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         List<Player> players =
-                categoryService.getPlayersByCategory(1L);
+                categoryService.getPlayersByCategory(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertTrue(players.contains(player));
     }
-    
+
     @Test
     void shouldNotReturnPlayersWhenCategoryDoesNotExist() {
 
-        when(categoryRepository.findById(99L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        99L, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.getPlayersByCategory(99L));
+                () -> categoryService.getPlayersByCategory(
+                        99L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Categoria não encontrada com o ID: 99"));
+        assertEquals(
+                "Categoria não encontrada com o ID: 99",
+                exception.getMessage());
     }
-    
+
     @Test
     void shouldRemovePlayerFromCategory() {
 
         category.getPlayers().add(player);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
                 .thenReturn(Optional.of(player));
 
         assertDoesNotThrow(() ->
-                categoryService.removePlayerFromCategory(1L, 1L));
+                categoryService.removePlayerFromCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
         verify(categoryRepository).save(category);
 
         assertTrue(category.getPlayers().isEmpty());
     }
-    
+
     @Test
     void shouldNotRemovePlayerWhenPlayerIsNotRegistered() {
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(playerRepository.findById(1L))
@@ -269,13 +297,14 @@ class CategoryServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.removePlayerFromCategory(1L, 1L));
+                () -> categoryService.removePlayerFromCategory(
+                        CATEGORY_ID, 1L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("O jogador não está inscrito na categoria."));
+        assertEquals(
+                "O jogador não está inscrito na categoria.",
+                exception.getMessage());
     }
-    
+
     @Test
     void shouldDrawPlayersByCategory() {
 
@@ -286,85 +315,103 @@ class CategoryServiceTest {
         category.getPlayers().add(player);
         category.getPlayers().add(player2);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         List<Player> players =
-                categoryService.drawPlayersByCategory(1L);
+                categoryService.drawPlayersByCategory(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertTrue(players.contains(player));
         assertTrue(players.contains(player2));
-        assertTrue(players.size() == 2);
+        assertEquals(2, players.size());
     }
-    
+
     @Test
     void shouldNotDrawPlayersWhenCategoryHasNoPlayers() {
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.drawPlayersByCategory(1L));
+                () -> categoryService.drawPlayersByCategory(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Não existem jogadores inscritos na categoria."));
+        assertEquals(
+                "Não existem jogadores inscritos na categoria.",
+                exception.getMessage());
     }
-    
+
     @Test
     void shouldNotDrawPlayersWhenCategoryDoesNotExist() {
 
-        when(categoryRepository.findById(99L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        99L, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.drawPlayersByCategory(99L));
+                () -> categoryService.drawPlayersByCategory(
+                        99L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Categoria não encontrada com o ID: 99"));
+        assertEquals(
+                "Categoria não encontrada com o ID: 99",
+                exception.getMessage());
     }
-    
+
     @Test
     void shouldReturnChampionByCategory() {
 
         category.setChampion(player);
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         Player champion =
-                categoryService.getChampionByCategoryId(1L);
+                categoryService.getChampionByCategoryId(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertTrue(champion == player);
     }
-    
+
     @Test
     void shouldNotReturnChampionWhenCategoryDoesNotExist() {
 
-        when(categoryRepository.findById(99L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        99L, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.getChampionByCategoryId(99L));
+                () -> categoryService.getChampionByCategoryId(
+                        99L, ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage()
-                        .equals("Categoria não encontrada com o ID: 99"));
+        assertEquals(
+                "Categoria não encontrada com o ID: 99",
+                exception.getMessage());
     }
-    
+
     @Test
     void shouldNotGeneratePlayoffsWhenCategoryDoesNotExist() {
 
-        when(categoryRepository.findById(99L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        99L, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> categoryService.generatePlayoffs(99L));
+                () -> categoryService.generatePlayoffs(
+                        99L, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Categoria não encontrada com o ID: 99",

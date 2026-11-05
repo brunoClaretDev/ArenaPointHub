@@ -1,9 +1,11 @@
+
 package com.arenapointhub.api.controller;
 
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +19,7 @@ import com.arenapointhub.api.dto.CategoryRequestDTO;
 import com.arenapointhub.api.dto.CategoryResponseDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
 import com.arenapointhub.api.model.Player;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.arenapointhub.api.service.CategoryService;
 
 import jakarta.validation.Valid;
@@ -33,73 +36,81 @@ public class CategoryController {
 
     @PostMapping
     public ResponseEntity<CategoryResponseDTO> createCategory(
-            @Valid @RequestBody CategoryRequestDTO dto) {
+            @Valid @RequestBody CategoryRequestDTO dto,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         CategoryResponseDTO createdCategory =
-                categoryService.createCategory(dto);
+                categoryService.createCategory(dto, principal.id());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(createdCategory);
     }
 
     @GetMapping
-    public ResponseEntity<List<CategoryResponseDTO>> getAllCategories() {
+    public ResponseEntity<List<CategoryResponseDTO>> getAllCategories(
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         return ResponseEntity.ok(
-                categoryService.getAllCategories());
+                categoryService.getAllCategories(principal.id()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponseDTO> getCategoryById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         return ResponseEntity.ok(
-                categoryService.getCategoryById(id));
+                categoryService.getCategoryById(id, principal.id()));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponseDTO> updateCategory(
             @PathVariable Long id,
-            @Valid @RequestBody CategoryRequestDTO dto) {
+            @Valid @RequestBody CategoryRequestDTO dto,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         CategoryResponseDTO updatedCategory =
-                categoryService.updateCategory(id, dto);
+                categoryService.updateCategory(id, dto, principal.id());
 
         return ResponseEntity.ok(updatedCategory);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCategory(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
-        categoryService.deleteCategory(id);
+        categoryService.deleteCategory(id, principal.id());
 
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{categoryId}/generate-playoffs")
     public ResponseEntity<Void> generatePlayoffs(
-            @PathVariable Long categoryId) {
+            @PathVariable Long categoryId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
-        categoryService.generatePlayoffs(categoryId);
+        categoryService.generatePlayoffs(categoryId, principal.id());
 
         return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{categoryId}/matches")
     public ResponseEntity<List<MatchResponseDTO>> getMatchesByCategory(
-            @PathVariable Long categoryId) {
+            @PathVariable Long categoryId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         return ResponseEntity.ok(
-                categoryService.getMatchesByCategory(categoryId));
+                categoryService.getMatchesByCategory(categoryId, principal.id()));
     }
 
     @GetMapping("/{id}/champion")
     public ResponseEntity<Player> getChampion(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         Player champion =
-                categoryService.getChampionByCategoryId(id);
+                categoryService.getChampionByCategoryId(id, principal.id());
 
         if (champion == null) {
             return ResponseEntity.noContent().build();
@@ -110,37 +121,44 @@ public class CategoryController {
 
     @GetMapping("/{categoryId}/players")
     public ResponseEntity<List<Player>> getPlayersByCategory(
-            @PathVariable Long categoryId) {
+            @PathVariable Long categoryId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         return ResponseEntity.ok(
-                categoryService.getPlayersByCategory(categoryId));
+                categoryService.getPlayersByCategory(categoryId, principal.id()));
     }
 
     @PostMapping("/{categoryId}/players/{playerId}")
     public ResponseEntity<Void> addPlayerToCategory(
             @PathVariable Long categoryId,
-            @PathVariable Long playerId) {
+            @PathVariable Long playerId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
-        categoryService.addPlayerToCategory(categoryId, playerId);
+        categoryService.addPlayerToCategory(
+                categoryId, playerId, principal.id());
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
-    
+
     @DeleteMapping("/{categoryId}/players/{playerId}")
     public ResponseEntity<Void> removePlayerFromCategory(
             @PathVariable Long categoryId,
-            @PathVariable Long playerId) {
+            @PathVariable Long playerId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
-        categoryService.removePlayerFromCategory(categoryId, playerId);
+        categoryService.removePlayerFromCategory(
+                categoryId, playerId, principal.id());
 
         return ResponseEntity.noContent().build();
     }
-    
+
     @GetMapping("/{categoryId}/draw")
     public ResponseEntity<List<Player>> drawPlayersByCategory(
-            @PathVariable Long categoryId) {
+            @PathVariable Long categoryId,
+            @AuthenticationPrincipal AdministratorPrincipal principal) {
 
         return ResponseEntity.ok(
-                categoryService.drawPlayersByCategory(categoryId));
+                categoryService.drawPlayersByCategory(
+                        categoryId, principal.id()));
     }
 }

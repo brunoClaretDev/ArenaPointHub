@@ -50,50 +50,56 @@ public class CategoryService {
     }
 
     @Transactional
-    public CategoryResponseDTO createCategory(CategoryRequestDTO dto) {
+    public CategoryResponseDTO createCategory(
+            CategoryRequestDTO dto,
+            Long administratorId) {
 
-        Tournament tournament = tournamentRepository.findById(dto.getTournamentId())
+        Tournament tournament = tournamentRepository
+                .findByIdAndAdministrator_Id(
+                        dto.getTournamentId(),
+                        administratorId)
                 .orElseThrow(() -> new BusinessException(
                         "Torneio não encontrado com o ID: " + dto.getTournamentId()));
 
         Category category = new Category();
-
         category.setTournament(tournament);
 
         copyDtoToEntity(dto, category);
 
-        Category savedCategory = categoryRepository.save(category);
-
-        return mapToResponseDTO(savedCategory);
+        return mapToResponseDTO(categoryRepository.save(category));
     }
 
     @Transactional(readOnly = true)
-    public List<CategoryResponseDTO> getAllCategories() {
+    public List<CategoryResponseDTO> getAllCategories(Long administratorId) {
 
-        return categoryRepository.findAll()
+        return categoryRepository
+                .findAllByTournament_Administrator_Id(administratorId)
                 .stream()
                 .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Transactional(readOnly = true)
-    public CategoryResponseDTO getCategoryById(Long id) {
+    public CategoryResponseDTO getCategoryById(
+            Long id,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(id)
-        		.orElseThrow(() -> new BusinessException(
-        				"Categoria não encontrada com o ID: " + id));
-
-        return mapToResponseDTO(category);
+        return mapToResponseDTO(
+                findCategoryByAdministrator(id, administratorId));
     }
 
     @Transactional
-    public CategoryResponseDTO updateCategory(Long id, CategoryRequestDTO dto) {
+    public CategoryResponseDTO updateCategory(
+            Long id,
+            CategoryRequestDTO dto,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + id));
+        Category category = findCategoryByAdministrator(id, administratorId);
 
-        Tournament tournament = tournamentRepository.findById(dto.getTournamentId())
+        Tournament tournament = tournamentRepository
+                .findByIdAndAdministrator_Id(
+                        dto.getTournamentId(),
+                        administratorId)
                 .orElseThrow(() -> new BusinessException(
                         "Torneio não encontrado com o ID: " + dto.getTournamentId()));
 
@@ -101,20 +107,15 @@ public class CategoryService {
 
         copyDtoToEntity(dto, category);
 
-        Category updatedCategory = categoryRepository.save(category);
-
-        return mapToResponseDTO(updatedCategory);
+        return mapToResponseDTO(categoryRepository.save(category));
     }
 
     @Transactional
-    public void deleteCategory(Long id) {
+    public void deleteCategory(Long id, Long administratorId) {
 
-        if (!categoryRepository.existsById(id)) {
-            throw new BusinessException(
-                    "Categoria não encontrada com o ID: " + id);
-        }
+        Category category = findCategoryByAdministrator(id, administratorId);
 
-        categoryRepository.deleteById(id);
+        categoryRepository.delete(category);
     }
 
     private void copyDtoToEntity(
@@ -151,11 +152,11 @@ public class CategoryService {
     }
 
     @Transactional
-    public void generatePlayoffs(Long categoryId) {
+    public void generatePlayoffs(Long categoryId, Long administratorId) {
 
-    	Category category = categoryRepository.findById(categoryId)
-    	        .orElseThrow(() -> new BusinessException(
-    	                "Categoria não encontrada com o ID: " + categoryId));
+    	Category category = findCategoryByAdministrator(
+    	        categoryId,
+    	        administratorId);
 
         List<Group> groups = category.getGroups();
 
@@ -291,17 +292,16 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByCategory(Long categoryId) {
+    public List<MatchResponseDTO> getMatchesByCategory(
+            Long categoryId,
+            Long administratorId) {
 
-        if (!categoryRepository.existsById(categoryId)) {
-            throw new BusinessException(
-                    "Categoria não encontrada com ID: " + categoryId);
-        }
+        findCategoryByAdministrator(categoryId, administratorId);
 
         return matchRepository.findByCategoryId(categoryId)
                 .stream()
                 .map(this::mapMatchToResponseDTO)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private MatchResponseDTO mapMatchToResponseDTO(Match match) {
@@ -347,11 +347,13 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
-    public Player getChampionByCategoryId(Long categoryId) {
+    public Player getChampionByCategoryId(
+            Long categoryId,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + categoryId));
+        Category category = findCategoryByAdministrator(
+                categoryId,
+                administratorId);
 
         return category.getChampion();
     }
@@ -396,21 +398,26 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<Player> getPlayersByCategory(Long categoryId) {
+    public List<Player> getPlayersByCategory(
+            Long categoryId,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + categoryId));
+        Category category = findCategoryByAdministrator(
+                categoryId,
+                administratorId);
 
         return category.getPlayers();
     }
     
     @Transactional
-    public void removePlayerFromCategory(Long categoryId, Long playerId) {
+    public void removePlayerFromCategory(
+            Long categoryId,
+            Long playerId,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + categoryId));
+        Category category = findCategoryByAdministrator(
+                categoryId,
+                administratorId);
 
         Player player = playerRepository.findById(playerId)
                 .orElseThrow(() -> new BusinessException(
@@ -426,8 +433,7 @@ public class CategoryService {
         }
 
         category.getPlayers().removeIf(
-                p -> p.getId().equals(player.getId())
-        );
+                p -> p.getId().equals(player.getId()));
 
         categoryRepository.save(category);
     }
@@ -435,20 +441,19 @@ public class CategoryService {
     @Transactional
     public void addPlayerToCategory(
             Long categoryId,
-            Long playerId) {
+            Long playerId,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com ID: " + categoryId));
+        Category category = findCategoryByAdministrator(
+                categoryId,
+                administratorId);
 
         Player player = playerRepository.findById(playerId)
                 .orElseThrow(() -> new BusinessException(
-                        "Jogador não encontrado com ID: " + playerId));
+                        "Jogador não encontrado com o ID: " + playerId));
 
-        // Valida se o jogador cumpre os requisitos da categoria
         validatePlayerAgeForCategory(player, category);
 
-        // Verifica se o jogador já está inscrito
         boolean alreadyRegistered = category.getPlayers()
                 .stream()
                 .anyMatch(p -> p.getId().equals(player.getId()));
@@ -464,11 +469,13 @@ public class CategoryService {
     }
     
     @Transactional(readOnly = true)
-    public List<Player> drawPlayersByCategory(Long categoryId) {
+    public List<Player> drawPlayersByCategory(
+            Long categoryId,
+            Long administratorId) {
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada com o ID: " + categoryId));
+        Category category = findCategoryByAdministrator(
+                categoryId,
+                administratorId);
 
         List<Player> players = new ArrayList<>(category.getPlayers());
 
@@ -480,5 +487,17 @@ public class CategoryService {
         Collections.shuffle(players);
 
         return players;
+    }
+    
+    private Category findCategoryByAdministrator(
+            Long categoryId,
+            Long administratorId) {
+
+        return categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        categoryId,
+                        administratorId)
+                .orElseThrow(() -> new BusinessException(
+                        "Categoria não encontrada com o ID: " + categoryId));
     }
 }

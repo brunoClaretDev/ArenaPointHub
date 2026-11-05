@@ -7,21 +7,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.arenapointhub.api.service.AdministratorDetailsService;
 
 @SpringBootTest
@@ -37,7 +34,7 @@ class SecurityIntegrationTest {
     @MockitoBean
     private AdministratorDetailsService administratorDetailsService;
 
-    private UserDetails userDetails;
+    private AdministratorPrincipal userDetails;
 
     SecurityIntegrationTest(
             MockMvc mockMvc,
@@ -49,11 +46,11 @@ class SecurityIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        userDetails = User.withUsername("admin")
-                .password(passwordEncoder.encode("password"))
-                .authorities(List.of(
-                        new SimpleGrantedAuthority("ROLE_ADMIN")))
-                .build();
+        userDetails = new AdministratorPrincipal(
+                1L,
+                "admin",
+                passwordEncoder.encode("password"),
+                true);
     }
 
     @Test
@@ -82,23 +79,21 @@ class SecurityIntegrationTest {
     }
     
 
-	@Test
-	void shouldRejectLoginWithInvalidCredentials() throws Exception {
-		  when(administratorDetailsService.loadUserByUsername("admin"))
-	        .thenReturn(userDetails);
-		
-		mockMvc.perform(post("/auth/login")
-	            .contentType("application/json")
-	            .content("""
-	                    {
-	                        "username": "admin",
-	                        "password": "senha-incorreta"
-	                    }
-	                    """))
-	            .andDo(print());
-	    
-	  
-	}
+    @Test
+    void shouldRejectLoginWithInvalidCredentials() throws Exception {
 
+        when(administratorDetailsService.loadUserByUsername("admin"))
+                .thenReturn(userDetails);
+
+        mockMvc.perform(post("/auth/login")
+                .contentType("application/json")
+                .content("""
+                        {
+                            "username": "admin",
+                            "password": "senha-incorreta"
+                        }
+                        """))
+                .andExpect(status().isUnauthorized());
+    }
 
 }

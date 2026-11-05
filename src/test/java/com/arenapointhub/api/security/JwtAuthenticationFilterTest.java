@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Date;
-import java.util.List;
 
 import javax.crypto.SecretKey;
 
@@ -20,9 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
@@ -31,12 +28,14 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.ServletException;
 
+import com.arenapointhub.api.security.AdministratorPrincipal;
+
 class JwtAuthenticationFilterTest {
 
     private JwtService jwtService;
     private UserDetailsService userDetailsService;
     private JwtAuthenticationFilter filter;
-    private UserDetails userDetails;
+    private AdministratorPrincipal userDetails;
 
     @BeforeEach
     void setUp() {
@@ -49,10 +48,11 @@ class JwtAuthenticationFilterTest {
         userDetailsService = mock(UserDetailsService.class);
         filter = new JwtAuthenticationFilter(jwtService, userDetailsService);
 
-        userDetails = User.withUsername("admin")
-                .password("password")
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
-                .build();
+        userDetails = new AdministratorPrincipal(
+                1L,
+                "admin",
+                "password",
+                true);
     }
 
     @Test
@@ -76,6 +76,12 @@ class JwtAuthenticationFilterTest {
                 SecurityContextHolder.getContext()
                         .getAuthentication().getName());
         verify(userDetailsService).loadUserByUsername("admin");
+        
+        assertEquals(
+                1L,
+                ((AdministratorPrincipal) SecurityContextHolder.getContext()
+                        .getAuthentication()
+                        .getPrincipal()).id());
     }
 
     @Test
