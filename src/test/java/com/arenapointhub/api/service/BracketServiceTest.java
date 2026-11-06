@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +45,7 @@ import com.arenapointhub.api.repository.PlayerRepository;
 class BracketServiceTest {
 
     private static final Long CATEGORY_ID = 1L;
+    private static final Long ADMINISTRATOR_ID = 10L;
     private static final String CATEGORY_NAME = "Sub 15";
 
     @Mock
@@ -72,17 +74,14 @@ class BracketServiceTest {
                 playerRepository,
                 categoryRepository
         );
+
         lenient().when(matchRepository.existsByCategoryIdAndPhase(
-                anyLong(),
-                eq(MatchPhase.GROUP)))
-            .thenReturn(true);
+                anyLong(), eq(MatchPhase.GROUP)))
+                .thenReturn(true);
 
         lenient().when(matchRepository.existsByCategoryIdAndPhaseAndStatusNotIn(
-                anyLong(),
-                eq(MatchPhase.GROUP),
-                anyList()))
-            .thenReturn(false);
-        
+                anyLong(), eq(MatchPhase.GROUP), anyList()))
+                .thenReturn(false);
     }
 
     @Test
@@ -99,17 +98,21 @@ class BracketServiceTest {
         mockGroupStandings(2L, playerB);
         mockPlayers(playerA, playerB);
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(List.of(groupB, groupA)));
 
-        List<Player> winners =
-                bracketService.getOrderedGroupWinners(CATEGORY_ID);
+        List<Player> winners = bracketService.getOrderedGroupWinners(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(2, winners.size());
         assertEquals(1L, winners.get(0).getId());
         assertEquals(2L, winners.get(1).getId());
 
-        verify(groupRepository).findByCategoryId(CATEGORY_ID);
+        verify(groupRepository)
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -128,11 +131,13 @@ class BracketServiceTest {
         mockGroupStandings(2L, firstB, secondB);
         mockPlayers(firstA, secondA, firstB, secondB);
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(List.of(groupB, groupA)));
 
-        List<Player> players =
-                bracketService.getOrderedQualifiedPlayers(CATEGORY_ID);
+        List<Player> players = bracketService.getOrderedQualifiedPlayers(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(4, players.size());
         assertEquals(1L, players.get(0).getId());
@@ -143,10 +148,7 @@ class BracketServiceTest {
 
     @Test
     void shouldCalculateRequiredByes() {
-        assertEquals(
-                2,
-                bracketService.calculateRequiredByes(6, 8)
-        );
+        assertEquals(2, bracketService.calculateRequiredByes(6, 8));
     }
 
     @Test
@@ -157,19 +159,22 @@ class BracketServiceTest {
         );
 
         assertEquals(
-        		"O número de classificados não pode ser maior que o tamanho da chave.",
+                "O número de classificados não pode ser maior que o tamanho da chave.",
                 exception.getMessage()
         );
     }
 
     @Test
     void shouldNotReturnGroupWinnersWhenCategoryHasNoGroups() {
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.getOrderedGroupWinners(CATEGORY_ID)
+                () -> bracketService.getOrderedGroupWinners(
+                        CATEGORY_ID, ADMINISTRATOR_ID)
         );
 
         assertEquals(
@@ -194,8 +199,8 @@ class BracketServiceTest {
         mockPlayers(player1, player2, player3, player4);
         mockMatchSave();
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(CATEGORY_ID, response.getCategoryId());
         assertEquals(CATEGORY_NAME, response.getCategoryName());
@@ -218,8 +223,8 @@ class BracketServiceTest {
         mockQualifiedPlayers(3);
         mockMatchSave();
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(7, response.getMatches().size());
 
@@ -241,8 +246,8 @@ class BracketServiceTest {
 
         prepareBracketScenario(category, 8);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
@@ -257,7 +262,6 @@ class BracketServiceTest {
         assertMatch(matches.get(5), 9L, 2L);
         assertMatch(matches.get(6), 13L, 8L);
         assertMatch(matches.get(7), 3L, 16L);
-        
 
         List<Match> firstRoundMatches = matches.subList(0, 8);
 
@@ -268,9 +272,7 @@ class BracketServiceTest {
         assertEquals(0, byeCount);
 
         assertTrue(firstRoundMatches.stream()
-                .allMatch(match ->
-                        match.getStatus() == MatchStatus.SCHEDULED));
-
+                .allMatch(match -> match.getStatus() == MatchStatus.SCHEDULED));
     }
 
     @Test
@@ -279,8 +281,8 @@ class BracketServiceTest {
 
         prepareBracketScenario(category, 4);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(8, response.getTargetBracketSize());
         assertEquals(7, response.getMatches().size());
@@ -299,8 +301,8 @@ class BracketServiceTest {
 
         prepareBracketScenario(category, 5);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
@@ -350,8 +352,8 @@ class BracketServiceTest {
 
         prepareBracketScenario(category, 6);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
@@ -371,8 +373,7 @@ class BracketServiceTest {
         assertBye(firstRoundMatches, 7L);
 
         List<Match> scheduledMatches = firstRoundMatches.stream()
-                .filter(match ->
-                        match.getStatus() == MatchStatus.SCHEDULED)
+                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
                 .toList();
 
         assertEquals(4, scheduledMatches.size());
@@ -381,44 +382,29 @@ class BracketServiceTest {
         assertContainsPlayers(scheduledMatches, 8L, 10L);
         assertContainsPlayers(scheduledMatches, 9L, 2L);
         assertContainsPlayers(scheduledMatches, 4L, 12L);
-        
 
         List<Match> quarterFinals = matches.subList(8, 12);
 
-        assertEquals(
-                1L,
-                quarterFinals.get(0).getPlayer1().getId());
-
-        assertEquals(
-                3L,
-                quarterFinals.get(1).getPlayer2().getId());
-
-        assertEquals(
-                5L,
-                quarterFinals.get(3).getPlayer1().getId());
-
-        assertEquals(
-                7L,
-                quarterFinals.get(3).getPlayer2().getId());
-
+        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
+        assertEquals(3L, quarterFinals.get(1).getPlayer2().getId());
+        assertEquals(5L, quarterFinals.get(3).getPlayer1().getId());
+        assertEquals(7L, quarterFinals.get(3).getPlayer2().getId());
     }
-    
+
     @Test
     void shouldDistributeTwoByesForSevenGroups() {
         Category category = createCategory();
 
         prepareBracketScenario(category, 7);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
 
         List<Match> matches = captureSavedMatches(17);
-
-        List<Match> firstRoundMatches =
-                matches.subList(0, 8);
+        List<Match> firstRoundMatches = matches.subList(0, 8);
 
         long byeCount = firstRoundMatches.stream()
                 .filter(this::isByeMatch)
@@ -431,67 +417,56 @@ class BracketServiceTest {
         assertByeMatch(firstRoundMatches.get(0), 1L);
         assertByeMatch(firstRoundMatches.get(7), 3L);
 
-
-        List<Match> scheduledMatches =
-                firstRoundMatches.stream()
-                        .filter(match ->
-                                match.getStatus()
-                                        == MatchStatus.SCHEDULED)
-                        .toList();
+        List<Match> scheduledMatches = firstRoundMatches.stream()
+                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
+                .toList();
 
         assertEquals(6, scheduledMatches.size());
 
-        for (long playerId = 1L; playerId <= 14L; playerId++) {
 
-            boolean playerFound = false;
+		for (long playerId = 1L; playerId <= 14L; playerId++) {
+		
+		    final long currentPlayerId = playerId;
+		
+		    boolean playerFound = firstRoundMatches.stream()
+		            .anyMatch(match -> containsPlayer(match, currentPlayerId));
+		
+		    assertTrue(
+		            playerFound,
+		            "Jogador " + currentPlayerId
+		                    + " não foi encontrado na primeira rodada."
+		    );
+		}
 
-            for (Match match : firstRoundMatches) {
-                if (containsPlayer(match, playerId)) {
-                    playerFound = true;
-                    break;
-                }
-            }
 
-            assertTrue(
-                    playerFound,
-                    "Jogador " + playerId
-                            + " não foi encontrado na primeira rodada."
-            );
-        }
-        
-        List<Match> roundOf16 = matches.subList(0, 8);
         List<Match> quarterFinals = matches.subList(8, 12);
 
-        assertByeMatch(roundOf16.get(0), 1L);
-        assertByeMatch(roundOf16.get(7), 3L);
+        assertByeMatch(matches.get(0), 1L);
+        assertByeMatch(matches.get(7), 3L);
 
         assertTrue(
-                quarterFinals.stream()
-                        .anyMatch(match -> containsPlayer(match, 1L)),
+                quarterFinals.stream().anyMatch(match -> containsPlayer(match, 1L)),
                 "O jogador 1 deve avançar para as quartas de final.");
 
         assertTrue(
-                quarterFinals.stream()
-                        .anyMatch(match -> containsPlayer(match, 3L)),
+                quarterFinals.stream().anyMatch(match -> containsPlayer(match, 3L)),
                 "O jogador 3 deve avançar para as quartas de final.");
     }
-    
+
     @Test
     void shouldGenerateCorrectSeedingForSevenGroups() {
         Category category = createCategory();
 
         prepareBracketScenario(category, 7);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
 
         List<Match> matches = captureSavedMatches(17);
-
-        List<Match> firstRoundMatches =
-                matches.subList(0, 8);
+        List<Match> firstRoundMatches = matches.subList(0, 8);
 
         assertBye(firstRoundMatches, 1L);
         assertBye(firstRoundMatches, 3L);
@@ -503,15 +478,15 @@ class BracketServiceTest {
         assertContainsPlayers(firstRoundMatches, 9L, 14L);
         assertContainsPlayers(firstRoundMatches, 13L, 12L);
     }
-    
+
     @Test
     void shouldGenerateCorrectSeedingForTwoGroups() {
         Category category = createCategory();
 
         prepareBracketScenario(category, 2);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(4, response.getTargetBracketSize());
         assertEquals(3, response.getMatches().size());
@@ -521,8 +496,6 @@ class BracketServiceTest {
         assertMatch(matches.get(0), 1L, 4L);
         assertMatch(matches.get(1), 2L, 3L);
     }
-    
-
 
     @Test
     void shouldBlockRegenerationWhenKnockoutMatchIsInProgress() {
@@ -531,7 +504,8 @@ class BracketServiceTest {
         List<MatchStatus> blockedStatuses = List.of(
                 MatchStatus.IN_PROGRESS,
                 MatchStatus.FINISHED,
-                MatchStatus.WO);
+                MatchStatus.WO
+        );
 
         for (MatchStatus status : blockedStatuses) {
             Match existingMatch = new Match();
@@ -539,7 +513,9 @@ class BracketServiceTest {
             existingMatch.setPhase(MatchPhase.SEMI_FINAL);
             existingMatch.setStatus(status);
 
-            when(categoryRepository.findById(CATEGORY_ID))
+            when(categoryRepository
+                    .findByIdAndTournament_Administrator_Id(
+                            CATEGORY_ID, ADMINISTRATOR_ID))
                     .thenReturn(Optional.of(category));
 
             when(matchRepository.findByCategoryId(CATEGORY_ID))
@@ -547,11 +523,13 @@ class BracketServiceTest {
 
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                    () -> bracketService.generateKnockoutBracket(
+                            CATEGORY_ID, ADMINISTRATOR_ID));
 
             assertEquals(
                     "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.",
-                    exception.getMessage());
+                    exception.getMessage()
+            );
 
             verify(matchRepository, org.mockito.Mockito.never())
                     .deleteAll(any());
@@ -568,28 +546,29 @@ class BracketServiceTest {
         existingMatch.setPhase(MatchPhase.SEMI_FINAL);
         existingMatch.setStatus(MatchStatus.SCHEDULED);
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of(existingMatch));
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         mockQualifiedPlayers(2);
         mockMatchSave();
 
-        bracketService.generateKnockoutBracket(CATEGORY_ID);
+        bracketService.generateKnockoutBracket(CATEGORY_ID, ADMINISTRATOR_ID);
 
         org.mockito.InOrder inOrder =
                 org.mockito.Mockito.inOrder(matchRepository);
 
-        inOrder.verify(matchRepository)
-                .deleteAll(List.of(existingMatch));
-
+        inOrder.verify(matchRepository).deleteAll(List.of(existingMatch));
         inOrder.verify(matchRepository).flush();
-
         inOrder.verify(matchRepository, org.mockito.Mockito.atLeastOnce())
                 .save(any(Match.class));
     }
@@ -609,22 +588,26 @@ class BracketServiceTest {
         knockoutMatch.setPhase(MatchPhase.SEMI_FINAL);
         knockoutMatch.setStatus(MatchStatus.SCHEDULED);
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of(groupMatch, knockoutMatch));
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         mockQualifiedPlayers(2);
         mockMatchSave();
 
-        bracketService.generateKnockoutBracket(CATEGORY_ID);
+        bracketService.generateKnockoutBracket(CATEGORY_ID, ADMINISTRATOR_ID);
 
-        org.mockito.ArgumentCaptor<List<Match>> captor =
-                org.mockito.ArgumentCaptor.captor();
+        ArgumentCaptor<List<Match>> captor =
+                ArgumentCaptor.captor();
 
         org.mockito.InOrder inOrder =
                 org.mockito.Mockito.inOrder(matchRepository);
@@ -638,15 +621,14 @@ class BracketServiceTest {
         assertFalse(captor.getValue().contains(groupMatch));
     }
 
-    
     @Test
     void shouldGenerateFinalDirectlyForOneGroup() {
         Category category = createCategory();
 
         prepareBracketScenario(category, 1);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(2, response.getTargetBracketSize());
         assertEquals(1, response.getMatches().size());
@@ -655,87 +637,71 @@ class BracketServiceTest {
 
         assertEquals(MatchPhase.FINAL, matches.get(0).getPhase());
         assertMatch(matches.get(0), 1L, 2L);
-        assertEquals(
-                MatchStatus.SCHEDULED,
-                matches.get(0).getStatus());
+        assertEquals(MatchStatus.SCHEDULED, matches.get(0).getStatus());
     }
-    
-	@Test
-	void shouldGenerateCorrectSeedingForThreeGroups() {
-	    Category category = createCategory();
-	
-	    prepareBracketScenario(category, 3);
-	
-	    BracketResponseDTO response =
-	            bracketService.generateKnockoutBracket(CATEGORY_ID);
-	
-	    assertEquals(8, response.getTargetBracketSize());
-	    assertEquals(7, response.getMatches().size());
-	
-	    List<Match> matches = captureSavedMatches(9);
-	
-	    // Primeira rodada: BYE para o primeiro colocado do grupo 1.
-	    assertByeMatch(matches.get(0), 1L);
-	
-	    // Confronto entre segundos colocados.
-	    assertMatch(matches.get(1), 4L, 6L);
-	
-	    // Primeira rodada: BYE para o primeiro colocado do grupo 2.
-	    assertByeMatch(matches.get(2), 3L);
-	
-	    // Primeiro colocado do grupo 3 contra segundo do grupo 1.
-	    assertMatch(matches.get(3), 5L, 2L);
-	}
 
-	@Test
-	void shouldGenerateCorrectSeedingForFiveGroups() {
-	    Category category = createCategory();
+    @Test
+    void shouldGenerateCorrectSeedingForThreeGroups() {
+        Category category = createCategory();
 
-	    prepareBracketScenario(category, 5);
+        prepareBracketScenario(category, 3);
 
-	    BracketResponseDTO response =
-	            bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
-	    assertEquals(16, response.getTargetBracketSize());
-	    assertEquals(15, response.getMatches().size());
+        assertEquals(8, response.getTargetBracketSize());
+        assertEquals(7, response.getMatches().size());
 
-	    List<Match> matches = captureSavedMatches(21);
+        List<Match> matches = captureSavedMatches(9);
 
-	    List<Match> firstRound = matches.subList(0, 8);
+        assertByeMatch(matches.get(0), 1L);
+        assertMatch(matches.get(1), 4L, 6L);
+        assertByeMatch(matches.get(2), 3L);
+        assertMatch(matches.get(3), 5L, 2L);
+    }
 
-	    assertByeMatch(firstRound.get(0), 1L);
-	    assertByeMatch(firstRound.get(1), 5L);
-	    assertByeMatch(firstRound.get(2), 9L);
+    @Test
+    void shouldGenerateCorrectSeedingForFiveGroups() {
+        Category category = createCategory();
 
-	    assertMatch(firstRound.get(3), 4L, 8L);
+        prepareBracketScenario(category, 5);
 
-	    assertByeMatch(firstRound.get(4), 3L);
-	    assertByeMatch(firstRound.get(5), 7L);
-	    assertByeMatch(firstRound.get(6), 2L);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
-	    assertMatch(firstRound.get(7), 6L, 10L);
+        assertEquals(16, response.getTargetBracketSize());
+        assertEquals(15, response.getMatches().size());
 
-	    long byeCount = firstRound.stream()
-	            .filter(this::isByeMatch)
-	            .count();
+        List<Match> matches = captureSavedMatches(21);
+        List<Match> firstRound = matches.subList(0, 8);
 
-	    assertEquals(6, byeCount);
+        assertByeMatch(firstRound.get(0), 1L);
+        assertByeMatch(firstRound.get(1), 5L);
+        assertByeMatch(firstRound.get(2), 9L);
+        assertMatch(firstRound.get(3), 4L, 8L);
+        assertByeMatch(firstRound.get(4), 3L);
+        assertByeMatch(firstRound.get(5), 7L);
+        assertByeMatch(firstRound.get(6), 2L);
+        assertMatch(firstRound.get(7), 6L, 10L);
 
-	    List<Match> quarterFinals = matches.subList(8, 12);
+        assertEquals(
+                6,
+                firstRound.stream().filter(this::isByeMatch).count());
 
-	    assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
-	    assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
+        List<Match> quarterFinals = matches.subList(8, 12);
 
-	    assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
-	    assertNull(quarterFinals.get(1).getPlayer2());
+        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
+        assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
 
-	    assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
-	    assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
+        assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
+        assertNull(quarterFinals.get(1).getPlayer2());
 
-	    assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
-	    assertNull(quarterFinals.get(3).getPlayer2());
-	}
-    
+        assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
+        assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
+
+        assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
+        assertNull(quarterFinals.get(3).getPlayer2());
+    }
 
     @Test
     void shouldGenerateCorrectSeedingForSixGroups() {
@@ -743,8 +709,8 @@ class BracketServiceTest {
 
         prepareBracketScenario(category, 6);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(16, response.getTargetBracketSize());
         assertEquals(15, response.getMatches().size());
@@ -760,15 +726,18 @@ class BracketServiceTest {
         assertByeMatch(matches.get(6), 5L);
         assertByeMatch(matches.get(7), 7L);
     }
-    
+
     @Test
     void shouldRejectKnockoutGenerationWhenCategoryDoesNotExist() {
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Categoria não encontrada com ID: 1",
@@ -776,24 +745,29 @@ class BracketServiceTest {
 
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
-        
+
         verify(matchRepository, org.mockito.Mockito.never())
-        		.findByCategoryId(CATEGORY_ID);
+                .findByCategoryId(CATEGORY_ID);
     }
-    
+
     @Test
     void shouldRejectKnockoutGenerationWhenCategoryHasNoGroups() {
         Category category = createCategory();
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Não existem grupos para esta categoria.",
@@ -802,42 +776,43 @@ class BracketServiceTest {
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
     }
-    
+
     @Test
     void shouldGenerateBracketForNineGroups() {
         Category category = createCategory();
 
         prepareBracketScenario(category, 9);
 
-        BracketResponseDTO response =
-                bracketService.generateKnockoutBracket(CATEGORY_ID);
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(32, response.getTargetBracketSize());
         assertEquals(31, response.getMatches().size());
 
         List<Match> matches = captureSavedMatches(45);
-
         List<Match> firstRound = matches.subList(0, 16);
 
         assertEquals(
                 14,
-                firstRound.stream()
-                        .filter(this::isByeMatch)
-                        .count());
+                firstRound.stream().filter(this::isByeMatch).count());
     }
-    
+
     @Test
     void shouldRejectGroupWithIncompleteClassification() {
         Category category = createCategory();
         List<Group> groups = createGroups(2, category);
 
-        when(categoryRepository.findById(CATEGORY_ID))	
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of());
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         Player firstPlace = createPlayer(1L, "Player 1");
@@ -850,7 +825,8 @@ class BracketServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Cada grupo precisa ter dois jogadores classificados.",
@@ -859,40 +835,42 @@ class BracketServiceTest {
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
     }
-    
+
     @Test
     void shouldRejectQualifiedPlayerNotFoundInRepository() {
         Category category = createCategory();
         List<Group> groups = createGroups(2, category);
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of());
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         Player firstPlace = createPlayer(1L, "Player 1");
         Player secondPlace = createPlayer(2L, "Player 2");
         Player thirdPlace = createPlayer(3L, "Player 3");
+        Player fourthPlace = createPlayer(4L, "Player 4");
 
         mockGroupStandings(1L, firstPlace, secondPlace);
-        mockGroupStandings(2L, thirdPlace, createPlayer(4L, "Player 4"));
+        mockGroupStandings(2L, thirdPlace, fourthPlace);
 
-        when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(firstPlace));
-        when(playerRepository.findById(2L))
-                .thenReturn(Optional.of(secondPlace));
-        when(playerRepository.findById(3L))
-                .thenReturn(Optional.of(thirdPlace));
-        when(playerRepository.findById(4L))
-                .thenReturn(Optional.empty());
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(firstPlace));
+        when(playerRepository.findById(2L)).thenReturn(Optional.of(secondPlace));
+        when(playerRepository.findById(3L)).thenReturn(Optional.of(thirdPlace));
+        when(playerRepository.findById(4L)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Cada grupo precisa ter dois jogadores classificados.",
@@ -900,8 +878,8 @@ class BracketServiceTest {
 
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
-    }   
-    
+    }
+
     @Test
     void shouldRejectDuplicateQualifiedPlayers() {
         Category category = createCategory();
@@ -911,13 +889,17 @@ class BracketServiceTest {
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
-        when(categoryRepository.findById(CATEGORY_ID))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
         when(matchRepository.findByCategoryId(CATEGORY_ID))
                 .thenReturn(List.of());
 
-        when(groupRepository.findByCategoryId(CATEGORY_ID))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         GroupStandingDTO firstGroupWinner =
@@ -934,22 +916,22 @@ class BracketServiceTest {
         when(secondGroupWinner.getPlayerId()).thenReturn(3L);
         when(secondGroupSecond.getPlayerId()).thenReturn(2L);
 
-        when(groupService.calculateGroupStandings(groups.get(0).getId()))
+        when(groupService.calculateGroupStandings(
+                groups.get(0).getId(), ADMINISTRATOR_ID))
                 .thenReturn(List.of(firstGroupWinner, firstGroupSecond));
 
-        when(groupService.calculateGroupStandings(groups.get(1).getId()))
+        when(groupService.calculateGroupStandings(
+                groups.get(1).getId(), ADMINISTRATOR_ID))
                 .thenReturn(List.of(secondGroupWinner, secondGroupSecond));
 
-        when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(player1));
-        when(playerRepository.findById(2L))
-                .thenReturn(Optional.of(player2));
-        when(playerRepository.findById(3L))
-                .thenReturn(Optional.of(player3));
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player1));
+        when(playerRepository.findById(2L)).thenReturn(Optional.of(player2));
+        when(playerRepository.findById(3L)).thenReturn(Optional.of(player3));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> bracketService.generateKnockoutBracket(CATEGORY_ID));
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Existem jogadores duplicados entre os classificados.",
@@ -959,14 +941,11 @@ class BracketServiceTest {
                 .save(any(Match.class));
     }
 
-
-
     private void prepareBracketScenario(
             Category category,
             int groupCount) {
 
-        List<Group> groups =
-                createGroups(groupCount, category);
+        List<Group> groups = createGroups(groupCount, category);
 
         mockCategoryAndGroups(category, groups);
         mockQualifiedPlayers(groupCount);
@@ -977,13 +956,11 @@ class BracketServiceTest {
         for (int groupId = 1; groupId <= groupCount; groupId++) {
             Player first = createPlayer(
                     groupId * 2L - 1,
-                    "1." + groupId
-            );
+                    "1." + groupId);
 
             Player second = createPlayer(
                     groupId * 2L,
-                    "2." + groupId
-            );
+                    "2." + groupId);
 
             mockGroupStandings(groupId, first, second);
             mockPlayers(first, second);
@@ -994,14 +971,14 @@ class BracketServiceTest {
             long groupId,
             Player... players) {
 
-        List<GroupStandingDTO> standings =
-                new ArrayList<>();
+        List<GroupStandingDTO> standings = new ArrayList<>();
 
         for (Player player : players) {
             standings.add(createStanding(player));
         }
 
-        when(groupService.calculateGroupStandings(groupId))
+        when(groupService.calculateGroupStandings(
+                groupId, ADMINISTRATOR_ID))
                 .thenReturn(standings);
     }
 
@@ -1016,10 +993,14 @@ class BracketServiceTest {
             Category category,
             List<Group> groups) {
 
-        when(categoryRepository.findById(category.getId()))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        category.getId(), ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(category));
 
-        when(groupRepository.findByCategoryId(category.getId()))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        category.getId(), ADMINISTRATOR_ID))
                 .thenReturn(new ArrayList<>(groups));
 
         when(matchRepository.findByCategoryId(category.getId()))
@@ -1060,12 +1041,10 @@ class BracketServiceTest {
             List<Match> matches,
             long playerId) {
 
-        assertTrue(
-                matches.stream()
-                        .anyMatch(match ->
-                                isByeMatch(match)
-                                && getByePlayerId(match) == playerId)
-        );
+        assertTrue(matches.stream()
+                .anyMatch(match ->
+                        isByeMatch(match)
+                        && getByePlayerId(match) == playerId));
     }
 
     private void assertByeMatch(
@@ -1078,12 +1057,10 @@ class BracketServiceTest {
 
     private boolean isByeMatch(Match match) {
         return match.getStatus() == MatchStatus.FINISHED
-                && ((match.getPlayer1() != null
-                        && match.getPlayer2() == null)
-                    || (match.getPlayer1() == null
-                        && match.getPlayer2() != null));
+                && ((match.getPlayer1() != null && match.getPlayer2() == null)
+                || (match.getPlayer1() == null && match.getPlayer2() != null));
     }
-    
+
     private boolean containsPlayer(
             Match match,
             long playerId) {
@@ -1109,17 +1086,11 @@ class BracketServiceTest {
             long player1Id,
             long player2Id) {
 
-        assertTrue(
-                matches.stream()
-                        .anyMatch(match ->
-                                match.getPlayer1() != null
-                                && match.getPlayer2() != null
-                                && samePlayers(
-                                        match,
-                                        player1Id,
-                                        player2Id
-                                ))
-        );
+        assertTrue(matches.stream()
+                .anyMatch(match ->
+                        match.getPlayer1() != null
+                        && match.getPlayer2() != null
+                        && samePlayers(match, player1Id, player2Id)));
     }
 
     private boolean samePlayers(
@@ -1127,16 +1098,11 @@ class BracketServiceTest {
             long player1Id,
             long player2Id) {
 
-        long actualPlayer1 =
-                match.getPlayer1().getId();
+        long actualPlayer1 = match.getPlayer1().getId();
+        long actualPlayer2 = match.getPlayer2().getId();
 
-        long actualPlayer2 =
-                match.getPlayer2().getId();
-
-        return (actualPlayer1 == player1Id
-                && actualPlayer2 == player2Id)
-                || (actualPlayer1 == player2Id
-                && actualPlayer2 == player1Id);
+        return (actualPlayer1 == player1Id && actualPlayer2 == player2Id)
+                || (actualPlayer1 == player2Id && actualPlayer2 == player1Id);
     }
 
     private List<Group> createGroups(
@@ -1146,13 +1112,10 @@ class BracketServiceTest {
         List<Group> groups = new ArrayList<>();
 
         for (int i = 1; i <= quantity; i++) {
-            groups.add(
-                    createGroup(
-                            (long) i,
-                            "Grupo " + (char) ('A' + i - 1),
-                            category
-                    )
-            );
+            groups.add(createGroup(
+                    (long) i,
+                    "Grupo " + (char) ('A' + i - 1),
+                    category));
         }
 
         return groups;
@@ -1189,24 +1152,15 @@ class BracketServiceTest {
 
         player.setId(id);
         player.setName(name);
-        player.setEmail(
-                name.toLowerCase()
-                        .replace(" ", "")
-                        + "@email.com"
-        );
-        player.setBirthDate(
-                LocalDate.of(2012, 5, 10)
-        );
+        player.setEmail(name.toLowerCase().replace(" ", "") + "@email.com");
+        player.setBirthDate(LocalDate.of(2012, 5, 10));
         player.setClubAcademy("ArenaPoint");
 
         return player;
     }
 
-    private GroupStandingDTO createStanding(
-            Player player) {
-
-        GroupStandingDTO standing =
-                new GroupStandingDTO();
+    private GroupStandingDTO createStanding(Player player) {
+        GroupStandingDTO standing = new GroupStandingDTO();
 
         standing.setPlayerId(player.getId());
         standing.setPlayerName(player.getName());

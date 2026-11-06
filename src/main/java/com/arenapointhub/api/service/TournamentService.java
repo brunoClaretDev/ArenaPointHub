@@ -114,7 +114,9 @@ public class TournamentService {
 
         return categories.stream()
                 .map(category ->
-                        bracketService.generateKnockoutBracket(category.getId()))
+                        bracketService.generateKnockoutBracket(
+                                category.getId(),
+                                administratorId))
                 .toList();
     }
 

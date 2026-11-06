@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,9 +18,10 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.arenapointhub.api.dto.GroupGenerateRequestDTO;
 import com.arenapointhub.api.dto.GroupRequestDTO;
@@ -37,7 +39,15 @@ import com.arenapointhub.api.repository.GroupRepository;
 import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 
+@ExtendWith(MockitoExtension.class)
 class GroupServiceTest {
+
+    private static final Long ADMINISTRATOR_ID = 10L;
+    private static final Long OTHER_ADMINISTRATOR_ID = 20L;
+
+    private static final Long CATEGORY_ID = 1L;
+    private static final Long OTHER_CATEGORY_ID = 2L;
+    private static final Long GROUP_ID = 10L;
 
     @Mock
     private GroupRepository groupRepository;
@@ -55,8 +65,6 @@ class GroupServiceTest {
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-
         groupService = new GroupService(
                 groupRepository,
                 categoryRepository,
@@ -67,64 +75,68 @@ class GroupServiceTest {
 
     @Test
     void shouldCreateGroupWithPlayers() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         GroupRequestDTO dto = createGroupRequest(
-                1L,
+                CATEGORY_ID,
                 "Grupo A",
                 List.of(1L, 2L)
         );
 
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockOwnedCategory(category);
 
         when(playerRepository.findAllById(List.of(1L, 2L)))
                 .thenReturn(List.of(player1, player2));
 
-        when(groupRepository.existsByCategoryIdAndPlayersId(1L, 1L))
+        when(groupRepository.existsByCategoryIdAndPlayersId(
+                CATEGORY_ID, 1L))
                 .thenReturn(false);
 
-        when(groupRepository.existsByCategoryIdAndPlayersId(1L, 2L))
+        when(groupRepository.existsByCategoryIdAndPlayersId(
+                CATEGORY_ID, 2L))
                 .thenReturn(false);
 
         when(groupRepository.save(any(Group.class)))
                 .thenAnswer(invocation -> {
                     Group group = invocation.getArgument(0);
-                    group.setId(10L);
+                    group.setId(GROUP_ID);
                     return group;
                 });
 
-        GroupResponseDTO response = groupService.createGroup(dto);
+        GroupResponseDTO response = groupService.createGroup(
+                dto, ADMINISTRATOR_ID);
 
-        assertEquals(10L, response.getId());
+        assertEquals(GROUP_ID, response.getId());
         assertEquals("Grupo A", response.getName());
-        assertEquals(1L, response.getCategoryId());
+        assertEquals(CATEGORY_ID, response.getCategoryId());
         assertEquals(2, response.getPlayers().size());
 
         verify(groupRepository).save(any(Group.class));
     }
 
     @Test
-    void shouldNotCreateGroupWhenCategoryDoesNotExist() {
+    void shouldNotCreateGroupWhenCategoryDoesNotBelongToAdministrator() {
         GroupRequestDTO dto = createGroupRequest(
-                1L,
+                CATEGORY_ID,
                 "Grupo A",
                 List.of()
         );
 
-        when(categoryRepository.findById(1L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> groupService.createGroup(dto)
+                () -> groupService.createGroup(dto, ADMINISTRATOR_ID)
         );
 
         assertEquals(
-                "Categoria não encontrada com ID: 1",
+                "Categoria não encontrada com ID: " + CATEGORY_ID,
                 exception.getMessage()
         );
 
@@ -133,23 +145,22 @@ class GroupServiceTest {
 
     @Test
     void shouldNotCreateGroupWhenPlayerDoesNotExist() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         GroupRequestDTO dto = createGroupRequest(
-                1L,
+                CATEGORY_ID,
                 "Grupo A",
                 List.of(1L, 2L)
         );
 
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockOwnedCategory(category);
 
         when(playerRepository.findAllById(List.of(1L, 2L)))
                 .thenReturn(List.of(createPlayer(1L, "Player 1")));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> groupService.createGroup(dto)
+                () -> groupService.createGroup(dto, ADMINISTRATOR_ID)
         );
 
         assertEquals(
@@ -162,28 +173,28 @@ class GroupServiceTest {
 
     @Test
     void shouldNotCreateGroupWhenPlayerAlreadyBelongsToAnotherGroup() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player = createPlayer(1L, "Player 1");
 
         GroupRequestDTO dto = createGroupRequest(
-                1L,
+                CATEGORY_ID,
                 "Grupo A",
                 List.of(1L)
         );
 
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockOwnedCategory(category);
 
         when(playerRepository.findAllById(List.of(1L)))
                 .thenReturn(List.of(player));
 
-        when(groupRepository.existsByCategoryIdAndPlayersId(1L, 1L))
+        when(groupRepository.existsByCategoryIdAndPlayersId(
+                CATEGORY_ID, 1L))
                 .thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> groupService.createGroup(dto)
+                () -> groupService.createGroup(dto, ADMINISTRATOR_ID)
         );
 
         assertEquals(
@@ -196,52 +207,100 @@ class GroupServiceTest {
 
     @Test
     void shouldReturnGroupsByCategory() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
-        Group group1 = createGroup(1L, "Grupo A", category);
-        Group group2 = createGroup(2L, "Grupo B", category);
+        Group groupA = createGroup(1L, "Grupo A", category);
+        Group groupB = createGroup(2L, "Grupo B", category);
 
-        when(groupRepository.findByCategoryId(1L))
-                .thenReturn(List.of(group1, group2));
+        mockOwnedCategory(category);
 
-        List<GroupResponseDTO> response =
-                groupService.getGroupsByCategory(1L);
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(List.of(groupA, groupB));
+
+        List<GroupResponseDTO> response = groupService.getGroupsByCategory(
+                CATEGORY_ID, ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
         assertEquals("Grupo A", response.get(0).getName());
         assertEquals("Grupo B", response.get(1).getName());
 
-        verify(groupRepository).findByCategoryId(1L);
+        verify(groupRepository)
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
+    }
+
+    @Test
+    void shouldNotReturnGroupsWhenCategoryDoesNotBelongToAdministrator() {
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.getGroupsByCategory(
+                        CATEGORY_ID, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Categoria não encontrada com ID: " + CATEGORY_ID,
+                exception.getMessage()
+        );
+
+        verify(groupRepository, never())
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        any(), any());
     }
 
     @Test
     void shouldReturnGroupById() {
-        Category category = createCategory(1L);
-        Group group = createGroup(10L, "Grupo A", category);
+        Category category = createCategory(CATEGORY_ID);
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
 
-        when(groupRepository.findById(10L))
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(group));
 
-        GroupResponseDTO response =
-                groupService.getGroupById(10L);
+        GroupResponseDTO response = groupService.getGroupById(
+                GROUP_ID, ADMINISTRATOR_ID);
 
-        assertEquals(10L, response.getId());
+        assertEquals(GROUP_ID, response.getId());
         assertEquals("Grupo A", response.getName());
-        assertEquals(1L, response.getCategoryId());
+        assertEquals(CATEGORY_ID, response.getCategoryId());
 
-        verify(groupRepository).findById(10L);
+        verify(groupRepository)
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID);
+    }
+
+    @Test
+    void shouldNotReturnGroupWhenItDoesNotBelongToAdministrator() {
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.getGroupById(
+                        GROUP_ID, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Grupo não encontrado com ID: " + GROUP_ID,
+                exception.getMessage()
+        );
     }
 
     @Test
     void shouldUpdateGroup() {
-        Category oldCategory = createCategory(1L);
-        Category newCategory = createCategory(2L);
+        Category oldCategory = createCategory(CATEGORY_ID);
+        Category newCategory = createCategory(OTHER_CATEGORY_ID);
 
-        Group group = createGroup(
-                10L,
-                "Grupo A",
-                oldCategory
-        );
+        Group group = createGroup(GROUP_ID, "Grupo A", oldCategory);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
@@ -249,42 +308,114 @@ class GroupServiceTest {
         group.setPlayers(new ArrayList<>(List.of(player1)));
 
         GroupRequestDTO dto = createGroupRequest(
-                2L,
+                OTHER_CATEGORY_ID,
                 "Grupo Atualizado",
                 List.of(1L, 2L)
         );
 
-        when(groupRepository.findById(10L))
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(group));
 
-        when(categoryRepository.findById(2L))
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        OTHER_CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(newCategory));
 
         when(playerRepository.findAllById(List.of(1L, 2L)))
                 .thenReturn(List.of(player1, player2));
 
-        when(groupRepository.existsByCategoryIdAndPlayersId(2L, 1L))
+        when(groupRepository.existsByCategoryIdAndPlayersId(
+                OTHER_CATEGORY_ID, 1L))
                 .thenReturn(false);
 
-        when(groupRepository.existsByCategoryIdAndPlayersId(2L, 2L))
+        when(groupRepository.existsByCategoryIdAndPlayersId(
+                OTHER_CATEGORY_ID, 2L))
                 .thenReturn(false);
 
         when(groupRepository.save(any(Group.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        GroupResponseDTO response =
-                groupService.updateGroup(10L, dto);
+        GroupResponseDTO response = groupService.updateGroup(
+                GROUP_ID, dto, ADMINISTRATOR_ID);
 
         assertEquals("Grupo Atualizado", response.getName());
-        assertEquals(2L, response.getCategoryId());
+        assertEquals(OTHER_CATEGORY_ID, response.getCategoryId());
         assertEquals(2, response.getPlayers().size());
 
         verify(groupRepository).save(group);
     }
 
     @Test
+    void shouldNotUpdateGroupWhenGroupDoesNotBelongToAdministrator() {
+        GroupRequestDTO dto = createGroupRequest(
+                OTHER_CATEGORY_ID,
+                "Grupo Atualizado",
+                List.of()
+        );
+
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.updateGroup(
+                        GROUP_ID, dto, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Grupo não encontrado com ID: " + GROUP_ID,
+                exception.getMessage()
+        );
+
+        verify(categoryRepository, never())
+                .findByIdAndTournament_Administrator_Id(
+                        any(), any());
+
+        verify(groupRepository, never()).save(any(Group.class));
+    }
+
+    @Test
+    void shouldNotUpdateGroupWhenDestinationCategoryDoesNotBelongToAdministrator() {
+        Category category = createCategory(CATEGORY_ID);
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
+
+        GroupRequestDTO dto = createGroupRequest(
+                OTHER_CATEGORY_ID,
+                "Grupo Atualizado",
+                List.of()
+        );
+
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(group));
+
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        OTHER_CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.updateGroup(
+                        GROUP_ID, dto, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Categoria não encontrada com ID: " + OTHER_CATEGORY_ID,
+                exception.getMessage()
+        );
+
+        verify(groupRepository, never()).save(any(Group.class));
+    }
+
+    @Test
     void shouldGenerateAndDistributeGroups() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         List<Player> players = new ArrayList<>();
 
@@ -295,24 +426,26 @@ class GroupServiceTest {
         category.setPlayers(players);
 
         GroupGenerateRequestDTO dto = new GroupGenerateRequestDTO();
-        dto.setCategoryId(1L);
+        dto.setCategoryId(CATEGORY_ID);
         dto.setTargetGroupSize(3);
 
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockOwnedCategory(category);
 
-        when(groupRepository.findByCategoryId(1L))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(List.of());
 
         when(groupRepository.save(any(Group.class)))
                 .thenAnswer(invocation -> {
                     Group group = invocation.getArgument(0);
-                    group.setId((long) (group.getPlayers().size()));
+                    group.setId((long) group.getPlayers().size());
                     return group;
                 });
 
         List<GroupResponseDTO> response =
-                groupService.generateAndDistributeGroups(dto);
+                groupService.generateAndDistributeGroups(
+                        dto, ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
 
@@ -333,27 +466,26 @@ class GroupServiceTest {
 
     @Test
     void shouldNotGenerateGroupsWhenCategoryAlreadyHasGroups() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Group existingGroup = createGroup(
-                10L,
-                "Grupo A",
-                category
-        );
+                GROUP_ID, "Grupo A", category);
 
         GroupGenerateRequestDTO dto = new GroupGenerateRequestDTO();
-        dto.setCategoryId(1L);
+        dto.setCategoryId(CATEGORY_ID);
         dto.setTargetGroupSize(3);
 
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockOwnedCategory(category);
 
-        when(groupRepository.findByCategoryId(1L))
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(List.of(existingGroup));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> groupService.generateAndDistributeGroups(dto)
+                () -> groupService.generateAndDistributeGroups(
+                        dto, ADMINISTRATOR_ID)
         );
 
         assertEquals(
@@ -365,18 +497,38 @@ class GroupServiceTest {
     }
 
     @Test
+    void shouldNotGenerateGroupsWhenCategoryDoesNotBelongToAdministrator() {
+        GroupGenerateRequestDTO dto = new GroupGenerateRequestDTO();
+        dto.setCategoryId(CATEGORY_ID);
+        dto.setTargetGroupSize(3);
+
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.generateAndDistributeGroups(
+                        dto, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Categoria não encontrada com ID: " + CATEGORY_ID,
+                exception.getMessage()
+        );
+
+        verify(groupRepository, never()).save(any(Group.class));
+    }
+
+    @Test
     void shouldCalculateGroupStandings() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
-        Group group = createGroup(
-                10L,
-                "Grupo A",
-                category
-        );
-
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
         group.setPlayers(new ArrayList<>(List.of(player1, player2)));
 
         Match match = createMatch(
@@ -387,14 +539,14 @@ class GroupServiceTest {
                 1
         );
 
-        when(groupRepository.findById(10L))
-                .thenReturn(Optional.of(group));
+        mockOwnedGroup(group);
 
-        when(matchRepository.findByGroupId(10L))
+        when(matchRepository.findByGroupId(GROUP_ID))
                 .thenReturn(List.of(match));
 
         List<GroupStandingDTO> standings =
-                groupService.calculateGroupStandings(10L);
+                groupService.calculateGroupStandings(
+                        GROUP_ID, ADMINISTRATOR_ID);
 
         assertEquals(2, standings.size());
 
@@ -412,17 +564,17 @@ class GroupServiceTest {
         assertEquals(-2, standings.get(1).getSetDifference());
         assertEquals(1, standings.get(1).getMatchesLost());
     }
-    
+
     @Test
     void shouldPrioritizeMostWinsWhenPlayersHaveSamePoints() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
         Player player4 = createPlayer(4L, "Player 4");
 
-        Group group = createGroup(10L, "Grupo A", category);
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
         group.setPlayers(new ArrayList<>(
                 List.of(player1, player2, player3, player4)
         ));
@@ -435,14 +587,14 @@ class GroupServiceTest {
                 createMatch(player2, player3, MatchStatus.FINISHED, 0, 3)
         );
 
-        when(groupRepository.findById(10L))
-                .thenReturn(Optional.of(group));
+        mockOwnedGroup(group);
 
-        when(matchRepository.findByGroupId(10L))
+        when(matchRepository.findByGroupId(GROUP_ID))
                 .thenReturn(matches);
 
         List<GroupStandingDTO> standings =
-                groupService.calculateGroupStandings(10L);
+                groupService.calculateGroupStandings(
+                        GROUP_ID, ADMINISTRATOR_ID);
 
         GroupStandingDTO first = standings.get(0);
         GroupStandingDTO second = standings.get(1);
@@ -455,39 +607,33 @@ class GroupServiceTest {
         assertEquals(4, second.getPoints());
         assertEquals(1, second.getMatchesWon());
     }
-    
+
     @Test
     void shouldPrioritizeSetDifferenceWhenPointsAndWinsAreEqual() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
-        Group group = createGroup(10L, "Grupo A", category);
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
         group.setPlayers(new ArrayList<>(
                 List.of(player1, player2, player3)
         ));
 
         List<Match> matches = List.of(
-                createMatch(
-                        player1, player3,
-                        MatchStatus.FINISHED, 3, 0
-                ),
-                createMatch(
-                        player2, player3,
-                        MatchStatus.FINISHED, 3, 2
-                )
+                createMatch(player1, player3, MatchStatus.FINISHED, 3, 0),
+                createMatch(player2, player3, MatchStatus.FINISHED, 3, 2)
         );
 
-        when(groupRepository.findById(10L))
-                .thenReturn(Optional.of(group));
+        mockOwnedGroup(group);
 
-        when(matchRepository.findByGroupId(10L))
+        when(matchRepository.findByGroupId(GROUP_ID))
                 .thenReturn(matches);
 
         List<GroupStandingDTO> standings =
-                groupService.calculateGroupStandings(10L);
+                groupService.calculateGroupStandings(
+                        GROUP_ID, ADMINISTRATOR_ID);
 
         GroupStandingDTO first = standings.get(0);
         GroupStandingDTO second = standings.get(1);
@@ -505,14 +651,14 @@ class GroupServiceTest {
 
     @Test
     void shouldPrioritizeSetsWonWhenPointsWinsAndSetDifferenceAreEqual() {
-        Category category = createCategory(1L);
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
         Player player4 = createPlayer(4L, "Player 4");
 
-        Group group = createGroup(10L, "Grupo A", category);
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
         group.setPlayers(new ArrayList<>(
                 List.of(player1, player2, player3, player4)
         ));
@@ -524,14 +670,14 @@ class GroupServiceTest {
                 createMatch(player3, player2, MatchStatus.FINISHED, 5, 2)
         );
 
-        when(groupRepository.findById(10L))
-                .thenReturn(Optional.of(group));
+        mockOwnedGroup(group);
 
-        when(matchRepository.findByGroupId(10L))
+        when(matchRepository.findByGroupId(GROUP_ID))
                 .thenReturn(matches);
 
         List<GroupStandingDTO> standings =
-                groupService.calculateGroupStandings(10L);
+                groupService.calculateGroupStandings(
+                        GROUP_ID, ADMINISTRATOR_ID);
 
         GroupStandingDTO first = standings.get(0);
         GroupStandingDTO second = standings.get(1);
@@ -548,54 +694,153 @@ class GroupServiceTest {
         assertEquals(1, second.getSetDifference());
         assertEquals(4, second.getSetsWon());
     }
-    
+
     @Test
-    void shouldRemovePlayerFromGroupAndDeleteGroupMatches() {
-        Category category = createCategory(1L);
+    void shouldNotCalculateStandingsWhenGroupDoesNotBelongToAdministrator() {
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.calculateGroupStandings(
+                        GROUP_ID, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Grupo não encontrado com ID: " + GROUP_ID,
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never()).findByGroupId(GROUP_ID);
+    }
+
+
+	@Test
+	void shouldRemovePlayerFromGroupAndDeleteGroupMatches() {
+	    Category category = createCategory(CATEGORY_ID);
+	
+	    Player player1 = createPlayer(1L, "Player 1");
+	    Player player2 = createPlayer(2L, "Player 2");
+	
+	    Group group = createGroup(
+	            GROUP_ID,
+	            "Grupo A",
+	            category
+	    );
+	
+	    group.setPlayers(new ArrayList<>(List.of(player1, player2)));
+	
+	    Match match = createMatch(
+	            player1,
+	            player2,
+	            MatchStatus.SCHEDULED,
+	            0,
+	            0
+	    );
+	
+	    mockOwnedGroup(group);
+	
+	    when(matchRepository.findByGroupId(GROUP_ID))
+	            .thenReturn(List.of(match));
+	
+	    groupService.removePlayerFromGroup(
+	            GROUP_ID,
+	            1L,
+	            ADMINISTRATOR_ID
+	    );
+	
+	    assertEquals(1, group.getPlayers().size());
+	    assertFalse(
+	            group.getPlayers().stream()
+	                    .anyMatch(player -> player.getId().equals(1L))
+	    );
+	
+	    verify(matchRepository).delete(match);
+	    verify(groupRepository).save(group);
+	}
+
+
+    @Test
+    void shouldNotRemovePlayerWhenGroupDoesNotBelongToAdministrator() {
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        GROUP_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.removePlayerFromGroup(
+                        GROUP_ID, 1L, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Grupo não encontrado com ID: " + GROUP_ID,
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never()).findByGroupId(GROUP_ID);
+        verify(groupRepository, never()).save(any(Group.class));
+    }
+
+    @Test
+    void shouldNotRemovePlayerWhenGroupHasFinishedMatches() {
+        Category category = createCategory(CATEGORY_ID);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
-        Group group = createGroup(
-                10L,
-                "Grupo A",
-                category
-        );
+        Group group = createGroup(GROUP_ID, "Grupo A", category);
+        group.setPlayers(new ArrayList<>(List.of(player1, player2)));
 
-        group.setPlayers(
-                new ArrayList<>(List.of(player1, player2))
-        );
-
-        Match match = createMatch(
+        Match finishedMatch = createMatch(
                 player1,
                 player2,
-                MatchStatus.SCHEDULED,
-                0,
-                0
+                MatchStatus.FINISHED,
+                3,
+                1
         );
 
-        when(groupRepository.findById(10L))
+        mockOwnedGroup(group);
+
+        when(matchRepository.findByGroupId(GROUP_ID))
+                .thenReturn(List.of(finishedMatch));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> groupService.removePlayerFromGroup(
+                        GROUP_ID, 1L, ADMINISTRATOR_ID)
+        );
+
+        assertEquals(
+                "Não é possível remover jogadores de um grupo que já possui partidas iniciadas ou realizadas.",
+                exception.getMessage()
+        );
+
+        verify(matchRepository, never()).deleteAll(any());
+        verify(groupRepository, never()).save(any(Group.class));
+    }
+
+    private void mockOwnedCategory(Category category) {
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        category.getId(), ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(category));
+    }
+
+    private void mockOwnedGroup(Group group) {
+        when(groupRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        group.getId(), ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(group));
-
-        when(matchRepository.findByGroupId(10L))
-                .thenReturn(List.of(match));
-
-        groupService.removePlayerFromGroup(10L, 1L);
-
-        assertEquals(1, group.getPlayers().size());
-        assertFalse(
-                group.getPlayers().stream()
-                        .anyMatch(player -> player.getId().equals(1L))
-        );
-
-        verify(matchRepository).delete(match);
-        verify(groupRepository).save(group);
     }
 
     private Category createCategory(Long id) {
         Category category = new Category();
         category.setId(id);
         category.setName("Sub 15");
+
         return category;
     }
 
@@ -604,10 +849,10 @@ class GroupServiceTest {
         player.setId(id);
         player.setName(name);
         player.setEmail(
-                name.toLowerCase().replace(" ", "") + "@email.com"
-        );
+                name.toLowerCase().replace(" ", "") + "@email.com");
         player.setBirthDate(LocalDate.of(2012, 5, 10));
         player.setClubAcademy("ArenaPoint");
+
         return player;
     }
 

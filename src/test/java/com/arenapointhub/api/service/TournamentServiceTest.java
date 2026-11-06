@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +35,11 @@ class TournamentServiceTest {
 
     private static final Long ADMINISTRATOR_ID = 10L;
     private static final Long OTHER_ADMINISTRATOR_ID = 20L;
+
     private static final Long TOURNAMENT_ID = 1L;
+    private static final Long CATEGORY_ID = 10L;
+
+    private static final String TOURNAMENT_NAME = "Tournament Test";
 
     @Mock
     private TournamentRepository tournamentRepository;
@@ -56,13 +61,13 @@ class TournamentServiceTest {
                 tournamentRepository,
                 administratorRepository,
                 categoryRepository,
-                bracketService);
+                bracketService
+        );
     }
 
     @Test
     void shouldCreateTournamentWithAdministratorAndProvidedStatus() {
-        Administrator administrator = new Administrator();
-        administrator.setId(ADMINISTRATOR_ID);
+        Administrator administrator = createAdministrator(ADMINISTRATOR_ID);
 
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setStatus(TournamentStatus.IN_PROGRESS);
@@ -77,21 +82,22 @@ class TournamentServiceTest {
                     return tournament;
                 });
 
-        TournamentResponseDTO response =
-                tournamentService.createTournament(dto, ADMINISTRATOR_ID);
+        TournamentResponseDTO response = tournamentService.createTournament(
+                dto, ADMINISTRATOR_ID);
 
         assertEquals(TOURNAMENT_ID, response.getId());
-        assertEquals("Tournament Test", response.getName());
+        assertEquals(TOURNAMENT_NAME, response.getName());
         assertEquals(TournamentStatus.IN_PROGRESS, response.getStatus());
 
-        verify(administratorRepository).getReferenceById(ADMINISTRATOR_ID);
+        verify(administratorRepository)
+                .getReferenceById(ADMINISTRATOR_ID);
+
         verify(tournamentRepository).save(any(Tournament.class));
     }
 
     @Test
     void shouldCreateTournamentWithUpcomingStatusWhenStatusIsNull() {
-        Administrator administrator = new Administrator();
-        administrator.setId(ADMINISTRATOR_ID);
+        Administrator administrator = createAdministrator(ADMINISTRATOR_ID);
 
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setStatus(null);
@@ -106,8 +112,8 @@ class TournamentServiceTest {
                     return tournament;
                 });
 
-        TournamentResponseDTO response =
-                tournamentService.createTournament(dto, ADMINISTRATOR_ID);
+        TournamentResponseDTO response = tournamentService.createTournament(
+                dto, ADMINISTRATOR_ID);
 
         assertEquals(TournamentStatus.UPCOMING, response.getStatus());
 
@@ -117,10 +123,16 @@ class TournamentServiceTest {
     @Test
     void shouldReturnOnlyAdministratorTournaments() {
         Tournament tournament1 = createTournament(
-                1L, "Tournament 1", TournamentStatus.UPCOMING);
+                1L,
+                "Tournament 1",
+                TournamentStatus.UPCOMING
+        );
 
         Tournament tournament2 = createTournament(
-                2L, "Tournament 2", TournamentStatus.IN_PROGRESS);
+                2L,
+                "Tournament 2",
+                TournamentStatus.IN_PROGRESS
+        );
 
         when(tournamentRepository.findAllByAdministrator_Id(ADMINISTRATOR_ID))
                 .thenReturn(List.of(tournament1, tournament2));
@@ -134,13 +146,17 @@ class TournamentServiceTest {
 
         verify(tournamentRepository)
                 .findAllByAdministrator_Id(ADMINISTRATOR_ID);
+
         verify(tournamentRepository, never()).findAll();
     }
 
     @Test
     void shouldReturnTournamentOwnedByAdministrator() {
         Tournament tournament = createTournament(
-                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
+                TOURNAMENT_ID,
+                TOURNAMENT_NAME,
+                TournamentStatus.UPCOMING
+        );
 
         when(tournamentRepository.findByIdAndAdministrator_Id(
                 TOURNAMENT_ID, ADMINISTRATOR_ID))
@@ -151,10 +167,11 @@ class TournamentServiceTest {
                         TOURNAMENT_ID, ADMINISTRATOR_ID);
 
         assertEquals(TOURNAMENT_ID, response.getId());
-        assertEquals("Tournament Test", response.getName());
+        assertEquals(TOURNAMENT_NAME, response.getName());
 
         verify(tournamentRepository)
-                .findByIdAndAdministrator_Id(TOURNAMENT_ID, ADMINISTRATOR_ID);
+                .findByIdAndAdministrator_Id(
+                        TOURNAMENT_ID, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -166,7 +183,8 @@ class TournamentServiceTest {
         assertThrows(
                 BusinessException.class,
                 () -> tournamentService.getTournamentById(
-                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID)
+        );
 
         verify(tournamentRepository)
                 .findByIdAndAdministrator_Id(
@@ -176,7 +194,10 @@ class TournamentServiceTest {
     @Test
     void shouldUpdateTournamentOwnedByAdministrator() {
         Tournament tournament = createTournament(
-                TOURNAMENT_ID, "Tournament Old", TournamentStatus.IN_PROGRESS);
+                TOURNAMENT_ID,
+                "Tournament Old",
+                TournamentStatus.IN_PROGRESS
+        );
 
         TournamentRequestDTO dto = createTournamentRequest();
         dto.setName("Tournament Updated");
@@ -210,7 +231,8 @@ class TournamentServiceTest {
         assertThrows(
                 BusinessException.class,
                 () -> tournamentService.updateTournament(
-                        TOURNAMENT_ID, dto, OTHER_ADMINISTRATOR_ID));
+                        TOURNAMENT_ID, dto, OTHER_ADMINISTRATOR_ID)
+        );
 
         verify(tournamentRepository, never()).save(any(Tournament.class));
     }
@@ -218,16 +240,22 @@ class TournamentServiceTest {
     @Test
     void shouldDeleteTournamentOwnedByAdministrator() {
         Tournament tournament = createTournament(
-                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
+                TOURNAMENT_ID,
+                TOURNAMENT_NAME,
+                TournamentStatus.UPCOMING
+        );
 
         when(tournamentRepository.findByIdAndAdministrator_Id(
                 TOURNAMENT_ID, ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(tournament));
 
-        tournamentService.deleteTournament(TOURNAMENT_ID, ADMINISTRATOR_ID);
+        tournamentService.deleteTournament(
+                TOURNAMENT_ID, ADMINISTRATOR_ID);
 
         verify(tournamentRepository)
-                .findByIdAndAdministrator_Id(TOURNAMENT_ID, ADMINISTRATOR_ID);
+                .findByIdAndAdministrator_Id(
+                        TOURNAMENT_ID, ADMINISTRATOR_ID);
+
         verify(tournamentRepository).delete(tournament);
     }
 
@@ -240,18 +268,23 @@ class TournamentServiceTest {
         assertThrows(
                 BusinessException.class,
                 () -> tournamentService.deleteTournament(
-                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID)
+        );
 
-        verify(tournamentRepository, never()).delete(any(Tournament.class));
+        verify(tournamentRepository, never())
+                .delete(any(Tournament.class));
     }
 
     @Test
     void shouldGeneratePlayoffsForOwnedTournament() {
         Tournament tournament = createTournament(
-                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
+                TOURNAMENT_ID,
+                TOURNAMENT_NAME,
+                TournamentStatus.UPCOMING
+        );
 
         Category category = new Category();
-        category.setId(10L);
+        category.setId(CATEGORY_ID);
 
         BracketResponseDTO bracket = new BracketResponseDTO();
 
@@ -262,7 +295,8 @@ class TournamentServiceTest {
         when(categoryRepository.findByTournamentId(TOURNAMENT_ID))
                 .thenReturn(List.of(category));
 
-        when(bracketService.generateKnockoutBracket(10L))
+        when(bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(bracket);
 
         List<BracketResponseDTO> response =
@@ -271,6 +305,10 @@ class TournamentServiceTest {
 
         assertEquals(1, response.size());
         assertSame(bracket, response.get(0));
+
+        verify(bracketService)
+                .generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -282,19 +320,23 @@ class TournamentServiceTest {
         assertThrows(
                 BusinessException.class,
                 () -> tournamentService.generatePlayoffs(
-                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID));
+                        TOURNAMENT_ID, OTHER_ADMINISTRATOR_ID)
+        );
 
         verify(categoryRepository, never())
                 .findByTournamentId(TOURNAMENT_ID);
 
         verify(bracketService, never())
-                .generateKnockoutBracket(any());
+                .generateKnockoutBracket(any(), any());
     }
 
     @Test
     void shouldNotGeneratePlayoffsWhenTournamentHasNoCategories() {
         Tournament tournament = createTournament(
-                TOURNAMENT_ID, "Tournament Test", TournamentStatus.UPCOMING);
+                TOURNAMENT_ID,
+                TOURNAMENT_NAME,
+                TournamentStatus.UPCOMING
+        );
 
         when(tournamentRepository.findByIdAndAdministrator_Id(
                 TOURNAMENT_ID, ADMINISTRATOR_ID))
@@ -306,18 +348,28 @@ class TournamentServiceTest {
         assertThrows(
                 BusinessException.class,
                 () -> tournamentService.generatePlayoffs(
-                        TOURNAMENT_ID, ADMINISTRATOR_ID));
+                        TOURNAMENT_ID, ADMINISTRATOR_ID)
+        );
 
         verify(bracketService, never())
-                .generateKnockoutBracket(any());
+                .generateKnockoutBracket(any(), any());
+    }
+
+    private Administrator createAdministrator(Long id) {
+        Administrator administrator = new Administrator();
+        administrator.setId(id);
+
+        return administrator;
     }
 
     private TournamentRequestDTO createTournamentRequest() {
         TournamentRequestDTO dto = new TournamentRequestDTO();
-        dto.setName("Tournament Test");
+
+        dto.setName(TOURNAMENT_NAME);
         dto.setDescription("Test tournament");
         dto.setSchedule("2026-10-10");
         dto.setLocation("ArenaPoint");
+
         return dto;
     }
 
@@ -327,6 +379,7 @@ class TournamentServiceTest {
             TournamentStatus status) {
 
         Tournament tournament = new Tournament();
+
         tournament.setId(id);
         tournament.setName(name);
         tournament.setDescription("Test tournament");

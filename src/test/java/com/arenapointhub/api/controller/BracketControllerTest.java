@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,51 +17,58 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.arenapointhub.api.dto.BracketResponseDTO;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.arenapointhub.api.service.BracketService;
 
 @ExtendWith(MockitoExtension.class)
 class BracketControllerTest {
+
+    private static final Long CATEGORY_ID = 1L;
+    private static final Long ADMINISTRATOR_ID = 10L;
 
     @Mock
     private BracketService bracketService;
 
     private BracketController bracketController;
 
+    private AdministratorPrincipal principal;
+
     @BeforeEach
     void setUp() {
         bracketController = new BracketController(bracketService);
+
+        principal = new AdministratorPrincipal(
+                ADMINISTRATOR_ID,
+                "admin",
+                "password",
+                true);
     }
 
     @Test
     void shouldGenerateKnockoutBracket() {
 
-        Long categoryId = 1L;
+        BracketResponseDTO expectedResponse = new BracketResponseDTO();
 
-        BracketResponseDTO expectedResponse =
-                new BracketResponseDTO();
-
-        expectedResponse.setCategoryId(categoryId);
+        expectedResponse.setCategoryId(CATEGORY_ID);
         expectedResponse.setCategoryName("Categoria Sub-13");
         expectedResponse.setTargetBracketSize(8);
         expectedResponse.setMatches(Collections.emptyList());
 
-        when(bracketService.generateKnockoutBracket(categoryId))
+        when(bracketService.generateKnockoutBracket(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
                 .thenReturn(expectedResponse);
 
         ResponseEntity<BracketResponseDTO> response =
-                bracketController.generateKnockoutBracket(categoryId);
+                bracketController.generateKnockoutBracket(
+                        CATEGORY_ID,
+                        principal);
 
-        assertEquals(
-                HttpStatus.OK,
-                response.getStatusCode()
-        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertSame(expectedResponse, response.getBody());
 
-        assertSame(
-                expectedResponse,
-                response.getBody()
-        );
-
-        verify(bracketService)
-                .generateKnockoutBracket(categoryId);
+        verify(bracketService).generateKnockoutBracket(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID);
     }
 }
