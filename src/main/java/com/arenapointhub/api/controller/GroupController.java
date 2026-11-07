@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.controller;
 
 import java.util.List;
@@ -118,6 +119,4 @@ public class GroupController {
 
         return ResponseEntity.ok().build();
     }
-    
-    
 }

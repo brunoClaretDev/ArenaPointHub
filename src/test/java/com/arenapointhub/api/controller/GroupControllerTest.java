@@ -28,6 +28,10 @@ class GroupControllerTest {
 
     private static final Long ADMINISTRATOR_ID = 10L;
 
+    private static final Long CATEGORY_ID = 1L;
+    private static final Long GROUP_ID = 1L;
+    private static final Long PLAYER_ID = 2L;
+
     @Mock
     private GroupService groupService;
 
@@ -43,7 +47,8 @@ class GroupControllerTest {
                 ADMINISTRATOR_ID,
                 "admin",
                 "password",
-                true);
+                true
+        );
     }
 
     @Test
@@ -65,62 +70,67 @@ class GroupControllerTest {
 
     @Test
     void shouldGetGroupsByCategory() {
-        Long categoryId = 1L;
-        List<GroupResponseDTO> expected = List.of(new GroupResponseDTO());
+        List<GroupResponseDTO> expected =
+                List.of(new GroupResponseDTO());
 
-        when(groupService.getGroupsByCategory(categoryId, ADMINISTRATOR_ID))
+        when(groupService.getGroupsByCategory(
+                CATEGORY_ID, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<List<GroupResponseDTO>> response =
-                groupController.getGroupsByCategory(categoryId, principal);
+                groupController.getGroupsByCategory(CATEGORY_ID, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(groupService).getGroupsByCategory(categoryId, ADMINISTRATOR_ID);
+        verify(groupService).getGroupsByCategory(
+                CATEGORY_ID, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldGetGroupById() {
-        Long groupId = 1L;
         GroupResponseDTO expected = new GroupResponseDTO();
 
-        when(groupService.getGroupById(groupId, ADMINISTRATOR_ID))
+        when(groupService.getGroupById(GROUP_ID, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<GroupResponseDTO> response =
-                groupController.getGroupById(groupId, principal);
+                groupController.getGroupById(GROUP_ID, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(groupService).getGroupById(groupId, ADMINISTRATOR_ID);
+        verify(groupService).getGroupById(GROUP_ID, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldUpdateGroup() {
-        Long groupId = 1L;
         GroupRequestDTO request = new GroupRequestDTO();
         GroupResponseDTO expected = new GroupResponseDTO();
 
-        when(groupService.updateGroup(groupId, request, ADMINISTRATOR_ID))
+        when(groupService.updateGroup(
+                GROUP_ID, request, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<GroupResponseDTO> response =
-                groupController.updateGroup(groupId, request, principal);
+                groupController.updateGroup(GROUP_ID, request, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(groupService).updateGroup(groupId, request, ADMINISTRATOR_ID);
+        verify(groupService).updateGroup(
+                GROUP_ID, request, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldGenerateGroups() {
         GroupGenerateRequestDTO request = new GroupGenerateRequestDTO();
-        List<GroupResponseDTO> expected = List.of(new GroupResponseDTO());
 
-        when(groupService.generateAndDistributeGroups(request, ADMINISTRATOR_ID))
+        List<GroupResponseDTO> expected =
+                List.of(new GroupResponseDTO());
+
+        when(groupService.generateAndDistributeGroups(
+                request, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<List<GroupResponseDTO>> response =
@@ -129,42 +139,60 @@ class GroupControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(groupService).generateAndDistributeGroups(request, ADMINISTRATOR_ID);
+        verify(groupService).generateAndDistributeGroups(
+                request, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldGetGroupStandings() {
-        Long groupId = 1L;
-        List<GroupStandingDTO> expected = List.of(new GroupStandingDTO());
+        List<GroupStandingDTO> expected =
+                List.of(new GroupStandingDTO());
 
-        when(groupService.calculateGroupStandings(groupId, ADMINISTRATOR_ID))
+        when(groupService.calculateGroupStandings(
+                GROUP_ID, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<List<GroupStandingDTO>> response =
-                groupController.getGroupStandings(groupId, principal);
+                groupController.getGroupStandings(GROUP_ID, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(groupService).calculateGroupStandings(groupId, ADMINISTRATOR_ID);
+        verify(groupService).calculateGroupStandings(
+                GROUP_ID, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldRemovePlayerFromGroup() {
-        Long groupId = 1L;
-        Long playerId = 2L;
-
         ResponseEntity<Void> response =
                 groupController.removePlayerFromGroup(
-                        groupId,
-                        playerId,
-                        principal);
+                        GROUP_ID,
+                        PLAYER_ID,
+                        principal
+                );
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
 
         verify(groupService).removePlayerFromGroup(
-                groupId,
-                playerId,
-                ADMINISTRATOR_ID);
+                GROUP_ID,
+                PLAYER_ID,
+                ADMINISTRATOR_ID
+        );
+    }
+
+    @Test
+    void shouldGenerateMatchesForCategory() {
+        ResponseEntity<Void> response =
+                groupController.generateMatchesForCategory(
+                        CATEGORY_ID,
+                        principal
+                );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        verify(groupService).generateMatchesForCategory(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID
+        );
     }
 }
