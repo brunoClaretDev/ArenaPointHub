@@ -1,6 +1,8 @@
+
 package com.arenapointhub.api.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,32 +15,71 @@ import com.arenapointhub.api.model.enums.MatchStatus;
 
 @Repository
 public interface MatchRepository extends JpaRepository<Match, Long> {
-    
+
     List<Match> findByCategoryId(Long categoryId);
 
-    List<Match> findByStatus(MatchStatus status);
+    List<Match> findByCategory_Tournament_Administrator_Id(Long administratorId);
 
-    List<Match> findByPlayer1IdOrPlayer2Id(Long player1Id, Long player2Id);
-    
+    List<Match> findByCategoryIdAndCategory_Tournament_Administrator_Id(
+            Long categoryId,
+            Long administratorId);
+
+    Optional<Match> findByIdAndCategory_Tournament_Administrator_Id(
+            Long matchId,
+            Long administratorId);
+
+    List<Match> findByStatusAndCategory_Tournament_Administrator_Id(
+            MatchStatus status,
+            Long administratorId);
+
+    List<Match> findByPlayer1IdOrPlayer2Id(
+            Long player1Id,
+            Long player2Id);
+
+    @Query("""
+            SELECT m
+            FROM Match m
+            WHERE (m.player1.id = :playerId OR m.player2.id = :playerId)
+              AND m.category.tournament.administrator.id = :administratorId
+            """)
+    List<Match> findByPlayerIdAndAdministratorId(
+            @Param("playerId") Long playerId,
+            @Param("administratorId") Long administratorId);
+
     List<Match> findByGroupId(Long groupId);
-    
+
     void deleteByCategoryIdAndPhaseNot(Long categoryId, MatchPhase phase);
 
-    // Valida se a mesa/quadra já está ocupada no mesmo horário
-    @Query("SELECT COUNT(m) > 0 FROM Match m WHERE m.tableOrCourt = :tableOrCourt AND m.scheduledTime = :scheduledTime AND m.status <> :status")
+    @Query("""
+            SELECT COUNT(m) > 0
+            FROM Match m
+            WHERE m.tableOrCourt = :tableOrCourt
+              AND m.scheduledTime = :scheduledTime
+              AND m.status <> :status
+            """)
     boolean existsByTableOrCourtAndScheduledTimeAndStatusNot(
-            @Param("tableOrCourt") String tableOrCourt, 
-            @Param("scheduledTime") String scheduledTime, 
+            @Param("tableOrCourt") String tableOrCourt,
+            @Param("scheduledTime") String scheduledTime,
             @Param("status") MatchStatus status);
 
-    // Valida se o jogador 1 ou jogador 2 já tem partida no mesmo horário
-    @Query("SELECT COUNT(m) > 0 FROM Match m WHERE (m.player1.id = :p1Id OR m.player2.id = :p1Id OR m.player1.id = :p2Id OR m.player2.id = :p2Id) AND m.scheduledTime = :scheduledTime AND m.status <> :status")
+    @Query("""
+            SELECT COUNT(m) > 0
+            FROM Match m
+            WHERE (
+                m.player1.id = :p1Id
+                OR m.player2.id = :p1Id
+                OR m.player1.id = :p2Id
+                OR m.player2.id = :p2Id
+            )
+            AND m.scheduledTime = :scheduledTime
+            AND m.status <> :status
+            """)
     boolean existsByPlayerBusy(
-            @Param("p1Id") Long player1Id, 
-            @Param("p2Id") Long player2Id, 
-            @Param("scheduledTime") String scheduledTime, 
+            @Param("p1Id") Long player1Id,
+            @Param("p2Id") Long player2Id,
+            @Param("scheduledTime") String scheduledTime,
             @Param("status") MatchStatus status);
-    
+
     boolean existsByCategoryIdAndPhase(
             Long categoryId,
             MatchPhase phase);
@@ -47,5 +88,4 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             Long categoryId,
             MatchPhase phase,
             List<MatchStatus> statuses);
-    
 }

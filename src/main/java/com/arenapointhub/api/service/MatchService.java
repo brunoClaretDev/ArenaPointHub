@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import java.util.Comparator;
@@ -41,12 +42,14 @@ public class MatchService {
     private final GroupRepository groupRepository;
     private final GlobalRankingService globalRankingService;
 
-    public MatchService(MatchRepository matchRepository, 
-                        CategoryRepository categoryRepository, 
-                        PlayerRepository playerRepository, 
-                        MatchSetRepository matchSetRepository,
-                        GroupRepository groupRepository,
-                        GlobalRankingService globalRankingService) {
+    public MatchService(
+            MatchRepository matchRepository,
+            CategoryRepository categoryRepository,
+            PlayerRepository playerRepository,
+            MatchSetRepository matchSetRepository,
+            GroupRepository groupRepository,
+            GlobalRankingService globalRankingService) {
+
         this.matchRepository = matchRepository;
         this.categoryRepository = categoryRepository;
         this.playerRepository = playerRepository;
@@ -56,11 +59,21 @@ public class MatchService {
     }
 
     @Transactional
-    public MatchResponseDTO createMatch(MatchRequestDTO dto) {
+    public MatchResponseDTO createMatch(
+            MatchRequestDTO dto,
+            Long administratorId) {
+
         if (dto.getPlayer1Id().equals(dto.getPlayer2Id())) {
             throw new BusinessException(
                     "Um jogador não pode jogar contra ele mesmo.");
         }
+
+        Category category = categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        dto.getCategoryId(),
+                        administratorId)
+                .orElseThrow(() -> new BusinessException(
+                        "Categoria não encontrada: " + dto.getCategoryId()));
 
         boolean courtOccupied =
                 matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
@@ -86,10 +99,6 @@ public class MatchService {
                     "Um dos jogadores já possui partida agendada no horário "
                     + dto.getScheduledTime());
         }
-
-        Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new BusinessException(
-                        "Categoria não encontrada: " + dto.getCategoryId()));
 
         Player player1 = playerRepository.findById(dto.getPlayer1Id())
                 .orElseThrow(() -> new BusinessException(
@@ -123,9 +132,17 @@ public class MatchService {
                         : 0);
 
         if (dto.getGroupId() != null) {
-            Group group = groupRepository.findById(dto.getGroupId())
+            Group group = groupRepository
+                    .findByIdAndCategory_Tournament_Administrator_Id(
+                            dto.getGroupId(),
+                            administratorId)
                     .orElseThrow(() -> new BusinessException(
                             "Grupo não encontrado: " + dto.getGroupId()));
+
+            if (!group.getCategory().getId().equals(category.getId())) {
+                throw new BusinessException(
+                        "O grupo informado não pertence à categoria selecionada.");
+            }
 
             match.setGroup(group);
         }
@@ -136,120 +153,143 @@ public class MatchService {
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getAllMatches() {
-        return matchRepository.findAll()
+    public List<MatchResponseDTO> getAllMatches(Long administratorId) {
+        return matchRepository
+                .findByCategory_Tournament_Administrator_Id(administratorId)
                 .stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByCategory(Long categoryId) {
-        return matchRepository.findByCategoryId(categoryId)
-                .stream()
-                .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
-    }
+    public List<MatchResponseDTO> getMatchesByCategory(
+            Long categoryId,
+            Long administratorId) {
 
-
-@Transactional
-public MatchResponseDTO updateScore(
-        Long matchId,
-        MatchScoreUpdateDTO dto) {
-
-    if (dto == null) {
-        throw new BusinessException(
-                "Os dados do placar são obrigatórios.");
-    }
-
-    Match match = matchRepository.findById(matchId)
-            .orElseThrow(() -> new BusinessException(
-                    "Partida não encontrada com ID: " + matchId));
-
-    if (match.getStatus() == MatchStatus.FINISHED
-            || match.getStatus() == MatchStatus.WO) {
-        throw new BusinessException(
-                "Não é permitido alterar o placar de uma partida encerrada.");
-    }
-
-    if (match.getStatus() == MatchStatus.CANCELED) {
-        throw new BusinessException(
-                "Não é permitido alterar o placar de uma partida cancelada.");
-    }
-
-    Integer scorePlayer1 = dto.getScorePlayer1();
-    Integer scorePlayer2 = dto.getScorePlayer2();
-
-    if (scorePlayer1 == null || scorePlayer2 == null) {
-        throw new BusinessException(
-                "Os placares dos dois jogadores são obrigatórios.");
-    }
-
-    if (scorePlayer1 < 0 || scorePlayer2 < 0) {
-        throw new BusinessException(
-                "Os placares não podem ser negativos.");
-    }
-
-    MatchStatus requestedStatus = dto.getStatus() != null
-            ? dto.getStatus()
-            : match.getStatus();
-
-    if (requestedStatus == MatchStatus.FINISHED) {
-        if (scorePlayer1.equals(scorePlayer2)) {
+        if (!categoryRepository.existsByIdAndTournament_Administrator_Id(
+                categoryId,
+                administratorId)) {
             throw new BusinessException(
-                    "Uma partida não pode ser encerrada empatada.");
+                    "Categoria não encontrada: " + categoryId);
         }
 
-        int setsNeededToWin = determineSetsNeededToWin(match);
-        int winningScore = Math.max(scorePlayer1, scorePlayer2);
-        int losingScore = Math.min(scorePlayer1, scorePlayer2);
+        return matchRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        categoryId,
+                        administratorId)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
 
-        if (winningScore != setsNeededToWin
-                || losingScore >= setsNeededToWin) {
+    @Transactional
+    public MatchResponseDTO updateScore(
+            Long matchId,
+            MatchScoreUpdateDTO dto,
+            Long administratorId) {
+
+        if (dto == null) {
             throw new BusinessException(
-                    "Placar final inválido. O vencedor deve alcançar "
-                            + setsNeededToWin
-                            + " sets, e o adversário deve ter menos sets.");
-        }
-    }
-
-    match.setScorePlayer1(scorePlayer1);
-    match.setScorePlayer2(scorePlayer2);
-    match.setStatus(requestedStatus);
-
-    Match updatedMatch = matchRepository.save(match);
-
-    if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
-        if (updatedMatch.getPhase() == MatchPhase.FINAL) {
-            Player champion = updatedMatch.getScorePlayer1()
-                    > updatedMatch.getScorePlayer2()
-                    ? updatedMatch.getPlayer1()
-                    : updatedMatch.getPlayer2();
-
-            Category category = updatedMatch.getCategory();
-            category.setChampion(champion);
-            categoryRepository.save(category);
+                    "Os dados do placar são obrigatórios.");
         }
 
-        advanceWinnerToNextRound(updatedMatch);
-        checkAndDistributePointsIfFinalFinished(updatedMatch);
+        Match match = findMatch(matchId, administratorId);
+
+        if (match.getStatus() == MatchStatus.FINISHED
+                || match.getStatus() == MatchStatus.WO) {
+            throw new BusinessException(
+                    "Não é permitido alterar o placar de uma partida encerrada.");
+        }
+
+        if (match.getStatus() == MatchStatus.CANCELED) {
+            throw new BusinessException(
+                    "Não é permitido alterar o placar de uma partida cancelada.");
+        }
+
+        Integer scorePlayer1 = dto.getScorePlayer1();
+        Integer scorePlayer2 = dto.getScorePlayer2();
+
+        if (scorePlayer1 == null || scorePlayer2 == null) {
+            throw new BusinessException(
+                    "Os placares dos dois jogadores são obrigatórios.");
+        }
+
+        if (scorePlayer1 < 0 || scorePlayer2 < 0) {
+            throw new BusinessException(
+                    "Os placares não podem ser negativos.");
+        }
+
+        MatchStatus requestedStatus = dto.getStatus() != null
+                ? dto.getStatus()
+                : match.getStatus();
+
+        if (requestedStatus == MatchStatus.FINISHED) {
+            if (scorePlayer1.equals(scorePlayer2)) {
+                throw new BusinessException(
+                        "Uma partida não pode ser encerrada empatada.");
+            }
+
+            int setsNeededToWin = determineSetsNeededToWin(match);
+            int winningScore = Math.max(scorePlayer1, scorePlayer2);
+            int losingScore = Math.min(scorePlayer1, scorePlayer2);
+
+            if (winningScore != setsNeededToWin
+                    || losingScore >= setsNeededToWin) {
+                throw new BusinessException(
+                        "Placar final inválido. O vencedor deve alcançar "
+                                + setsNeededToWin
+                                + " sets, e o adversário deve ter menos sets.");
+            }
+        }
+
+        match.setScorePlayer1(scorePlayer1);
+        match.setScorePlayer2(scorePlayer2);
+        match.setStatus(requestedStatus);
+
+        Match updatedMatch = matchRepository.save(match);
+
+        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+            if (updatedMatch.getPhase() == MatchPhase.FINAL) {
+                Player champion = updatedMatch.getScorePlayer1()
+                        > updatedMatch.getScorePlayer2()
+                        ? updatedMatch.getPlayer1()
+                        : updatedMatch.getPlayer2();
+
+                Category category = updatedMatch.getCategory();
+                category.setChampion(champion);
+                categoryRepository.save(category);
+            }
+
+            advanceWinnerToNextRound(updatedMatch);
+            checkAndDistributePointsIfFinalFinished(updatedMatch);
+        }
+
+        return mapToResponseDTO(updatedMatch);
     }
-
-    return mapToResponseDTO(updatedMatch);
-}
-
 
     @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByStatus(MatchStatus status) {
-        return matchRepository.findByStatus(status)
+    public List<MatchResponseDTO> getMatchesByStatus(
+            MatchStatus status,
+            Long administratorId) {
+
+        return matchRepository
+                .findByStatusAndCategory_Tournament_Administrator_Id(
+                        status,
+                        administratorId)
                 .stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<MatchResponseDTO> getMatchesByPlayer(Long playerId) {
-        return matchRepository.findByPlayer1IdOrPlayer2Id(playerId, playerId)
+    public List<MatchResponseDTO> getMatchesByPlayer(
+            Long playerId,
+            Long administratorId) {
+
+        return matchRepository
+                .findByPlayerIdAndAdministratorId(
+                        playerId,
+                        administratorId)
                 .stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
@@ -266,16 +306,14 @@ public MatchResponseDTO updateScore(
             dto.setPlayer1(new PlayerSummaryDTO(
                     entity.getPlayer1().getId(),
                     entity.getPlayer1().getName(),
-                    entity.getPlayer1().getClubAcademy()
-            ));
+                    entity.getPlayer1().getClubAcademy()));
         }
 
         if (entity.getPlayer2() != null) {
             dto.setPlayer2(new PlayerSummaryDTO(
                     entity.getPlayer2().getId(),
                     entity.getPlayer2().getName(),
-                    entity.getPlayer2().getClubAcademy()
-            ));
+                    entity.getPlayer2().getClubAcademy()));
         }
 
         dto.setTableOrCourt(entity.getTableOrCourt());
@@ -287,36 +325,40 @@ public MatchResponseDTO updateScore(
 
         return dto;
     }
-    
+
     @Transactional(readOnly = true)
-    public MatchResponseDTO getMatchById(Long id) {
-        Match match = matchRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Partida não encontrada com ID: " + id));
-        return mapToResponseDTO(match);
+    public MatchResponseDTO getMatchById(
+            Long id,
+            Long administratorId) {
+
+        return mapToResponseDTO(findMatch(id, administratorId));
     }
-    
+
     @Transactional
-    public MatchResponseDTO updateMatch(Long id, MatchRequestDTO dto) {
-        Match match = matchRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(
-                		"Partida não encontrada com ID: " + id));
+    public MatchResponseDTO updateMatch(
+            Long id,
+            MatchRequestDTO dto,
+            Long administratorId) {
+
+        Match match = findMatch(id, administratorId);
 
         boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
-        
+
         if (dto.getScorePlayer1() != null) {
             match.setScorePlayer1(dto.getScorePlayer1());
         }
+
         if (dto.getScorePlayer2() != null) {
             match.setScorePlayer2(dto.getScorePlayer2());
         }
+
         if (dto.getStatus() != null) {
             match.setStatus(dto.getStatus());
         }
 
         Match updatedMatch = matchRepository.save(match);
-        
-        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
 
+        if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
             advanceWinnerToNextRound(updatedMatch);
 
             if (!alreadyFinished) {
@@ -328,42 +370,55 @@ public MatchResponseDTO updateScore(
     }
 
     @Transactional
-    public void saveMatchSets(Long matchId, MatchScoreRequestDTO dto) {
+    public void saveMatchSets(
+            Long matchId,
+            MatchScoreRequestDTO dto,
+            Long administratorId) {
 
-        Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException(
-                        "Partida não encontrada com ID: " + matchId));
+        Match match = findMatch(matchId, administratorId);
 
         boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
 
         for (MatchSetDTO setDto : dto.getSets()) {
-           
             int p1Score = setDto.getScorePlayer1();
             int p2Score = setDto.getScorePlayer2();
 
             boolean isP1WinnerSet = false;
             boolean isP2WinnerSet = false;
 
-            // Regra padrão: alguém fez 11 e o oponente tem no máximo 9 (ex: 11x0 até 11x9)
-            if ((p1Score == 11 && p2Score <= 9) || (p2Score == 11 && p1Score <= 9)) {
-                if (p1Score == 11) isP1WinnerSet = true;
-                else isP2WinnerSet = true;
-            } 
-            // Regra de vantagem (Deuce): Ambos chegaram a 10 ou mais, e a diferença é exatamente de 2 pontos
-            else if (p1Score >= 10 && p2Score >= 10) {
+            if ((p1Score == 11 && p2Score <= 9)
+                    || (p2Score == 11 && p1Score <= 9)) {
+
+                if (p1Score == 11) {
+                    isP1WinnerSet = true;
+                } else {
+                    isP2WinnerSet = true;
+                }
+
+            } else if (p1Score >= 10 && p2Score >= 10) {
                 int diff = Math.abs(p1Score - p2Score);
+
                 if (diff == 2) {
-                    if (p1Score > p2Score) isP1WinnerSet = true;
-                    else isP2WinnerSet = true;
+                    if (p1Score > p2Score) {
+                        isP1WinnerSet = true;
+                    } else {
+                        isP2WinnerSet = true;
+                    }
                 }
             }
 
             if (!isP1WinnerSet && !isP2WinnerSet) {
-                throw new BusinessException("Placar inválido para o set " + setDto.getSetNumber() + 
-                    ": O set deve terminar em 11 (com no máximo 9 para o perdedor) ou com 2 pontos de diferença a partir de 10x10 (ex: 12x10, 13x11).");
+                throw new BusinessException(
+                        "Placar inválido para o set " + setDto.getSetNumber()
+                        + ": O set deve terminar em 11 (com no máximo 9 para o perdedor) "
+                        + "ou com 2 pontos de diferença a partir de 10x10 "
+                        + "(ex: 12x10, 13x11).");
             }
 
-            MatchSet matchSet = matchSetRepository.findByMatchIdAndSetNumber(matchId, setDto.getSetNumber())
+            MatchSet matchSet = matchSetRepository
+                    .findByMatchIdAndSetNumber(
+                            matchId,
+                            setDto.getSetNumber())
                     .orElse(new MatchSet());
 
             matchSet.setMatch(match);
@@ -374,15 +429,15 @@ public MatchResponseDTO updateScore(
             matchSetRepository.save(matchSet);
         }
 
-        // Recalcula o total de sets ganhos por cada jogador com base nos sets salvos
         List<MatchSet> allSets = matchSetRepository.findByMatchId(matchId);
+
         int setsWonPlayer1 = 0;
         int setsWonPlayer2 = 0;
 
-        for (MatchSet s : allSets) {
-            if (s.getScorePlayer1() > s.getScorePlayer2()) {
+        for (MatchSet set : allSets) {
+            if (set.getScorePlayer1() > set.getScorePlayer2()) {
                 setsWonPlayer1++;
-            } else if (s.getScorePlayer2() > s.getScorePlayer1()) {
+            } else if (set.getScorePlayer2() > set.getScorePlayer1()) {
                 setsWonPlayer2++;
             }
         }
@@ -390,46 +445,59 @@ public MatchResponseDTO updateScore(
         match.setScorePlayer1(setsWonPlayer1);
         match.setScorePlayer2(setsWonPlayer2);
 
-        // Pega quantos sets são necessários para vencer com base na configuração da categoria (Global para todas as fases)
         int setsNeededToWin = determineSetsNeededToWin(match);
 
-        if (setsWonPlayer1 >= setsNeededToWin || setsWonPlayer2 >= setsNeededToWin) {
+        if (setsWonPlayer1 >= setsNeededToWin
+                || setsWonPlayer2 >= setsNeededToWin) {
+
             match.setStatus(MatchStatus.FINISHED);
-            
+
             Match savedMatch = matchRepository.save(match);
 
-            // Dispara o avanço para a próxima fase apenas quando fechar o confronto
             advanceWinnerToNextRound(savedMatch);
 
             if (!alreadyFinished) {
                 checkAndDistributePointsIfFinalFinished(savedMatch);
             }
+
         } else {
             match.setStatus(MatchStatus.IN_PROGRESS);
             matchRepository.save(match);
         }
     }
 
-    // Método auxiliar para buscar a regra global da categoria
     private int determineSetsNeededToWin(Match match) {
-        if (match.getCategory() != null && match.getCategory().getSetsToWinMatch() > 0) {
+        if (match.getCategory() != null
+                && match.getCategory().getSetsToWinMatch() > 0) {
             return match.getCategory().getSetsToWinMatch();
         }
-        return 2; // Padrão de segurança: 2 vitórias (melhor de 3)
+
+        return 2;
     }
 
     @Transactional(readOnly = true)
-    public List<MatchSetDTO> getSetsByMatchId(Long matchId) {
-        return matchSetRepository.findByMatchId(matchId).stream()
-                .map(set -> new MatchSetDTO(set.getSetNumber(), set.getScorePlayer1(), set.getScorePlayer2()))
+    public List<MatchSetDTO> getSetsByMatchId(
+            Long matchId,
+            Long administratorId) {
+
+        findMatch(matchId, administratorId);
+
+        return matchSetRepository.findByMatchId(matchId)
+                .stream()
+                .map(set -> new MatchSetDTO(
+                        set.getSetNumber(),
+                        set.getScorePlayer1(),
+                        set.getScorePlayer2()))
                 .collect(Collectors.toList());
     }
-    
+
     @Transactional
-    public MatchResponseDTO registerWalkover(Long matchId, MatchWoRequestDTO dto) {
-        Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new BusinessException(
-                        "Partida não encontrada com ID: " + matchId));
+    public MatchResponseDTO registerWalkover(
+            Long matchId,
+            MatchWoRequestDTO dto,
+            Long administratorId) {
+
+        Match match = findMatch(matchId, administratorId);
 
         if (match.getStatus() != MatchStatus.SCHEDULED) {
             throw new BusinessException(
@@ -443,8 +511,11 @@ public MatchResponseDTO updateScore(
                     "O jogador vencedor do W.O. deve ser informado.");
         }
 
-        boolean isPlayer1Winner = winnerId.equals(match.getPlayer1().getId());
-        boolean isPlayer2Winner = winnerId.equals(match.getPlayer2().getId());
+        boolean isPlayer1Winner = match.getPlayer1() != null
+                && winnerId.equals(match.getPlayer1().getId());
+
+        boolean isPlayer2Winner = match.getPlayer2() != null
+                && winnerId.equals(match.getPlayer2().getId());
 
         if (!isPlayer1Winner && !isPlayer2Winner) {
             throw new BusinessException(
@@ -453,7 +524,6 @@ public MatchResponseDTO updateScore(
 
         int setsNeededToWin = determineSetsNeededToWin(match);
 
-        // Registra cada set do WO com placar de 11 a 0.
         for (int setNumber = 1; setNumber <= setsNeededToWin; setNumber++) {
             MatchSet matchSet = matchSetRepository
                     .findByMatchIdAndSetNumber(matchId, setNumber)
@@ -485,48 +555,83 @@ public MatchResponseDTO updateScore(
         return mapToResponseDTO(updatedMatch);
     }
 
+    private Match findMatch(Long matchId, Long administratorId) {
+        return matchRepository
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        matchId,
+                        administratorId)
+                .orElseThrow(() -> new BusinessException(
+                        "Partida não encontrada com ID: " + matchId));
+    }
+
     private void checkAndDistributePointsIfFinalFinished(Match match) {
-    	if (match.getPhase() == MatchPhase.FINAL
-    	        && (match.getStatus() == MatchStatus.FINISHED
-    	                || match.getStatus() == MatchStatus.WO)) {
-            Tournament tournament = match.getCategory().getTournament();
+        if (match.getPhase() != MatchPhase.FINAL
+                || (match.getStatus() != MatchStatus.FINISHED
+                        && match.getStatus() != MatchStatus.WO)) {
+            return;
+        }
 
-            if (tournament != null) {
-                List<Match> allMatches = matchRepository.findByCategoryId(match.getCategory().getId());
-                Map<Player, Integer> playerPositions = new HashMap<>();
+        Tournament tournament = match.getCategory().getTournament();
 
-                for (Match m : allMatches) {
-                    if (m.getStatus() != MatchStatus.FINISHED && m.getStatus() != MatchStatus.WO) continue;
+        if (tournament == null) {
+            return;
+        }
 
-                    Player p1 = m.getPlayer1();
-                    Player p2 = m.getPlayer2();
-                    if (p1 == null || p2 == null) continue;
+        Long administratorId = tournament.getAdministrator().getId();
 
-                    Player winner = (m.getScorePlayer1() > m.getScorePlayer2()) ? p1 : p2;
-                    Player loser = (m.getScorePlayer1() > m.getScorePlayer2()) ? p2 : p1;
+        List<Match> allMatches = matchRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        match.getCategory().getId(),
+                        administratorId);
 
-                    if (m.getPhase() == MatchPhase.FINAL) {
-                        playerPositions.put(winner, 1);
-                        playerPositions.put(loser, 2);
-                    } else if (m.getPhase() == MatchPhase.SEMI_FINAL) {
-                        playerPositions.putIfAbsent(loser, 3);
-                    } else if (m.getPhase() == MatchPhase.QUARTER_FINAL) {
-                        playerPositions.putIfAbsent(loser, 5);
-                    }
-                }
+        Map<Player, Integer> playerPositions = new HashMap<>();
 
-                if (!playerPositions.isEmpty()) {
-                    globalRankingService.distributeTournamentPoints(
-                            tournament,
-                            match.getCategory(),
-                            playerPositions);
-                }
+        for (Match currentMatch : allMatches) {
+            if (currentMatch.getStatus() != MatchStatus.FINISHED
+                    && currentMatch.getStatus() != MatchStatus.WO) {
+                continue;
+            }
+
+            Player player1 = currentMatch.getPlayer1();
+            Player player2 = currentMatch.getPlayer2();
+
+            if (player1 == null || player2 == null) {
+                continue;
+            }
+
+            Player winner = currentMatch.getScorePlayer1()
+                    > currentMatch.getScorePlayer2()
+                    ? player1
+                    : player2;
+
+            Player loser = currentMatch.getScorePlayer1()
+                    > currentMatch.getScorePlayer2()
+                    ? player2
+                    : player1;
+
+            if (currentMatch.getPhase() == MatchPhase.FINAL) {
+                playerPositions.put(winner, 1);
+                playerPositions.put(loser, 2);
+
+            } else if (currentMatch.getPhase() == MatchPhase.SEMI_FINAL) {
+                playerPositions.putIfAbsent(loser, 3);
+
+            } else if (currentMatch.getPhase() == MatchPhase.QUARTER_FINAL) {
+                playerPositions.putIfAbsent(loser, 5);
             }
         }
+
+        if (!playerPositions.isEmpty()) {
+            globalRankingService.distributeTournamentPoints(
+                    tournament,
+                    match.getCategory(),
+                    playerPositions);
+        }
     }
-    
+
     public void advanceWinnerToNextRound(Match finishedMatch) {
-        if (finishedMatch.getPhase() == null || finishedMatch.getPhase() == MatchPhase.GROUP) {
+        if (finishedMatch.getPhase() == null
+                || finishedMatch.getPhase() == MatchPhase.GROUP) {
             return;
         }
 
@@ -534,45 +639,48 @@ public MatchResponseDTO updateScore(
 
         if (finishedMatch.getPlayer1() != null
                 && finishedMatch.getPlayer2() == null) {
-
-            // Jogador 1 avançou por BYE
             winner = finishedMatch.getPlayer1();
 
         } else if (finishedMatch.getPlayer2() != null
                 && finishedMatch.getPlayer1() == null) {
-
-            // Jogador 2 avançou por BYE
             winner = finishedMatch.getPlayer2();
 
-        } else if (finishedMatch.getScorePlayer1() > finishedMatch.getScorePlayer2()) {
-
+        } else if (finishedMatch.getScorePlayer1()
+                > finishedMatch.getScorePlayer2()) {
             winner = finishedMatch.getPlayer1();
 
-        } else if (finishedMatch.getScorePlayer2() > finishedMatch.getScorePlayer1()) {
-
+        } else if (finishedMatch.getScorePlayer2()
+                > finishedMatch.getScorePlayer1()) {
             winner = finishedMatch.getPlayer2();
 
         } else {
-
-            // Empate ou partida sem jogadores definidos
             return;
         }
 
         MatchPhase nextPhase = getNextPhase(finishedMatch.getPhase());
+
         if (nextPhase == null) {
-            return; 
+            return;
         }
 
-        // Busca todas as partidas da fase atual ordenadas por ID para manter a consistência da árvore
-        List<Match> currentPhaseMatches = matchRepository.findByCategoryId(finishedMatch.getCategory().getId())
-                .stream()
-                .filter(m -> m.getPhase() == finishedMatch.getPhase())
+        Long categoryId = finishedMatch.getCategory().getId();
+        Long administratorId = finishedMatch.getCategory()
+                .getTournament()
+                .getAdministrator()
+                .getId();
+
+        List<Match> categoryMatches = matchRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        categoryId,
+                        administratorId);
+
+        List<Match> currentPhaseMatches = categoryMatches.stream()
+                .filter(match -> match.getPhase() == finishedMatch.getPhase())
                 .sorted(Comparator.comparing(Match::getId))
                 .collect(Collectors.toList());
 
-        List<Match> nextRoundMatches = matchRepository.findByCategoryId(finishedMatch.getCategory().getId())
-                .stream()
-                .filter(m -> m.getPhase() == nextPhase)
+        List<Match> nextRoundMatches = categoryMatches.stream()
+                .filter(match -> match.getPhase() == nextPhase)
                 .sorted(Comparator.comparing(Match::getId))
                 .collect(Collectors.toList());
 
@@ -581,33 +689,37 @@ public MatchResponseDTO updateScore(
         }
 
         int matchIndex = -1;
+
         for (int i = 0; i < currentPhaseMatches.size(); i++) {
-            if (currentPhaseMatches.get(i).getId().equals(finishedMatch.getId())) {
+            if (currentPhaseMatches.get(i).getId()
+                    .equals(finishedMatch.getId())) {
                 matchIndex = i;
                 break;
             }
         }
 
-        if (matchIndex == -1) return;
+        if (matchIndex == -1) {
+            return;
+        }
 
-        // Mapeamento exato das quartas (0, 1, 2, 3) para as semifinais (0 e 1):
-        // Quartas 0 e 1 -> Semifinal 0
-        // Quartas 2 e 3 -> Semifinal 1
         int targetMatchIndex = matchIndex / 2;
+
         if (targetMatchIndex >= nextRoundMatches.size()) {
             return;
         }
 
         Match targetMatch = nextRoundMatches.get(targetMatchIndex);
 
-        boolean isPlayer1ThisWinner = targetMatch.getPlayer1() != null && targetMatch.getPlayer1().getId().equals(winner.getId());
-        boolean isPlayer2ThisWinner = targetMatch.getPlayer2() != null && targetMatch.getPlayer2().getId().equals(winner.getId());
+        boolean isPlayer1ThisWinner = targetMatch.getPlayer1() != null
+                && targetMatch.getPlayer1().getId().equals(winner.getId());
+
+        boolean isPlayer2ThisWinner = targetMatch.getPlayer2() != null
+                && targetMatch.getPlayer2().getId().equals(winner.getId());
 
         if (isPlayer1ThisWinner || isPlayer2ThisWinner) {
             return;
         }
 
-        // Posiciona o vencedor: indices pares (0 e 2) vão para o player1; ímpares (1 e 3) vão para o player2
         if (matchIndex % 2 == 0) {
             if (targetMatch.getPlayer1() == null) {
                 targetMatch.setPlayer1(winner);
@@ -621,13 +733,18 @@ public MatchResponseDTO updateScore(
         }
     }
 
-    private com.arenapointhub.api.model.enums.MatchPhase getNextPhase(com.arenapointhub.api.model.enums.MatchPhase currentPhase) {
+    private MatchPhase getNextPhase(MatchPhase currentPhase) {
         switch (currentPhase) {
-            case ROUND_OF_32: return com.arenapointhub.api.model.enums.MatchPhase.ROUND_OF_16;
-            case ROUND_OF_16: return com.arenapointhub.api.model.enums.MatchPhase.QUARTER_FINAL;
-            case QUARTER_FINAL: return com.arenapointhub.api.model.enums.MatchPhase.SEMI_FINAL;
-            case SEMI_FINAL: return com.arenapointhub.api.model.enums.MatchPhase.FINAL;
-            default: return null;
+            case ROUND_OF_32:
+                return MatchPhase.ROUND_OF_16;
+            case ROUND_OF_16:
+                return MatchPhase.QUARTER_FINAL;
+            case QUARTER_FINAL:
+                return MatchPhase.SEMI_FINAL;
+            case SEMI_FINAL:
+                return MatchPhase.FINAL;
+            default:
+                return null;
         }
     }
 }

@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,8 +16,10 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.arenapointhub.api.dto.MatchRequestDTO;
 import com.arenapointhub.api.dto.MatchResponseDTO;
@@ -25,6 +28,7 @@ import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
 import com.arenapointhub.api.dto.MatchSetDTO;
 import com.arenapointhub.api.dto.MatchWoRequestDTO;
 import com.arenapointhub.api.exception.BusinessException;
+import com.arenapointhub.api.model.Administrator;
 import com.arenapointhub.api.model.Category;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.MatchSet;
@@ -38,7 +42,11 @@ import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.MatchSetRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
 
+@ExtendWith(MockitoExtension.class)
 class MatchServiceTest {
+
+    private static final Long ADMINISTRATOR_ID = 100L;
+    private static final Long CATEGORY_ID = 1L;
 
     @Mock
     private MatchRepository matchRepository;
@@ -58,67 +66,32 @@ class MatchServiceTest {
     @Mock
     private GlobalRankingService globalRankingService;
 
+    @InjectMocks
     private MatchService matchService;
+
+    private Category category;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-
-        matchService = new MatchService(
-                matchRepository,
-                categoryRepository,
-                playerRepository,
-                matchSetRepository,
-                groupRepository,
-                globalRankingService
-        );
+        category = createCategory(CATEGORY_ID);
     }
 
     @Test
     void shouldCreateMatch() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
 
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
+        mockAvailableSchedule();
+        mockCategoryExists();
+        mockPlayers(player1, player2);
+        mockMatchSave();
 
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
-
-        when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(player1));
-
-        when(playerRepository.findById(2L))
-                .thenReturn(Optional.of(player2));
-
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> {
-                    Match match = invocation.getArgument(0);
-                    match.setId(10L);
-                    return match;
-                });
-
-        MatchResponseDTO response = matchService.createMatch(dto);
+        MatchResponseDTO response =
+                matchService.createMatch(dto, ADMINISTRATOR_ID);
 
         assertEquals(10L, response.getId());
-        assertEquals(1L, response.getCategoryId());
+        assertEquals(CATEGORY_ID, response.getCategoryId());
         assertEquals(1L, response.getPlayer1().getId());
         assertEquals(2L, response.getPlayer2().getId());
         assertEquals(MatchStatus.SCHEDULED, response.getStatus());
@@ -128,192 +101,116 @@ class MatchServiceTest {
 
     @Test
     void shouldNotCreateMatchWhenPlayerIsTheSame() {
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                1L
-        );
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 1L);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Um jogador não pode jogar contra ele mesmo.",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
     void shouldNotCreateMatchWhenCourtIsOccupied() {
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+
+        mockCategoryExists();
 
         when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
                 "Mesa 1",
                 "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(true);
+                MatchStatus.CANCELED))
+                .thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
         assertEquals(
                 "A mesa/quadra 'Mesa 1' já está ocupada no horário 10:00",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
     void shouldNotCreateMatchWhenPlayerIsBusy() {
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+
+        mockCategoryExists();
 
         when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
                 "Mesa 1",
                 "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
+                MatchStatus.CANCELED))
+                .thenReturn(false);
 
         when(matchRepository.existsByPlayerBusy(
                 1L,
                 2L,
                 "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(true);
+                MatchStatus.CANCELED))
+                .thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Um dos jogadores já possui partida agendada no horário 10:00",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldNotCreateMatchWhenCategoryDoesNotExist() {
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
 
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
+        when(categoryRepository.findByIdAndTournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Categoria não encontrada: 1",
-                exception.getMessage()
-        );
+        assertEquals("Categoria não encontrada: 1", exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldNotCreateMatchWhenPlayer1DoesNotExist() {
-        Category category = createCategory(1L);
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
 
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockAvailableSchedule();
+        mockCategoryExists();
 
         when(playerRepository.findById(1L))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Jogador 1 não encontrado: 1",
-                exception.getMessage()
-        );
+        assertEquals("Jogador 1 não encontrado: 1", exception.getMessage());
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldNotCreateMatchWhenPlayer2DoesNotExist() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
 
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
+        mockAvailableSchedule();
+        mockCategoryExists();
 
         when(playerRepository.findById(1L))
                 .thenReturn(Optional.of(player1));
@@ -323,416 +220,289 @@ class MatchServiceTest {
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Jogador 2 não encontrado: 2",
-                exception.getMessage()
-        );
+        assertEquals("Jogador 2 não encontrado: 2", exception.getMessage());
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldNotCreateMatchWhenGroupDoesNotExist() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
-
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
         dto.setGroupId(10L);
 
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
+        mockAvailableSchedule();
+        mockCategoryExists();
+        mockPlayers(player1, player2);
 
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
-
-        when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(player1));
-
-        when(playerRepository.findById(2L))
-                .thenReturn(Optional.of(player2));
-
-        when(groupRepository.findById(10L))
+        when(groupRepository.findByIdAndCategory_Tournament_Administrator_Id(
+                10L,
+                ADMINISTRATOR_ID))
                 .thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.createMatch(dto)
-        );
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
 
-        assertEquals(
-                "Grupo não encontrado: 10",
-                exception.getMessage()
-        );
+        assertEquals("Grupo não encontrado: 10", exception.getMessage());
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldCreateMatchWithGroup() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         com.arenapointhub.api.model.Group group =
                 new com.arenapointhub.api.model.Group();
+
         group.setId(10L);
         group.setName("Grupo A");
+        group.setCategory(category);
 
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
         dto.setGroupId(10L);
 
-        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
-                "Mesa 1",
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
+        mockAvailableSchedule();
+        mockCategoryExists();
+        mockPlayers(player1, player2);
 
-        when(matchRepository.existsByPlayerBusy(
-                1L,
-                2L,
-                "10:00",
-                MatchStatus.CANCELED
-        )).thenReturn(false);
-
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
-
-        when(playerRepository.findById(1L))
-                .thenReturn(Optional.of(player1));
-
-        when(playerRepository.findById(2L))
-                .thenReturn(Optional.of(player2));
-
-        when(groupRepository.findById(10L))
+        when(groupRepository.findByIdAndCategory_Tournament_Administrator_Id(
+                10L,
+                ADMINISTRATOR_ID))
                 .thenReturn(Optional.of(group));
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> {
-                    Match match = invocation.getArgument(0);
-                    match.setId(10L);
-                    return match;
-                });
+        mockMatchSave();
 
         MatchResponseDTO response =
-                matchService.createMatch(dto);
+                matchService.createMatch(dto, ADMINISTRATOR_ID);
 
         assertEquals(10L, response.getId());
         assertEquals(1L, response.getPlayer1().getId());
         assertEquals(2L, response.getPlayer2().getId());
         assertEquals(MatchStatus.SCHEDULED, response.getStatus());
 
-        verify(groupRepository).findById(10L);
+        verify(groupRepository).findByIdAndCategory_Tournament_Administrator_Id(
+                10L,
+                ADMINISTRATOR_ID);
+
         verify(matchRepository).save(any(Match.class));
     }
-    
-    
 
     @Test
     void shouldReturnMatchById() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
+        mockMatchLookup(10L, match);
 
-        MatchResponseDTO response = matchService.getMatchById(10L);
+        MatchResponseDTO response =
+                matchService.getMatchById(10L, ADMINISTRATOR_ID);
 
         assertEquals(10L, response.getId());
         assertEquals(1L, response.getPlayer1().getId());
         assertEquals(2L, response.getPlayer2().getId());
 
-        verify(matchRepository).findById(10L);
+        verify(matchRepository)
+                .findByIdAndCategory_Tournament_Administrator_Id(
+                        10L,
+                        ADMINISTRATOR_ID);
     }
-    
+
     @Test
     void shouldReturnAllMatches() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
         Match match1 = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
         Match match2 = createMatch(
-                11L,
-                category,
-                player2,
-                player3,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                1
-        );
+                11L, category, player2, player3,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 1);
 
-        when(matchRepository.findAll())
+        when(matchRepository.findByCategory_Tournament_Administrator_Id(
+                ADMINISTRATOR_ID))
                 .thenReturn(List.of(match1, match2));
 
         List<MatchResponseDTO> response =
-                matchService.getAllMatches();
+                matchService.getAllMatches(ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
-
         assertEquals(10L, response.get(0).getId());
-        assertEquals(1L, response.get(0).getPlayer1().getId());
-        assertEquals(2L, response.get(0).getPlayer2().getId());
-
         assertEquals(11L, response.get(1).getId());
-        assertEquals(2L, response.get(1).getPlayer1().getId());
-        assertEquals(3L, response.get(1).getPlayer2().getId());
 
-        verify(matchRepository).findAll();
+        verify(matchRepository)
+                .findByCategory_Tournament_Administrator_Id(ADMINISTRATOR_ID);
     }
-    
+
     @Test
     void shouldReturnMatchesByCategory() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
         Match match1 = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
         Match match2 = createMatch(
-                11L,
-                category,
-                player2,
-                player3,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                1
-        );
+                11L, category, player2, player3,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 1);
 
-        when(matchRepository.findByCategoryId(1L))
+        when(categoryRepository.existsByIdAndTournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
+                .thenReturn(true);
+
+        when(matchRepository.findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
                 .thenReturn(List.of(match1, match2));
 
         List<MatchResponseDTO> response =
-                matchService.getMatchesByCategory(1L);
+                matchService.getMatchesByCategory(
+                        CATEGORY_ID,
+                        ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
-
         assertEquals(10L, response.get(0).getId());
         assertEquals(11L, response.get(1).getId());
+        assertEquals(CATEGORY_ID, response.get(0).getCategoryId());
+        assertEquals(CATEGORY_ID, response.get(1).getCategoryId());
 
-        assertEquals(1L, response.get(0).getCategoryId());
-        assertEquals(1L, response.get(1).getCategoryId());
-
-        verify(matchRepository).findByCategoryId(1L);
+        verify(matchRepository)
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID,
+                        ADMINISTRATOR_ID);
     }
-    
+
     @Test
     void shouldReturnMatchesByStatus() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
         Match match1 = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                1
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 1);
 
         Match match2 = createMatch(
-                11L,
-                category,
-                player2,
-                player3,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                0
-        );
+                11L, category, player2, player3,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 0);
 
-        when(matchRepository.findByStatus(MatchStatus.FINISHED))
+        when(matchRepository.findByStatusAndCategory_Tournament_Administrator_Id(
+                MatchStatus.FINISHED,
+                ADMINISTRATOR_ID))
                 .thenReturn(List.of(match1, match2));
 
         List<MatchResponseDTO> response =
-                matchService.getMatchesByStatus(MatchStatus.FINISHED);
+                matchService.getMatchesByStatus(
+                        MatchStatus.FINISHED,
+                        ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
-
         assertEquals(10L, response.get(0).getId());
         assertEquals(11L, response.get(1).getId());
-
         assertEquals(MatchStatus.FINISHED, response.get(0).getStatus());
         assertEquals(MatchStatus.FINISHED, response.get(1).getStatus());
 
-        verify(matchRepository).findByStatus(MatchStatus.FINISHED);
+        verify(matchRepository)
+                .findByStatusAndCategory_Tournament_Administrator_Id(
+                        MatchStatus.FINISHED,
+                        ADMINISTRATOR_ID);
     }
-    
+
     @Test
     void shouldReturnMatchesByPlayer() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
         Player player3 = createPlayer(3L, "Player 3");
 
         Match match1 = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                1
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 1);
 
         Match match2 = createMatch(
-                11L,
-                category,
-                player3,
-                player1,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                11L, category, player3, player1,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findByPlayer1IdOrPlayer2Id(1L, 1L))
+        when(matchRepository.findByPlayerIdAndAdministratorId(
+                1L,
+                ADMINISTRATOR_ID))
                 .thenReturn(List.of(match1, match2));
 
         List<MatchResponseDTO> response =
-                matchService.getMatchesByPlayer(1L);
+                matchService.getMatchesByPlayer(1L, ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
-
         assertEquals(10L, response.get(0).getId());
         assertEquals(11L, response.get(1).getId());
-
         assertEquals(1L, response.get(0).getPlayer1().getId());
         assertEquals(1L, response.get(1).getPlayer2().getId());
 
         verify(matchRepository)
-                .findByPlayer1IdOrPlayer2Id(1L, 1L);
+                .findByPlayerIdAndAdministratorId(1L, ADMINISTRATOR_ID);
     }
-    
+
     @Test
     void shouldReturnEmptyMatchesByPlayer() {
-        when(matchRepository.findByPlayer1IdOrPlayer2Id(1L, 1L))
+        when(matchRepository.findByPlayerIdAndAdministratorId(
+                1L,
+                ADMINISTRATOR_ID))
                 .thenReturn(List.of());
 
         List<MatchResponseDTO> response =
-                matchService.getMatchesByPlayer(1L);
+                matchService.getMatchesByPlayer(1L, ADMINISTRATOR_ID);
 
         assertTrue(response.isEmpty());
 
         verify(matchRepository)
-                .findByPlayer1IdOrPlayer2Id(1L, 1L);
+                .findByPlayerIdAndAdministratorId(1L, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldNotReturnMatchWhenIdDoesNotExist() {
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.empty());
+        mockMatchLookup(10L, null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.getMatchById(10L)
-        );
+                () -> matchService.getMatchById(10L, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Partida não encontrada com ID: 10",
-                exception.getMessage()
-        );
+                exception.getMessage());
     }
 
     @Test
     void shouldUpdateScore() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.IN_PROGRESS,
-                1,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 1, 0);
 
         MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
         dto.setScorePlayer1(2);
         dto.setScorePlayer2(1);
         dto.setStatus(MatchStatus.FINISHED);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchLookup(10L, match);
+        mockMatchSave();
 
         MatchResponseDTO response =
-                matchService.updateScore(10L, dto);
+                matchService.updateScore(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(2, response.getScorePlayer1());
         assertEquals(1, response.getScorePlayer2());
@@ -740,203 +510,128 @@ class MatchServiceTest {
 
         verify(matchRepository).save(match);
     }
-    
+
     @Test
     void shouldSetChampionWhenFinalIsFinished() {
-        Category category = createCategory(1L);
-
         Player winner = createPlayer(1L, "Winner");
         Player loser = createPlayer(2L, "Loser");
 
         Match finalMatch = createMatch(
-                30L,
-                category,
-                winner,
-                loser,
-                MatchPhase.FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(30L))
-                .thenReturn(Optional.of(finalMatch));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(finalMatch));
+        mockMatchLookup(30L, finalMatch);
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(30L, dto);
+        matchService.updateScore(30L, dto, ADMINISTRATOR_ID);
 
         assertEquals(winner, category.getChampion());
 
         verify(categoryRepository).save(category);
     }
-    
+
     @Test
     void shouldNotUpdateScoreWhenMatchDoesNotExist() {
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 1);
 
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(1);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.empty());
+        mockMatchLookup(10L, null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.updateScore(10L, dto)
-        );
+                () -> matchService.updateScore(10L, dto, ADMINISTRATOR_ID));
 
         assertEquals(
                 "Partida não encontrada com ID: 10",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
-    
+
     @Test
     void shouldNotSaveMatchSetsWhenMatchDoesNotExist() {
         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(1, 11, 5)));
 
-        dto.setSets(List.of(
-                new MatchSetDTO(1, 11, 5)
-        ));
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.empty());
+        mockMatchLookup(10L, null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.saveMatchSets(10L, dto)
-        );
+                () -> matchService.saveMatchSets(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
 
         assertEquals(
                 "Partida não encontrada com ID: 10",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
-        verify(matchSetRepository, never())
-                .save(any(MatchSet.class));
-
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
     void shouldSaveValidSetsAndFinishMatch() {
-        Category category = createCategory(1L);
         category.setSetsToWinMatch(2);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.IN_PROGRESS,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
 
         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
-
-        List<MatchSetDTO> sets = List.of(
+        dto.setSets(List.of(
                 new MatchSetDTO(1, 11, 5),
-                new MatchSetDTO(2, 11, 7)
-        );
+                new MatchSetDTO(2, 11, 7)));
 
-        dto.setSets(sets);
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchSetRepository.findByMatchIdAndSetNumber(
-                10L,
-                1
-        )).thenReturn(Optional.empty());
-
-        when(matchSetRepository.findByMatchIdAndSetNumber(
-                10L,
-                2
-        )).thenReturn(Optional.empty());
+        mockMatchLookup(10L, match);
+        mockNewSet(10L, 1);
+        mockNewSet(10L, 2);
 
         when(matchSetRepository.findByMatchId(10L))
                 .thenReturn(List.of(
                         createMatchSet(match, 1, 11, 5),
-                        createMatchSet(match, 2, 11, 7)
-                ));
+                        createMatchSet(match, 2, 11, 7)));
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchSave();
 
-        matchService.saveMatchSets(10L, dto);
+        matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(2, match.getScorePlayer1());
         assertEquals(0, match.getScorePlayer2());
         assertEquals(MatchStatus.FINISHED, match.getStatus());
 
-        verify(matchSetRepository, times(2))
-                .save(any(MatchSet.class));
-
+        verify(matchSetRepository, times(2)).save(any(MatchSet.class));
         verify(matchRepository).save(match);
     }
-    
+
     @Test
     void shouldKeepMatchInProgressWhenSetsAreNotEnoughToWin() {
-        Category category = createCategory(1L);
         category.setSetsToWinMatch(2);
 
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.IN_PROGRESS,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
 
         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(1, 11, 5)));
 
-        dto.setSets(List.of(
-                new MatchSetDTO(1, 11, 5)
-        ));
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchSetRepository.findByMatchIdAndSetNumber(
-                10L,
-                1
-        )).thenReturn(Optional.empty());
+        mockMatchLookup(10L, match);
+        mockNewSet(10L, 1);
 
         when(matchSetRepository.findByMatchId(10L))
-                .thenReturn(List.of(
-                        createMatchSet(match, 1, 11, 5)
-                ));
+                .thenReturn(List.of(createMatchSet(match, 1, 11, 5)));
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchSave();
 
-        matchService.saveMatchSets(10L, dto);
+        matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(1, match.getScorePlayer1());
         assertEquals(0, match.getScorePlayer2());
@@ -948,87 +643,52 @@ class MatchServiceTest {
 
     @Test
     void shouldNotSaveInvalidSetScore() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.IN_PROGRESS,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
 
         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(1, 10, 8)));
 
-        dto.setSets(List.of(
-                new MatchSetDTO(1, 10, 8)
-        ));
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
+        mockMatchLookup(10L, match);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.saveMatchSets(10L, dto)
-        );
+                () -> matchService.saveMatchSets(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
 
-        assertTrue(
-                exception.getMessage().contains(
-                        "Placar inválido para o set 1"
-                )
-        );
+        assertTrue(exception.getMessage().contains(
+                "Placar inválido para o set 1"));
 
-        verify(matchSetRepository, never())
-                .save(any(MatchSet.class));
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
     }
-    
+
     @Test
     void shouldAcceptValidDeuceSetScore() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.IN_PROGRESS,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
 
         MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(1, 12, 10)));
 
-        dto.setSets(List.of(
-                new MatchSetDTO(1, 12, 10)
-        ));
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchSetRepository.findByMatchIdAndSetNumber(
-                10L,
-                1
-        )).thenReturn(Optional.empty());
+        mockMatchLookup(10L, match);
+        mockNewSet(10L, 1);
 
         when(matchSetRepository.findByMatchId(10L))
-                .thenReturn(List.of(
-                        createMatchSet(match, 1, 12, 10)
-                ));
+                .thenReturn(List.of(createMatchSet(match, 1, 12, 10)));
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchSave();
 
-        matchService.saveMatchSets(10L, dto);
+        matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(1, match.getScorePlayer1());
         assertEquals(0, match.getScorePlayer2());
@@ -1040,29 +700,22 @@ class MatchServiceTest {
 
     @Test
     void shouldReturnSetsByMatchId() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 0);
+
+        mockMatchLookup(10L, match);
 
         when(matchSetRepository.findByMatchId(10L))
                 .thenReturn(List.of(
                         createMatchSet(match, 1, 11, 5),
-                        createMatchSet(match, 2, 11, 7)
-                ));
+                        createMatchSet(match, 2, 11, 7)));
 
         List<MatchSetDTO> response =
-                matchService.getSetsByMatchId(10L);
+                matchService.getSetsByMatchId(10L, ADMINISTRATOR_ID);
 
         assertEquals(2, response.size());
         assertEquals(1, response.get(0).getSetNumber());
@@ -1072,32 +725,21 @@ class MatchServiceTest {
 
     @Test
     void shouldRegisterWalkoverForPlayer1() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
         MatchWoRequestDTO dto = new MatchWoRequestDTO();
         dto.setWinnerPlayerId(1L);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchLookup(10L, match);
+        mockMatchSave();
 
         MatchResponseDTO response =
-                matchService.registerWalkover(10L, dto);
+                matchService.registerWalkover(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(MatchStatus.WO, response.getStatus());
         assertEquals(2, response.getScorePlayer1());
@@ -1109,75 +751,51 @@ class MatchServiceTest {
 
     @Test
     void shouldNotRegisterWalkoverForPlayerOutsideMatch() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
         MatchWoRequestDTO dto = new MatchWoRequestDTO();
         dto.setWinnerPlayerId(3L);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
+        mockMatchLookup(10L, match);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.registerWalkover(10L, dto)
-        );
+                () -> matchService.registerWalkover(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
 
         assertEquals(
                 "O jogador informado não faz parte desta partida.",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
     void shouldUpdateMatch() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
         dto.setScorePlayer1(2);
         dto.setScorePlayer2(1);
         dto.setStatus(MatchStatus.FINISHED);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchLookup(10L, match);
+        mockMatchSave();
 
         MatchResponseDTO response =
-                matchService.updateMatch(10L, dto);
+                matchService.updateMatch(10L, dto, ADMINISTRATOR_ID);
 
         assertEquals(2, response.getScorePlayer1());
         assertEquals(1, response.getScorePlayer2());
@@ -1185,518 +803,388 @@ class MatchServiceTest {
 
         verify(matchRepository).save(match);
     }
-    
+
     @Test
     void shouldNotUpdateMatchWhenMatchDoesNotExist() {
-        MatchRequestDTO dto = createMatchRequest(
-                1L,
-                1L,
-                2L
-        );
-
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
         dto.setScorePlayer1(2);
         dto.setScorePlayer2(1);
         dto.setStatus(MatchStatus.FINISHED);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.empty());
+        mockMatchLookup(10L, null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> matchService.updateMatch(10L, dto)
-        );
+                () -> matchService.updateMatch(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
 
         assertEquals(
                 "Partida não encontrada com ID: 10",
-                exception.getMessage()
-        );
+                exception.getMessage());
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
 
-    
-    
     @Test
     void shouldAdvanceWinnerFromQuarterFinalToSemiFinal() {
-        Category category = createCategory(1L);
-
         Player winner = createPlayer(1L, "Winner");
         Player opponent = createPlayer(2L, "Opponent");
         Player other1 = createPlayer(3L, "Other 1");
         Player other2 = createPlayer(4L, "Other 2");
 
         Match quarter1 = createMatch(
-                10L,
-                category,
-                winner,
-                opponent,
-                MatchPhase.QUARTER_FINAL,
-                MatchStatus.IN_PROGRESS,
-                3,
-                1
-        );
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.IN_PROGRESS, 3, 1);
 
         Match quarter2 = createMatch(
-                11L,
-                category,
-                other1,
-                other2,
-                MatchPhase.QUARTER_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                11L, category, other1, other2,
+                MatchPhase.QUARTER_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
         Match semiFinal = createMatch(
-                20L,
-                category,
-                null,
-                null,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                20L, category, null, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(quarter1));
+        mockMatchLookup(10L, quarter1);
+        mockMatchesByCategory(quarter1, quarter2, semiFinal);
+        mockMatchSave();
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        quarter1,
-                        quarter2,
-                        semiFinal
-                ));
+        matchService.updateScore(10L, dto, ADMINISTRATOR_ID);
 
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(10L, dto);
-
-        assertEquals(
-                winner,
-                semiFinal.getPlayer1()
-        );
+        assertEquals(winner, semiFinal.getPlayer1());
 
         verify(matchRepository).save(semiFinal);
     }
-    
+
     @Test
     void shouldAdvanceByeWinnerFromQuarterFinalToSemiFinal() {
-        Category category = createCategory(1L);
-
         Player byeWinner = createPlayer(1L, "Bye Winner");
 
         Match quarterFinal = createMatch(
-                10L,
-                category,
-                byeWinner,
-                null,
-                MatchPhase.QUARTER_FINAL,
-                MatchStatus.IN_PROGRESS,
-                0,
-                0
-        );
+                10L, category, byeWinner, null,
+                MatchPhase.QUARTER_FINAL, MatchStatus.IN_PROGRESS, 0, 0);
 
         Match semiFinal = createMatch(
-                20L,
-                category,
-                null,
-                null,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                20L, category, null, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(quarterFinal));
+        mockMatchLookup(10L, quarterFinal);
+        mockMatchesByCategory(quarterFinal, semiFinal);
+        mockMatchSave();
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        quarterFinal,
-                        semiFinal
-                ));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        matchService.updateScore(10L, dto, ADMINISTRATOR_ID);
 
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(10L, dto);
-
-        assertEquals(
-                byeWinner,
-                semiFinal.getPlayer1()
-        );
+        assertEquals(byeWinner, semiFinal.getPlayer1());
 
         verify(matchRepository).save(semiFinal);
     }
-    
+
     @Test
     void shouldAdvanceWinnerFromSecondQuarterFinalToSemiFinalPlayer2() {
-        Category category = createCategory(1L);
-
         Player player1 = createPlayer(1L, "Player 1");
         Player winner = createPlayer(3L, "Winner");
         Player opponent = createPlayer(4L, "Opponent");
 
         Match quarter1 = createMatch(
-                10L,
-                category,
-                player1,
-                createPlayer(2L, "Player 2"),
-                MatchPhase.QUARTER_FINAL,
-                MatchStatus.IN_PROGRESS,
-                3,
-                1
-        );
+                10L, category, player1, createPlayer(2L, "Player 2"),
+                MatchPhase.QUARTER_FINAL, MatchStatus.IN_PROGRESS, 3, 1);
 
         Match quarter2 = createMatch(
-                11L,
-                category,
-                opponent,
-                winner,
-                MatchPhase.QUARTER_FINAL,
-                MatchStatus.IN_PROGRESS,
-                3,
-                1
-        );
+                11L, category, opponent, winner,
+                MatchPhase.QUARTER_FINAL, MatchStatus.IN_PROGRESS, 3, 1);
 
         Match semiFinal = createMatch(
-                20L,
-                category,
-                null,
-                null,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                20L, category, null, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(11L))
-                .thenReturn(Optional.of(quarter2));
+        mockMatchLookup(11L, quarter2);
+        mockMatchesByCategory(quarter1, quarter2, semiFinal);
+        mockMatchSave();
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        quarter1,
-                        quarter2,
-                        semiFinal
-                ));
+        MatchScoreUpdateDTO dto = createFinishedScore(0, 2);
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        matchService.updateScore(11L, dto, ADMINISTRATOR_ID);
 
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(0);
-        dto.setScorePlayer2(2);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        assertEquals(winner, quarter2.getPlayer2());
-        assertEquals(11L, quarter2.getId());
-        assertEquals(20L, semiFinal.getId());
-        
-        matchService.updateScore(11L, dto);
-
-        assertEquals(
-                winner,
-                semiFinal.getPlayer2()
-        );
-        
-        assertEquals(1, List.of(quarter1, quarter2).indexOf(quarter2));
+        assertEquals(winner, semiFinal.getPlayer2());
 
         verify(matchRepository).save(semiFinal);
     }
-    
+
     @Test
     void shouldAdvanceWinnerFromSemiFinalToFinal() {
-        Category category = createCategory(1L);
-
         Player winner = createPlayer(1L, "Winner");
         Player opponent = createPlayer(2L, "Opponent");
         Player otherWinner = createPlayer(3L, "Other Winner");
 
         Match semiFinal1 = createMatch(
-                20L,
-                category,
-                winner,
-                opponent,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.IN_PROGRESS,
-                2,
-                0
-        );
+                20L, category, winner, opponent,
+                MatchPhase.SEMI_FINAL, MatchStatus.IN_PROGRESS, 2, 0);
 
         Match semiFinal2 = createMatch(
-                21L,
-                category,
-                otherWinner,
-                null,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                21L, category, otherWinner, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
         Match finalMatch = createMatch(
-                30L,
-                category,
-                null,
-                null,
-                MatchPhase.FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                30L, category, null, null,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(20L))
-                .thenReturn(Optional.of(semiFinal1));
+        mockMatchLookup(20L, semiFinal1);
+        mockMatchesByCategory(semiFinal1, semiFinal2, finalMatch);
+        mockMatchSave();
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        semiFinal1,
-                        semiFinal2,
-                        finalMatch
-                ));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(20L, dto);
+        matchService.updateScore(20L, dto, ADMINISTRATOR_ID);
 
         assertEquals(winner, finalMatch.getPlayer1());
 
         verify(matchRepository).save(finalMatch);
     }
-    
+
     @Test
     void shouldAdvanceWinnerFromSecondSemiFinalToFinalPlayer2() {
-        Category category = createCategory(1L);
-
         Player otherWinner = createPlayer(1L, "Other Winner");
         Player winner = createPlayer(3L, "Winner");
         Player opponent = createPlayer(4L, "Opponent");
 
         Match semiFinal1 = createMatch(
-                20L,
-                category,
-                otherWinner,
-                createPlayer(2L, "Other Opponent"),
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.IN_PROGRESS,
-                2,
-                0
-        );
+                20L, category, otherWinner, createPlayer(2L, "Other Opponent"),
+                MatchPhase.SEMI_FINAL, MatchStatus.IN_PROGRESS, 2, 0);
 
         Match semiFinal2 = createMatch(
-                21L,
-                category,
-                winner,
-                opponent,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.IN_PROGRESS,
-                2,
-                0
-        );
+                21L, category, winner, opponent,
+                MatchPhase.SEMI_FINAL, MatchStatus.IN_PROGRESS, 2, 0);
 
         Match finalMatch = createMatch(
-                30L,
-                category,
-                null,
-                null,
-                MatchPhase.FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                30L, category, null, null,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(21L))
-                .thenReturn(Optional.of(semiFinal2));
+        mockMatchLookup(21L, semiFinal2);
+        mockMatchesByCategory(semiFinal1, semiFinal2, finalMatch);
+        mockMatchSave();
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        semiFinal1,
-                        semiFinal2,
-                        finalMatch
-                ));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        matchService.updateScore(21L, dto, ADMINISTRATOR_ID);
 
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(21L, dto);
-
-        assertEquals(
-                winner,
-                finalMatch.getPlayer2()
-        );
+        assertEquals(winner, finalMatch.getPlayer2());
 
         verify(matchRepository).save(finalMatch);
     }
 
     @Test
     void shouldAdvanceWalkoverWinnerFromSemiFinalToFinal() {
-        Category category = createCategory(1L);
-
         Player winner = createPlayer(1L, "Winner");
         Player opponent = createPlayer(2L, "Opponent");
         Player otherWinner = createPlayer(3L, "Other Winner");
 
         Match semiFinal1 = createMatch(
-                20L,
-                category,
-                winner,
-                opponent,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                20L, category, winner, opponent,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
         Match semiFinal2 = createMatch(
-                21L,
-                category,
-                otherWinner,
-                null,
-                MatchPhase.SEMI_FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                21L, category, otherWinner, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
 
         Match finalMatch = createMatch(
-                30L,
-                category,
-                null,
-                null,
-                MatchPhase.FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                30L, category, null, null,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(20L))
-                .thenReturn(Optional.of(semiFinal1));
-
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(
-                        semiFinal1,
-                        semiFinal2,
-                        finalMatch
-                ));
-
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        mockMatchLookup(20L, semiFinal1);
+        mockMatchesByCategory(semiFinal1, semiFinal2, finalMatch);
+        mockMatchSave();
 
         MatchWoRequestDTO dto = new MatchWoRequestDTO();
         dto.setWinnerPlayerId(1L);
 
         MatchResponseDTO response =
-                matchService.registerWalkover(20L, dto);
+                matchService.registerWalkover(20L, dto, ADMINISTRATOR_ID);
 
         assertEquals(MatchStatus.WO, response.getStatus());
         assertEquals(2, response.getScorePlayer1());
         assertEquals(0, response.getScorePlayer2());
-
         assertEquals(winner, finalMatch.getPlayer1());
 
         verify(matchRepository).save(finalMatch);
     }
-    
+
     @Test
     void shouldDistributeTournamentPointsWhenFinalIsFinished() {
-        Category category = createCategory(1L);
-
         Player winner = createPlayer(1L, "Winner");
         Player loser = createPlayer(2L, "Loser");
 
         Match finalMatch = createMatch(
-                30L,
-                category,
-                winner,
-                loser,
-                MatchPhase.FINAL,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
 
-        when(matchRepository.findById(30L))
-                .thenReturn(Optional.of(finalMatch));
+        mockMatchLookup(30L, finalMatch);
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
 
-        when(matchRepository.findByCategoryId(1L))
-                .thenReturn(List.of(finalMatch));
+        MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
-        when(matchRepository.save(any(Match.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
-        dto.setScorePlayer1(2);
-        dto.setScorePlayer2(0);
-        dto.setStatus(MatchStatus.FINISHED);
-
-        matchService.updateScore(30L, dto);
+        matchService.updateScore(30L, dto, ADMINISTRATOR_ID);
 
         verify(globalRankingService).distributeTournamentPoints(
                 any(Tournament.class),
                 any(Category.class),
-                any()
-        );
+                any());
     }
-    
+
     @Test
     void shouldNotRegisterWalkoverWhenWinnerIsNull() {
-        Category category = createCategory(1L);
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
 
         Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.SCHEDULED,
-                0,
-                0
-        );
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
 
         MatchWoRequestDTO dto = new MatchWoRequestDTO();
         dto.setWinnerPlayerId(null);
 
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
+        mockMatchLookup(10L, match);
 
         assertThrows(
                 BusinessException.class,
-                () -> matchService.registerWalkover(10L, dto)
-        );
+                () -> matchService.registerWalkover(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
 
-        verify(matchRepository, never())
-                .save(any(Match.class));
-
-        verify(matchSetRepository, never())
-                .save(any(MatchSet.class));
+        verify(matchRepository, never()).save(any(Match.class));
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
     }
-    
+
+    @Test
+    void shouldNotRegisterWalkoverForFinishedMatch() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 2, 0);
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(1L);
+
+        mockMatchLookup(10L, match);
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldNotRegisterWalkoverForMatchAlreadyMarkedAsWo() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.WO, 2, 0);
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(1L);
+
+        mockMatchLookup(10L, match);
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    private void mockAvailableSchedule() {
+        when(matchRepository.existsByTableOrCourtAndScheduledTimeAndStatusNot(
+                "Mesa 1",
+                "10:00",
+                MatchStatus.CANCELED))
+                .thenReturn(false);
+
+        when(matchRepository.existsByPlayerBusy(
+                1L,
+                2L,
+                "10:00",
+                MatchStatus.CANCELED))
+                .thenReturn(false);
+    }
+
+    private void mockCategoryExists() {
+        when(categoryRepository.findByIdAndTournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(category));
+    }
+
+    private void mockPlayers(Player player1, Player player2) {
+        when(playerRepository.findById(1L))
+                .thenReturn(Optional.of(player1));
+
+        when(playerRepository.findById(2L))
+                .thenReturn(Optional.of(player2));
+    }
+
+    private void mockMatchLookup(Long matchId, Match match) {
+        when(matchRepository.findByIdAndCategory_Tournament_Administrator_Id(
+                matchId,
+                ADMINISTRATOR_ID))
+                .thenReturn(Optional.ofNullable(match));
+    }
+
+    private void mockMatchesByCategory(Match... matches) {
+        when(matchRepository.findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
+                .thenReturn(List.of(matches));
+    }
+
+    private void mockMatchSave() {
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> {
+                    Match match = invocation.getArgument(0);
+
+                    if (match.getId() == null) {
+                        match.setId(10L);
+                    }
+
+                    return match;
+                });
+    }
+
+    private void mockNewSet(Long matchId, int setNumber) {
+        when(matchSetRepository.findByMatchIdAndSetNumber(
+                matchId,
+                setNumber))
+                .thenReturn(Optional.empty());
+    }
+
+    private MatchScoreUpdateDTO createFinishedScore(
+            int scorePlayer1,
+            int scorePlayer2) {
+
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO();
+        dto.setScorePlayer1(scorePlayer1);
+        dto.setScorePlayer2(scorePlayer2);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        return dto;
+    }
+
     private MatchRequestDTO createMatchRequest(
             Long categoryId,
             Long player1Id,
@@ -1713,18 +1201,22 @@ class MatchServiceTest {
     }
 
     private Category createCategory(Long id) {
-        Category category = new Category();
-        category.setId(id);
-        category.setName("Sub 15");
-        category.setSetsToWinMatch(2);
+        Category testCategory = new Category();
+        testCategory.setId(id);
+        testCategory.setName("Sub 15");
+        testCategory.setSetsToWinMatch(2);
+
+        Administrator administrator = new Administrator();
+        administrator.setId(ADMINISTRATOR_ID);
 
         Tournament tournament = new Tournament();
         tournament.setId(1L);
         tournament.setName("Tournament Test");
+        tournament.setAdministrator(administrator);
 
-        category.setTournament(tournament);
+        testCategory.setTournament(tournament);
 
-        return category;
+        return testCategory;
     }
 
     private Player createPlayer(Long id, String name) {
@@ -1732,8 +1224,7 @@ class MatchServiceTest {
         player.setId(id);
         player.setName(name);
         player.setEmail(
-                name.toLowerCase().replace(" ", "") + "@email.com"
-        );
+                name.toLowerCase().replace(" ", "") + "@email.com");
         player.setBirthDate(LocalDate.of(2012, 5, 10));
         player.setClubAcademy("ArenaPoint");
 
@@ -1776,67 +1267,5 @@ class MatchServiceTest {
         matchSet.setScorePlayer2(scorePlayer2);
 
         return matchSet;
-    }
-    
-    @Test
-    void shouldNotRegisterWalkoverForFinishedMatch() {
-        Category category = createCategory(1L);
-        Player player1 = createPlayer(1L, "Player 1");
-        Player player2 = createPlayer(2L, "Player 2");
-
-        Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.FINISHED,
-                2,
-                0
-        );
-
-        MatchWoRequestDTO dto = new MatchWoRequestDTO();
-        dto.setWinnerPlayerId(1L);
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        assertThrows(
-                BusinessException.class,
-                () -> matchService.registerWalkover(10L, dto)
-        );
-
-        verify(matchRepository, never()).save(any(Match.class));
-    }
-
-    @Test
-    void shouldNotRegisterWalkoverForMatchAlreadyMarkedAsWo() {
-        Category category = createCategory(1L);
-        Player player1 = createPlayer(1L, "Player 1");
-        Player player2 = createPlayer(2L, "Player 2");
-
-        Match match = createMatch(
-                10L,
-                category,
-                player1,
-                player2,
-                MatchPhase.GROUP,
-                MatchStatus.WO,
-                2,
-                0
-        );
-
-        MatchWoRequestDTO dto = new MatchWoRequestDTO();
-        dto.setWinnerPlayerId(1L);
-
-        when(matchRepository.findById(10L))
-                .thenReturn(Optional.of(match));
-
-        assertThrows(
-                BusinessException.class,
-                () -> matchService.registerWalkover(10L, dto)
-        );
-
-        verify(matchRepository, never()).save(any(Match.class));
     }
 }

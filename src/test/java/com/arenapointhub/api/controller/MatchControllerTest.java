@@ -1,3 +1,4 @@
+
 package com.arenapointhub.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,19 +23,30 @@ import com.arenapointhub.api.dto.MatchScoreUpdateDTO;
 import com.arenapointhub.api.dto.MatchSetDTO;
 import com.arenapointhub.api.dto.MatchWoRequestDTO;
 import com.arenapointhub.api.model.enums.MatchStatus;
+import com.arenapointhub.api.security.AdministratorPrincipal;
 import com.arenapointhub.api.service.MatchService;
 
 @ExtendWith(MockitoExtension.class)
 class MatchControllerTest {
+
+    private static final Long ADMINISTRATOR_ID = 100L;
 
     @Mock
     private MatchService matchService;
 
     private MatchController matchController;
 
+    private AdministratorPrincipal principal;
+
     @BeforeEach
     void setUp() {
         matchController = new MatchController(matchService);
+
+        principal = new AdministratorPrincipal(
+                ADMINISTRATOR_ID,
+                "admin",
+                "password",
+                true);
     }
 
     @Test
@@ -42,30 +54,32 @@ class MatchControllerTest {
         MatchRequestDTO request = new MatchRequestDTO();
         MatchResponseDTO expected = new MatchResponseDTO();
 
-        when(matchService.createMatch(request)).thenReturn(expected);
+        when(matchService.createMatch(request, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<MatchResponseDTO> response =
-                matchController.createMatch(request);
+                matchController.createMatch(request, principal);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).createMatch(request);
+        verify(matchService).createMatch(request, ADMINISTRATOR_ID);
     }
 
     @Test
     void shouldGetAllMatches() {
         List<MatchResponseDTO> expected = List.of(new MatchResponseDTO());
 
-        when(matchService.getAllMatches()).thenReturn(expected);
+        when(matchService.getAllMatches(ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<List<MatchResponseDTO>> response =
-                matchController.getAllMatches();
+                matchController.getAllMatches(principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getAllMatches();
+        verify(matchService).getAllMatches(ADMINISTRATOR_ID);
     }
 
     @Test
@@ -73,15 +87,16 @@ class MatchControllerTest {
         Long categoryId = 1L;
         List<MatchResponseDTO> expected = List.of(new MatchResponseDTO());
 
-        when(matchService.getMatchesByCategory(categoryId)).thenReturn(expected);
+        when(matchService.getMatchesByCategory(categoryId, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<List<MatchResponseDTO>> response =
-                matchController.getMatchesByCategory(categoryId);
+                matchController.getMatchesByCategory(categoryId, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getMatchesByCategory(categoryId);
+        verify(matchService).getMatchesByCategory(categoryId, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -90,15 +105,16 @@ class MatchControllerTest {
         MatchScoreUpdateDTO request = new MatchScoreUpdateDTO();
         MatchResponseDTO expected = new MatchResponseDTO();
 
-        when(matchService.updateScore(matchId, request)).thenReturn(expected);
+        when(matchService.updateScore(matchId, request, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<MatchResponseDTO> response =
-                matchController.updateScore(matchId, request);
+                matchController.updateScore(matchId, request, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).updateScore(matchId, request);
+        verify(matchService).updateScore(matchId, request, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -106,15 +122,16 @@ class MatchControllerTest {
         MatchStatus status = MatchStatus.values()[0];
         List<MatchResponseDTO> expected = List.of(new MatchResponseDTO());
 
-        when(matchService.getMatchesByStatus(status)).thenReturn(expected);
+        when(matchService.getMatchesByStatus(status, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<List<MatchResponseDTO>> response =
-                matchController.getMatchesByStatus(status);
+                matchController.getMatchesByStatus(status, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getMatchesByStatus(status);
+        verify(matchService).getMatchesByStatus(status, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -122,15 +139,16 @@ class MatchControllerTest {
         Long playerId = 1L;
         List<MatchResponseDTO> expected = List.of(new MatchResponseDTO());
 
-        when(matchService.getMatchesByPlayer(playerId)).thenReturn(expected);
+        when(matchService.getMatchesByPlayer(playerId, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<List<MatchResponseDTO>> response =
-                matchController.getMatchesByPlayer(playerId);
+                matchController.getMatchesByPlayer(playerId, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getMatchesByPlayer(playerId);
+        verify(matchService).getMatchesByPlayer(playerId, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -139,15 +157,16 @@ class MatchControllerTest {
         MatchRequestDTO request = new MatchRequestDTO();
         MatchResponseDTO expected = new MatchResponseDTO();
 
-        when(matchService.updateMatch(matchId, request)).thenReturn(expected);
+        when(matchService.updateMatch(matchId, request, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<MatchResponseDTO> response =
-                matchController.updateMatch(matchId, request);
+                matchController.updateMatch(matchId, request, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).updateMatch(matchId, request);
+        verify(matchService).updateMatch(matchId, request, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -156,11 +175,11 @@ class MatchControllerTest {
         MatchScoreRequestDTO request = new MatchScoreRequestDTO();
 
         ResponseEntity<Void> response =
-                matchController.registerMatchSets(matchId, request);
+                matchController.registerMatchSets(matchId, request, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        verify(matchService).saveMatchSets(matchId, request);
+        verify(matchService).saveMatchSets(matchId, request, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -168,15 +187,16 @@ class MatchControllerTest {
         Long matchId = 1L;
         List<MatchSetDTO> expected = List.of(new MatchSetDTO());
 
-        when(matchService.getSetsByMatchId(matchId)).thenReturn(expected);
+        when(matchService.getSetsByMatchId(matchId, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<List<MatchSetDTO>> response =
-                matchController.getMatchSets(matchId);
+                matchController.getMatchSets(matchId, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getSetsByMatchId(matchId);
+        verify(matchService).getSetsByMatchId(matchId, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -185,16 +205,16 @@ class MatchControllerTest {
         MatchWoRequestDTO request = new MatchWoRequestDTO();
         MatchResponseDTO expected = new MatchResponseDTO();
 
-        when(matchService.registerWalkover(matchId, request))
+        when(matchService.registerWalkover(matchId, request, ADMINISTRATOR_ID))
                 .thenReturn(expected);
 
         ResponseEntity<MatchResponseDTO> response =
-                matchController.registerWalkover(matchId, request);
+                matchController.registerWalkover(matchId, request, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).registerWalkover(matchId, request);
+        verify(matchService).registerWalkover(matchId, request, ADMINISTRATOR_ID);
     }
 
     @Test
@@ -202,14 +222,15 @@ class MatchControllerTest {
         Long matchId = 1L;
         MatchResponseDTO expected = new MatchResponseDTO();
 
-        when(matchService.getMatchById(matchId)).thenReturn(expected);
+        when(matchService.getMatchById(matchId, ADMINISTRATOR_ID))
+                .thenReturn(expected);
 
         ResponseEntity<MatchResponseDTO> response =
-                matchController.getMatchById(matchId);
+                matchController.getMatchById(matchId, principal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(expected, response.getBody());
 
-        verify(matchService).getMatchById(matchId);
+        verify(matchService).getMatchById(matchId, ADMINISTRATOR_ID);
     }
 }
