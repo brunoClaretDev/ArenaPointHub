@@ -464,6 +464,45 @@ class GroupServiceTest {
         assertEquals(3, savedGroups.get(1).getPlayers().size());
     }
 
+
+	@Test
+	void shouldNotGenerateMoreThanSixteenGroups() {
+	    Category category = createCategory(CATEGORY_ID);
+	
+	    List<Player> players = new ArrayList<>();
+	
+	    for (long i = 1; i <= 51; i++) {
+	        players.add(createPlayer(i, "Player " + i));
+	    }
+	
+	    category.setPlayers(players);
+	
+	    GroupGenerateRequestDTO dto = new GroupGenerateRequestDTO();
+	    dto.setCategoryId(CATEGORY_ID);
+	    dto.setTargetGroupSize(3);
+	
+	    mockOwnedCategory(category);
+	
+	    when(groupRepository
+	            .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+	                    CATEGORY_ID, ADMINISTRATOR_ID))
+	            .thenReturn(List.of());
+	
+	    BusinessException exception = assertThrows(
+	            BusinessException.class,
+	            () -> groupService.generateAndDistributeGroups(
+	                    dto, ADMINISTRATOR_ID)
+	    );
+	
+	    assertEquals(
+	            "Não é possível gerar mais de 16 grupos. O limite dos playoffs é de 32 classificados, com 2 jogadores por grupo.",
+	            exception.getMessage()
+	    );
+	
+	    verify(groupRepository, never()).save(any(Group.class));
+	}
+
+    
     @Test
     void shouldNotGenerateGroupsWhenCategoryAlreadyHasGroups() {
         Category category = createCategory(CATEGORY_ID);

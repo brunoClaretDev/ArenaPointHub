@@ -29,7 +29,7 @@ import jakarta.transaction.Transactional;
 @Service
 public class BracketService {
 
-    private static final int MAX_BRACKET_SIZE = 64;
+	private static final int MAX_BRACKET_SIZE = 32;
 
     private final GroupRepository groupRepository;
     private final GroupService groupService;
@@ -123,7 +123,13 @@ public class BracketService {
             throw new BusinessException(
                     "É necessário pelo menos um grupo para gerar o chaveamento.");
         }
-
+        
+        if (groupCount > 16) {
+            throw new BusinessException(
+                    "O mata-mata permite no máximo 16 grupos "
+                    + "e 32 jogadores classificados.");
+        }
+        
         if (firstPlaces.size() != groupCount
                 || secondPlaces.size() != groupCount) {
 
@@ -168,15 +174,14 @@ public class BracketService {
                     "São necessários pelo menos dois classificados para gerar o mata-mata.");
         }
 
+        if (totalPlayers > MAX_BRACKET_SIZE) {
+            throw new BusinessException(
+                    "O mata-mata permite no máximo 32 classificados.");
+        }
+
         int size = 2;
 
         while (size < totalPlayers) {
-
-            if (size >= MAX_BRACKET_SIZE) {
-                throw new BusinessException(
-                        "A chave suporta no máximo 64 classificados.");
-            }
-
             size *= 2;
         }
 
@@ -205,8 +210,7 @@ public class BracketService {
                 && bracketSize != 4
                 && bracketSize != 8
                 && bracketSize != 16
-                && bracketSize != 32
-                && bracketSize != 64) {
+                && bracketSize != 32) {
 
             throw new BusinessException(
                     "Tamanho de chave inválido para gerar Playoffs.");
@@ -638,7 +642,6 @@ public class BracketService {
     private MatchPhase determineFirstRoundPhase(int bracketSize) {
 
         return switch (bracketSize) {
-            case 64 -> MatchPhase.ROUND_OF_64;
             case 32 -> MatchPhase.ROUND_OF_32;
             case 16 -> MatchPhase.ROUND_OF_16;
             case 8 -> MatchPhase.QUARTER_FINAL;
@@ -652,7 +655,6 @@ public class BracketService {
     private MatchPhase getNextPhase(MatchPhase phase) {
 
         return switch (phase) {
-            case ROUND_OF_64 -> MatchPhase.ROUND_OF_32;
             case ROUND_OF_32 -> MatchPhase.ROUND_OF_16;
             case ROUND_OF_16 -> MatchPhase.QUARTER_FINAL;
             case QUARTER_FINAL -> MatchPhase.SEMI_FINAL;

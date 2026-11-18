@@ -30,10 +30,13 @@ import com.arenapointhub.api.repository.PlayerRepository;
 @Service
 public class GroupService {
 
-    private final GroupRepository groupRepository;
+	private static final int MAX_GROUPS_FOR_PLAYOFFS = 16;
+    
+	private final GroupRepository groupRepository;
     private final CategoryRepository categoryRepository;
     private final PlayerRepository playerRepository;
     private final MatchRepository matchRepository;
+    
 
     public GroupService(
             GroupRepository groupRepository,
@@ -198,6 +201,13 @@ public class GroupService {
 
         if (numberOfGroups == 0) {
             numberOfGroups = 1;
+        }
+
+        if (numberOfGroups > MAX_GROUPS_FOR_PLAYOFFS) {
+            throw new BusinessException(
+                    "Não é possível gerar mais de 16 grupos. "
+                    + "O limite dos playoffs é de 32 classificados, "
+                    + "com 2 jogadores por grupo.");
         }
 
         List<List<Player>> distributedLists = new ArrayList<>();

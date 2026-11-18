@@ -796,6 +796,39 @@ class BracketServiceTest {
                 14,
                 firstRound.stream().filter(this::isByeMatch).count());
     }
+    
+    @Test
+    void shouldGenerateBracketForSixteenGroups() {
+        Category category = createCategory();
+
+        prepareBracketScenario(category, 16);
+
+        BracketResponseDTO response = bracketService.generateKnockoutBracket(
+                CATEGORY_ID, ADMINISTRATOR_ID);
+
+        assertEquals(32, response.getTargetBracketSize());
+        assertEquals(31, response.getMatches().size());
+
+        captureSavedMatches(31);
+    }
+
+    @Test
+    void shouldRejectBracketForSeventeenGroups() {
+        Category category = createCategory();
+
+        List<Group> groups = createGroups(17, category);
+
+        mockCategoryAndGroups(category, groups);
+        mockQualifiedPlayers(17);
+
+        assertThrows(
+                BusinessException.class,
+                () -> bracketService.generateKnockoutBracket(
+                        CATEGORY_ID, ADMINISTRATOR_ID));
+
+        verify(matchRepository, org.mockito.Mockito.never())
+                .save(any(Match.class));
+    }
 
     @Test
     void shouldRejectGroupWithIncompleteClassification() {
