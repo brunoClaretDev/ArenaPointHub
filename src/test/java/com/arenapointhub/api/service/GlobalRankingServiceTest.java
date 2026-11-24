@@ -234,6 +234,41 @@ class GlobalRankingServiceTest {
     }
 
     @Test
+    void shouldProcessTournamentCompletionWhenFinalIsFinishedByWalkover() {
+        Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
+
+        Player champion = createPlayer(1L, "Champion");
+        Player runnerUp = createPlayer(2L, "Runner Up");
+
+        Match finalMatch = createMatch(
+                category,
+                champion,
+                runnerUp,
+                MatchPhase.FINAL,
+                MatchStatus.WO,
+                2,
+                0
+        );
+
+        TournamentScoringConfig config = createClassicConfig();
+        config.setPointsChampion(100);
+        config.setPointsRunnerUp(70);
+
+        mockScoringConfig(config);
+        mockEmptyRankings();
+
+        globalRankingService.processTournamentCompletion(
+                tournament,
+                List.of(finalMatch)
+        );
+
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 70, 1);
+        assertEquals(true, category.isRankingProcessed());
+    }
+
+    @Test
     void shouldProcessSemiFinalAndQuarterFinalPositions() {
         Tournament tournament = createTournament(1L);
         Category category = createCategory(1L, tournament);

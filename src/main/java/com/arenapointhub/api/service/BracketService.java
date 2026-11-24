@@ -736,10 +736,7 @@ public class BracketService {
                 .toList();
 
         boolean knockoutStarted = existingMatches.stream()
-                .anyMatch(match ->
-                        match.getStatus() == MatchStatus.IN_PROGRESS
-                        || match.getStatus() == MatchStatus.FINISHED
-                        || match.getStatus() == MatchStatus.WO);
+                .anyMatch(this::isKnockoutMatchStarted);
 
         if (knockoutStarted) {
             throw new BusinessException(
@@ -752,16 +749,26 @@ public class BracketService {
         }
     }
 
+    private boolean isKnockoutMatchStarted(Match match) {
+        if (match.getStatus() == MatchStatus.IN_PROGRESS
+                || match.getStatus() == MatchStatus.WO) {
+            return true;
+        }
+
+        // Partidas FINISHED com apenas um participante são BYEs automáticos,
+        // não partidas disputadas; portanto não devem bloquear a regeneração.
+        return match.getStatus() == MatchStatus.FINISHED
+                && match.getPlayer1() != null
+                && match.getPlayer2() != null;
+    }
+
     private void validateKnockoutCanBeRegenerated(Long categoryId) {
 
         boolean knockoutStarted = matchRepository
                 .findByCategoryId(categoryId)
                 .stream()
                 .filter(match -> match.getPhase() != MatchPhase.GROUP)
-                .anyMatch(match ->
-                        match.getStatus() == MatchStatus.IN_PROGRESS
-                        || match.getStatus() == MatchStatus.FINISHED
-                        || match.getStatus() == MatchStatus.WO);
+                .anyMatch(this::isKnockoutMatchStarted);
 
         if (knockoutStarted) {
             throw new BusinessException(

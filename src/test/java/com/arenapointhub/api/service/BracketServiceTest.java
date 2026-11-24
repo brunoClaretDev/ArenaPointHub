@@ -318,6 +318,8 @@ class BracketServiceTest {
             existingMatch.setCategory(category);
             existingMatch.setPhase(MatchPhase.SEMI_FINAL);
             existingMatch.setStatus(status);
+            existingMatch.setPlayer1(createPlayer(1L, "Player 1"));
+            existingMatch.setPlayer2(createPlayer(2L, "Player 2"));
 
             when(categoryRepository
                     .findByIdAndTournament_Administrator_Id(
@@ -377,6 +379,39 @@ class BracketServiceTest {
         inOrder.verify(matchRepository).flush();
         inOrder.verify(matchRepository, org.mockito.Mockito.atLeastOnce())
                 .save(any(Match.class));
+    }
+
+    @Test
+    void shouldAllowRegenerationWhenOnlyAutomaticByeMatchesAreFinished() {
+        Category category = createCategory();
+        List<Group> groups = createGroups(3, category);
+
+        Match automaticBye = new Match();
+        automaticBye.setCategory(category);
+        automaticBye.setPhase(MatchPhase.QUARTER_FINAL);
+        automaticBye.setStatus(MatchStatus.FINISHED);
+        automaticBye.setPlayer1(createPlayer(1L, "Player 1"));
+
+        when(categoryRepository
+                .findByIdAndTournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(Optional.of(category));
+
+        when(matchRepository.findByCategoryId(CATEGORY_ID))
+                .thenReturn(List.of(automaticBye));
+
+        when(groupRepository
+                .findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                        CATEGORY_ID, ADMINISTRATOR_ID))
+                .thenReturn(new ArrayList<>(groups));
+
+        mockQualifiedPlayers(3);
+        mockMatchSave();
+
+        bracketService.generateKnockoutBracket(CATEGORY_ID, ADMINISTRATOR_ID);
+
+        verify(matchRepository).deleteAll(List.of(automaticBye));
+        verify(matchRepository).flush();
     }
 
     @Test

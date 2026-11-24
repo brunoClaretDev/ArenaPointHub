@@ -2,6 +2,7 @@
 package com.arenapointhub.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -14,11 +15,14 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -515,6 +519,27 @@ class MatchServiceTest {
     }
 
     @Test
+    void shouldNotRegisterWalkoverThroughUpdateScore() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
+        MatchScoreUpdateDTO dto = new MatchScoreUpdateDTO(2, 0, MatchStatus.WO);
+
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateScore(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Registre o W.O. pelo fluxo específico de registro de W.O.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
     void shouldSetChampionWhenFinalIsFinished() {
         Player winner = createPlayer(1L, "Winner");
         Player loser = createPlayer(2L, "Loser");
@@ -558,6 +583,30 @@ class MatchServiceTest {
 
         assertEquals(winner, category.getChampion());
         verify(categoryRepository).save(category);
+    }
+
+    @Test
+    void shouldNotRegisterWalkoverThroughUpdateMatch() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.WO);
+
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Registre o W.O. pelo fluxo específico de registro de W.O.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
@@ -725,6 +774,110 @@ class MatchServiceTest {
                 "Placar inválido para o set 1"));
 
         verify(matchSetRepository, never()).save(any(MatchSet.class));
+    }
+
+    @Test
+    void shouldRejectSetNumberOutsideMaximumBestOfSequence() {
+        category.setSetsToWinMatch(2);
+        Match match = createMatch(
+                10L, category, createPlayer(1L, "Player 1"),
+                createPlayer(2L, "Player 2"),
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(4, 11, 5)));
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals("O número do set deve estar entre 1 e 3.", exception.getMessage());
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+    }
+
+    @Test
+    void shouldRejectDuplicateSetNumbersInSameRequest() {
+        Match match = createMatch(
+                10L, category, createPlayer(1L, "Player 1"),
+                createPlayer(2L, "Player 2"),
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5),
+                new MatchSetDTO(1, 11, 7)));
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals("O número do set 1 foi informado mais de uma vez.", exception.getMessage());
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+    }
+
+    @Test
+    void shouldRejectSetsAfterOnePlayerHasAlreadyWonTheMatch() {
+        category.setSetsToWinMatch(2);
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5),
+                new MatchSetDTO(2, 11, 7),
+                new MatchSetDTO(3, 5, 11)));
+
+        mockMatchLookup(10L, match);
+        mockNewSet(10L, 1);
+        mockNewSet(10L, 2);
+        mockNewSet(10L, 3);
+        when(matchSetRepository.findByMatchId(10L)).thenReturn(List.of(
+                createMatchSet(match, 1, 11, 5),
+                createMatchSet(match, 2, 11, 7),
+                createMatchSet(match, 3, 5, 11)));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Não é permitido registrar sets após a partida já ter um vencedor.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldRejectMissingSetNumberInSequence() {
+        Match match = createMatch(
+                10L, category, createPlayer(1L, "Player 1"),
+                createPlayer(2L, "Player 2"),
+                MatchPhase.GROUP, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5),
+                new MatchSetDTO(3, 11, 7)));
+
+        mockMatchLookup(10L, match);
+        mockNewSet(10L, 1);
+        mockNewSet(10L, 3);
+        when(matchSetRepository.findByMatchId(10L)).thenReturn(List.of(
+                createMatchSet(match, 1, 11, 5),
+                createMatchSet(match, 3, 11, 7)));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Os sets devem ser registrados em sequência, começando pelo set 1.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
@@ -1265,6 +1418,173 @@ class MatchServiceTest {
         verify(matchRepository).save(semiFinal);
     }
 
+    @ParameterizedTest
+    @MethodSource("earlyKnockoutPhaseTransitions")
+    void shouldAdvanceWinnerFromRoundOf32AndRoundOf16ToNextPhase(
+            MatchPhase currentPhase,
+            MatchPhase nextPhase,
+            int currentRoundMatchCount,
+            int finishedMatchIndex) {
+
+        List<Match> categoryMatches = new java.util.ArrayList<>();
+
+        Match finishedMatch = null;
+        for (int i = 0; i < currentRoundMatchCount; i++) {
+            Player player1 = createPlayer(1000L + (i * 2L), "Player " + i + "A");
+            Player player2 = createPlayer(1001L + (i * 2L), "Player " + i + "B");
+
+            Match currentMatch = createMatch(
+                    100L + i,
+                    category,
+                    player1,
+                    player2,
+                    currentPhase,
+                    i == finishedMatchIndex ? MatchStatus.FINISHED : MatchStatus.SCHEDULED,
+                    i == finishedMatchIndex ? 2 : 0,
+                    0);
+
+            categoryMatches.add(currentMatch);
+
+            if (i == finishedMatchIndex) {
+                finishedMatch = currentMatch;
+            }
+        }
+
+        int nextRoundMatchCount = currentRoundMatchCount / 2;
+        List<Match> nextRoundMatches = new java.util.ArrayList<>();
+
+        for (int i = 0; i < nextRoundMatchCount; i++) {
+            Match nextMatch = createMatch(
+                    200L + i,
+                    category,
+                    null,
+                    null,
+                    nextPhase,
+                    MatchStatus.SCHEDULED,
+                    0,
+                    0);
+
+            nextRoundMatches.add(nextMatch);
+            categoryMatches.add(nextMatch);
+        }
+
+        mockMatchesByCategory(categoryMatches.toArray(new Match[0]));
+
+        matchService.advanceWinnerToNextRound(finishedMatch);
+
+        Match targetMatch = nextRoundMatches.get(finishedMatchIndex / 2);
+        Player winner = finishedMatch.getPlayer1();
+
+        if (finishedMatchIndex % 2 == 0) {
+            assertEquals(winner, targetMatch.getPlayer1());
+            assertNull(targetMatch.getPlayer2());
+        } else {
+            assertEquals(winner, targetMatch.getPlayer2());
+            assertNull(targetMatch.getPlayer1());
+        }
+
+        verify(matchRepository).save(targetMatch);
+    }
+
+    private static Stream<Arguments> earlyKnockoutPhaseTransitions() {
+        return Stream.of(
+                Arguments.of(MatchPhase.ROUND_OF_32, MatchPhase.ROUND_OF_16, 16, 0),
+                Arguments.of(MatchPhase.ROUND_OF_32, MatchPhase.ROUND_OF_16, 16, 1),
+                Arguments.of(MatchPhase.ROUND_OF_16, MatchPhase.QUARTER_FINAL, 8, 0),
+                Arguments.of(MatchPhase.ROUND_OF_16, MatchPhase.QUARTER_FINAL, 8, 1)
+        );
+    }
+
+    @Test
+    void shouldAdvanceWinnerThroughEveryKnockoutPhase() {
+        Player winner = createPlayer(1L, "Winner");
+        List<Match> categoryMatches = new java.util.ArrayList<>();
+
+        List<Match> roundOf32 = createRoundMatches(
+                categoryMatches, MatchPhase.ROUND_OF_32, 100L, 16);
+        List<Match> roundOf16 = createRoundMatches(
+                categoryMatches, MatchPhase.ROUND_OF_16, 200L, 8);
+        List<Match> quarterFinals = createRoundMatches(
+                categoryMatches, MatchPhase.QUARTER_FINAL, 300L, 4);
+        List<Match> semiFinals = createRoundMatches(
+                categoryMatches, MatchPhase.SEMI_FINAL, 400L, 2);
+        List<Match> finals = createRoundMatches(
+                categoryMatches, MatchPhase.FINAL, 500L, 1);
+
+        roundOf32.get(0).setPlayer1(winner);
+        roundOf32.get(0).setPlayer2(createPlayer(700L, "Round of 32 Opponent"));
+        roundOf32.get(0).setStatus(MatchStatus.FINISHED);
+        roundOf32.get(0).setScorePlayer1(2);
+        roundOf32.get(0).setScorePlayer2(0);
+
+        when(matchRepository.findByCategoryIdAndCategory_Tournament_Administrator_Id(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID))
+                .thenReturn(categoryMatches);
+        when(matchRepository.save(any(Match.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Match currentMatch = roundOf32.get(0);
+        matchService.advanceWinnerToNextRound(currentMatch);
+        assertEquals(winner, roundOf16.get(0).getPlayer1());
+
+        currentMatch = completeFirstMatchWithWinner(
+                roundOf16.get(0), winner, 600L);
+        matchService.advanceWinnerToNextRound(currentMatch);
+        assertEquals(winner, quarterFinals.get(0).getPlayer1());
+
+        currentMatch = completeFirstMatchWithWinner(
+                quarterFinals.get(0), winner, 601L);
+        matchService.advanceWinnerToNextRound(currentMatch);
+        assertEquals(winner, semiFinals.get(0).getPlayer1());
+
+        currentMatch = completeFirstMatchWithWinner(
+                semiFinals.get(0), winner, 602L);
+        matchService.advanceWinnerToNextRound(currentMatch);
+        assertEquals(winner, finals.get(0).getPlayer1());
+
+        verify(matchRepository, times(4)).save(any(Match.class));
+    }
+
+    private List<Match> createRoundMatches(
+            List<Match> categoryMatches,
+            MatchPhase phase,
+            long firstId,
+            int matchCount) {
+
+        List<Match> roundMatches = new java.util.ArrayList<>();
+
+        for (int i = 0; i < matchCount; i++) {
+            Match match = createMatch(
+                    firstId + i,
+                    category,
+                    null,
+                    null,
+                    phase,
+                    MatchStatus.SCHEDULED,
+                    0,
+                    0);
+
+            roundMatches.add(match);
+            categoryMatches.add(match);
+        }
+
+        return roundMatches;
+    }
+
+    private Match completeFirstMatchWithWinner(
+            Match match,
+            Player winner,
+            Long opponentId) {
+
+        match.setPlayer1(winner);
+        match.setPlayer2(createPlayer(opponentId, "Opponent " + opponentId));
+        match.setStatus(MatchStatus.FINISHED);
+        match.setScorePlayer1(2);
+        match.setScorePlayer2(0);
+        return match;
+    }
+
     @Test
     void shouldAdvanceWinnerFromSemiFinalToFinal() {
         Player winner = createPlayer(1L, "Winner");
@@ -1379,6 +1699,62 @@ class MatchServiceTest {
         MatchScoreUpdateDTO dto = createFinishedScore(2, 0);
 
         matchService.updateScore(30L, dto, ADMINISTRATOR_ID);
+
+        verify(globalRankingService).processTournamentCompletion(
+                any(Tournament.class),
+                anyList());
+    }
+
+    @Test
+    void shouldDistributeTournamentPointsWhenFinalIsFinishedByWalkover() {
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(winner.getId());
+
+        mockMatchLookup(30L, finalMatch);
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
+
+        matchService.registerWalkover(30L, dto, ADMINISTRATOR_ID);
+
+        verify(globalRankingService).processTournamentCompletion(
+                any(Tournament.class),
+                anyList());
+    }
+
+    @Test
+    void shouldDistributeTournamentPointsWhenFinalIsFinishedUsingMatchSets() {
+        category.setSetsToWinMatch(2);
+
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5),
+                new MatchSetDTO(2, 11, 7)));
+
+        mockMatchLookup(30L, finalMatch);
+        mockNewSet(30L, 1);
+        mockNewSet(30L, 2);
+        when(matchSetRepository.findByMatchId(30L))
+                .thenReturn(List.of(
+                        createMatchSet(finalMatch, 1, 11, 5),
+                        createMatchSet(finalMatch, 2, 11, 7)));
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
+
+        matchService.saveMatchSets(30L, dto, ADMINISTRATOR_ID);
 
         verify(globalRankingService).processTournamentCompletion(
                 any(Tournament.class),

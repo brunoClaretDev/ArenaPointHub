@@ -1,11 +1,13 @@
 package com.arenapointhub.api.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 public class MatchSetDTO {
 
     @NotNull(message = "O número do set é obrigatório.")
+    @Min(value = 1, message = "O número do set deve ser maior que zero.")
     private Integer setNumber;
 
     @NotNull(message = "A pontuação do jogador 1 é obrigatória.")

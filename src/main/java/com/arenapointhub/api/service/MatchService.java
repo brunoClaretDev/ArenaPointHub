@@ -1,8 +1,11 @@
 
 package com.arenapointhub.api.service;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -212,6 +215,8 @@ public class MatchService {
                 ? dto.getStatus()
                 : match.getStatus();
 
+        ensureWalkoverUsesDedicatedFlow(requestedStatus);
+
         if (requestedStatus == MatchStatus.FINISHED) {
             validateFinishedScore(match, scorePlayer1, scorePlayer2);
         }
@@ -311,6 +316,7 @@ public class MatchService {
 
         Match match = findMatch(id, administratorId);
         ensureMatchCanBeEdited(match);
+        ensureWalkoverUsesDedicatedFlow(dto.getStatus());
 
         if (dto.getScorePlayer1() != null) {
             match.setScorePlayer1(dto.getScorePlayer1());
@@ -351,6 +357,8 @@ public class MatchService {
 
         Match match = findMatch(matchId, administratorId);
         ensureMatchCanBeEdited(match);
+
+        validateRequestedSets(match, dto);
 
         for (MatchSetDTO setDto : dto.getSets()) {
             int p1Score = setDto.getScorePlayer1();
@@ -402,12 +410,34 @@ public class MatchService {
             matchSetRepository.save(matchSet);
         }
 
-        List<MatchSet> allSets = matchSetRepository.findByMatchId(matchId);
+        List<MatchSet> allSets = new ArrayList<>(
+                matchSetRepository.findByMatchId(matchId));
+
+        if (allSets.stream().anyMatch(set -> set.getSetNumber() == null)) {
+            throw new BusinessException(
+                    "O número de todos os sets deve ser informado.");
+        }
+
+        allSets.sort(Comparator.comparing(MatchSet::getSetNumber));
 
         int setsWonPlayer1 = 0;
         int setsWonPlayer2 = 0;
+        int expectedSetNumber = 1;
+        int setsNeededToWin = determineSetsNeededToWin(match);
 
         for (MatchSet set : allSets) {
+            if (set.getSetNumber() == null
+                    || set.getSetNumber() != expectedSetNumber++) {
+                throw new BusinessException(
+                        "Os sets devem ser registrados em sequência, começando pelo set 1.");
+            }
+
+            if (setsWonPlayer1 >= setsNeededToWin
+                    || setsWonPlayer2 >= setsNeededToWin) {
+                throw new BusinessException(
+                        "Não é permitido registrar sets após a partida já ter um vencedor.");
+            }
+
             if (set.getScorePlayer1() > set.getScorePlayer2()) {
                 setsWonPlayer1++;
             } else if (set.getScorePlayer2() > set.getScorePlayer1()) {
@@ -417,8 +447,6 @@ public class MatchService {
 
         match.setScorePlayer1(setsWonPlayer1);
         match.setScorePlayer2(setsWonPlayer2);
-
-        int setsNeededToWin = determineSetsNeededToWin(match);
 
         if (setsWonPlayer1 >= setsNeededToWin
                 || setsWonPlayer2 >= setsNeededToWin) {
@@ -435,6 +463,35 @@ public class MatchService {
         } else {
             match.setStatus(MatchStatus.IN_PROGRESS);
             matchRepository.save(match);
+        }
+    }
+
+    private void validateRequestedSets(
+            Match match,
+            MatchScoreRequestDTO dto) {
+
+        if (dto == null || dto.getSets() == null || dto.getSets().isEmpty()) {
+            throw new BusinessException(
+                    "É necessário informar ao menos o resultado de um set.");
+        }
+
+        int maximumSetNumber = determineSetsNeededToWin(match) * 2 - 1;
+        Set<Integer> setNumbers = new HashSet<>();
+
+        for (MatchSetDTO setDto : dto.getSets()) {
+            if (setDto == null || setDto.getSetNumber() == null
+                    || setDto.getSetNumber() < 1
+                    || setDto.getSetNumber() > maximumSetNumber) {
+                throw new BusinessException(
+                        "O número do set deve estar entre 1 e "
+                                + maximumSetNumber + ".");
+            }
+
+            if (!setNumbers.add(setDto.getSetNumber())) {
+                throw new BusinessException(
+                        "O número do set " + setDto.getSetNumber()
+                                + " foi informado mais de uma vez.");
+            }
         }
     }
 
@@ -485,6 +542,13 @@ public class MatchService {
         Category category = match.getCategory();
         category.setChampion(champion);
         categoryRepository.save(category);
+    }
+
+    private void ensureWalkoverUsesDedicatedFlow(MatchStatus requestedStatus) {
+        if (requestedStatus == MatchStatus.WO) {
+            throw new BusinessException(
+                    "Registre o W.O. pelo fluxo específico de registro de W.O.");
+        }
     }
 
     private void ensureMatchCanBeEdited(Match match) {
