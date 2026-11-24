@@ -705,27 +705,38 @@ public class MatchService {
 
         Match targetMatch = nextRoundMatches.get(targetMatchIndex);
 
-        boolean isPlayer1ThisWinner = targetMatch.getPlayer1() != null
-                && targetMatch.getPlayer1().getId().equals(winner.getId());
+        boolean winnerAdvancesToPlayer1 = matchIndex % 2 == 0;
 
-        boolean isPlayer2ThisWinner = targetMatch.getPlayer2() != null
-                && targetMatch.getPlayer2().getId().equals(winner.getId());
+        Player targetPlayer = winnerAdvancesToPlayer1
+                ? targetMatch.getPlayer1()
+                : targetMatch.getPlayer2();
 
-        if (isPlayer1ThisWinner || isPlayer2ThisWinner) {
-            return;
+        Player oppositePlayer = winnerAdvancesToPlayer1
+                ? targetMatch.getPlayer2()
+                : targetMatch.getPlayer1();
+
+        if (targetPlayer != null) {
+            if (targetPlayer.getId().equals(winner.getId())) {
+                return;
+            }
+
+            throw new BusinessException(
+                    "A vaga do vencedor na próxima fase já está ocupada por outro jogador.");
         }
 
-        if (matchIndex % 2 == 0) {
-            if (targetMatch.getPlayer1() == null) {
-                targetMatch.setPlayer1(winner);
-                matchRepository.save(targetMatch);
-            }
+        if (oppositePlayer != null
+                && oppositePlayer.getId().equals(winner.getId())) {
+            throw new BusinessException(
+                    "O vencedor já está posicionado no lado incorreto da próxima partida.");
+        }
+
+        if (winnerAdvancesToPlayer1) {
+            targetMatch.setPlayer1(winner);
         } else {
-            if (targetMatch.getPlayer2() == null) {
-                targetMatch.setPlayer2(winner);
-                matchRepository.save(targetMatch);
-            }
+            targetMatch.setPlayer2(winner);
         }
+
+        matchRepository.save(targetMatch);
     }
 
     private MatchPhase getNextPhase(MatchPhase currentPhase) {

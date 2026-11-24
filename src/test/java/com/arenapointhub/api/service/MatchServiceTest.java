@@ -1080,6 +1080,76 @@ class MatchServiceTest {
     }
 
     @Test
+    void shouldNotSaveNextRoundMatchWhenWinnerIsAlreadyInCorrectSlot() {
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+
+        Match quarterFinal = createMatch(
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+
+        Match semiFinal = createMatch(
+                20L, category, winner, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        mockMatchesByCategory(quarterFinal, semiFinal);
+
+        matchService.advanceWinnerToNextRound(quarterFinal);
+
+        assertEquals(winner, semiFinal.getPlayer1());
+        verify(matchRepository, never()).save(semiFinal);
+    }
+
+    @Test
+    void shouldRejectAdvancementWhenTargetSlotIsOccupiedByAnotherPlayer() {
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+        Player unexpectedPlayer = createPlayer(3L, "Unexpected Player");
+
+        Match quarterFinal = createMatch(
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+
+        Match semiFinal = createMatch(
+                20L, category, unexpectedPlayer, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        mockMatchesByCategory(quarterFinal, semiFinal);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.advanceWinnerToNextRound(quarterFinal));
+
+        assertTrue(exception.getMessage().contains(
+                "A vaga do vencedor na próxima fase já está ocupada"));
+        verify(matchRepository, never()).save(semiFinal);
+    }
+
+    @Test
+    void shouldRejectAdvancementWhenWinnerIsInWrongSlotOfNextRound() {
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+
+        Match quarterFinal = createMatch(
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+
+        Match semiFinal = createMatch(
+                20L, category, null, winner,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        mockMatchesByCategory(quarterFinal, semiFinal);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.advanceWinnerToNextRound(quarterFinal));
+
+        assertTrue(exception.getMessage().contains(
+                "O vencedor já está posicionado no lado incorreto"));
+        verify(matchRepository, never()).save(semiFinal);
+    }
+
+    @Test
     void shouldAdvanceWinnerFromSecondQuarterFinalToSemiFinalPlayer2() {
         Player player1 = createPlayer(1L, "Player 1");
         Player winner = createPlayer(3L, "Winner");
