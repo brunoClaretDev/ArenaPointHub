@@ -83,16 +83,9 @@ public class BracketService {
 
         int bracketSize = calculateBracketSize(totalQualified);
 
-        int numberOfByes = calculateRequiredByes(
-                totalQualified, bracketSize);
-
-        List<Player> playersWithBye = determinePlayersWithBye(
-                firstPlaces, secondPlaces, numberOfByes);
-
         List<Player> seededPlayers = buildSeededPlayers(
                 firstPlaces,
                 secondPlaces,
-                playersWithBye,
                 bracketSize);
 
         removeExistingKnockoutIfNotStarted(categoryId);
@@ -218,200 +211,48 @@ public class BracketService {
     }
 
     // =========================================================
-    // DISTRIBUIÇÃO DOS BYES
-    // =========================================================
-
-    private List<Player> determinePlayersWithBye(
-            List<Player> firstPlaces,
-            List<Player> secondPlaces,
-            int numberOfByes) {
-
-        List<Player> result = new ArrayList<>();
-
-        if (numberOfByes < 0
-                || numberOfByes > firstPlaces.size() + secondPlaces.size()) {
-
-            throw new BusinessException(
-                    "Quantidade inválida de BYEs.");
-        }
-
-        int firstPlaceByes = Math.min(
-                numberOfByes, firstPlaces.size());
-
-        result.addAll(firstPlaces.subList(0, firstPlaceByes));
-
-        int remainingByes = numberOfByes - result.size();
-
-        if (remainingByes > 0) {
-            int secondPlaceByes = Math.min(
-                    remainingByes, secondPlaces.size());
-
-            result.addAll(secondPlaces.subList(0, secondPlaceByes));
-        }
-
-        if (result.size() != numberOfByes) {
-            throw new BusinessException(
-                    "Não foi possível distribuir todos os BYEs.");
-        }
-
-        return result;
-    }
-
-    // =========================================================
-    // MONTAGEM DO CHAVEAMENTO
+    // MONTAGEM DO CHAVEAMENTO CONFORME A PLANILHA
     // =========================================================
 
     private List<Player> buildSeededPlayers(
             List<Player> firstPlaces,
             List<Player> secondPlaces,
-            List<Player> playersWithBye,
             int bracketSize) {
 
         int groupCount = firstPlaces.size();
-        int halfSize = bracketSize / 2;
-
-        List<Player> slots = new ArrayList<>(
-                java.util.Collections.nCopies(bracketSize, null));
 
         if (groupCount == 1) {
-            slots.set(0, firstPlaces.get(0));
-            slots.set(1, secondPlaces.get(0));
-            return slots;
+            return new ArrayList<>(List.of(
+                    firstPlaces.get(0),
+                    secondPlaces.get(0)));
         }
 
-        if (groupCount == 3) {
-            slots.set(0, firstPlaces.get(0));
+        String[] template = getSeedingTemplate(groupCount);
 
-            slots.set(2, secondPlaces.get(1));
-            slots.set(3, secondPlaces.get(2));
-
-            slots.set(4, firstPlaces.get(1));
-
-            slots.set(6, firstPlaces.get(2));
-            slots.set(7, secondPlaces.get(0));
-
-            validateSeededPlayers(slots, firstPlaces, secondPlaces);
-            return slots;
+        if (template.length != bracketSize) {
+            throw new BusinessException(
+                    "O modelo de chaveamento não corresponde ao tamanho da chave.");
         }
 
-        if (groupCount == 4) {
-            slots.set(0, firstPlaces.get(0));
-            slots.set(1, secondPlaces.get(2));
+        int expectedByes = calculateRequiredByes(
+                firstPlaces.size() + secondPlaces.size(), bracketSize);
 
-            slots.set(2, firstPlaces.get(3));
-            slots.set(3, secondPlaces.get(1));
-
-            slots.set(4, firstPlaces.get(2));
-            slots.set(5, secondPlaces.get(0));
-
-            slots.set(6, firstPlaces.get(1));
-            slots.set(7, secondPlaces.get(3));
-
-            validateSeededPlayers(slots, firstPlaces, secondPlaces);
-            return slots;
-        }
-
-        if (groupCount == 6) {
-            slots.set(0, firstPlaces.get(0));
-
-            slots.set(2, firstPlaces.get(5));
-            slots.set(3, secondPlaces.get(2));
-
-            slots.set(4, secondPlaces.get(3));
-            slots.set(5, secondPlaces.get(4));
-            slots.set(6, firstPlaces.get(1));
-
-            slots.set(8, firstPlaces.get(4));
-            slots.set(9, secondPlaces.get(0));
-
-            slots.set(10, secondPlaces.get(1));
-            slots.set(11, secondPlaces.get(5));
-
-            slots.set(12, firstPlaces.get(2));
-            slots.set(14, firstPlaces.get(3));
-
-            validateSeededPlayers(slots, firstPlaces, secondPlaces);
-            return slots;
-        }
-
-        if (groupCount == 7) {
-            slots.set(0, firstPlaces.get(0));
-
-            slots.set(2, secondPlaces.get(0));
-            slots.set(3, secondPlaces.get(1));
-
-            slots.set(4, firstPlaces.get(5));
-            slots.set(5, secondPlaces.get(2));
-
-            slots.set(6, firstPlaces.get(3));
-            slots.set(7, secondPlaces.get(4));
-
-            slots.set(8, firstPlaces.get(2));
-            slots.set(9, secondPlaces.get(3));
-
-            slots.set(10, firstPlaces.get(4));
-            slots.set(11, secondPlaces.get(6));
-
-            slots.set(12, firstPlaces.get(6));
-            slots.set(13, secondPlaces.get(5));
-
-            slots.set(14, firstPlaces.get(1));
-
-            validateSeededPlayers(slots, firstPlaces, secondPlaces);
-            return slots;
-        }
-
-        if (groupCount == 8) {
-            slots.set(0, firstPlaces.get(0));
-            slots.set(1, secondPlaces.get(6));
-
-            slots.set(2, firstPlaces.get(7));
-            slots.set(3, secondPlaces.get(4));
-
-            slots.set(4, firstPlaces.get(5));
-            slots.set(5, secondPlaces.get(1));
-
-            slots.set(6, firstPlaces.get(3));
-            slots.set(7, secondPlaces.get(2));
-
-            slots.set(8, firstPlaces.get(2));
-            slots.set(9, secondPlaces.get(5));
-
-            slots.set(10, firstPlaces.get(4));
-            slots.set(11, secondPlaces.get(0));
-
-            slots.set(12, firstPlaces.get(6));
-            slots.set(13, secondPlaces.get(3));
-
-            slots.set(14, firstPlaces.get(1));
-            slots.set(15, secondPlaces.get(7));
-
-            validateSeededPlayers(slots, firstPlaces, secondPlaces);
-            return slots;
-        }
-
-        List<Player> upperHalf = new ArrayList<>();
-        List<Player> lowerHalf = new ArrayList<>();
-
-        for (int i = 0; i < groupCount; i++) {
-            if (i % 2 == 0) {
-                upperHalf.add(firstPlaces.get(i));
-                lowerHalf.add(secondPlaces.get(i));
-            } else {
-                lowerHalf.add(firstPlaces.get(i));
-                upperHalf.add(secondPlaces.get(i));
+        long emptySlots = 0;
+        for (String seed : template) {
+            if (seed == null) {
+                emptySlots++;
             }
         }
 
-        List<Player> upperSlots = buildHalfSlots(
-                upperHalf, playersWithBye, halfSize / 2);
+        if (emptySlots != expectedByes) {
+            throw new BusinessException(
+                    "A quantidade de vagas BYE do modelo não corresponde aos classificados.");
+        }
 
-        List<Player> lowerSlots = buildHalfSlots(
-                lowerHalf, playersWithBye, halfSize / 2);
+        List<Player> slots = new ArrayList<>(template.length);
 
-        for (int i = 0; i < halfSize; i++) {
-            slots.set(i, upperSlots.get(i));
-            slots.set(i + halfSize, lowerSlots.get(i));
+        for (String seed : template) {
+            slots.add(resolveSeededPlayer(seed, firstPlaces, secondPlaces));
         }
 
         validateSeededPlayers(slots, firstPlaces, secondPlaces);
@@ -419,51 +260,168 @@ public class BracketService {
         return slots;
     }
 
-    private List<Player> buildHalfSlots(
-            List<Player> halfPlayers,
-            List<Player> playersWithBye,
-            int matchesPerHalf) {
+    /**
+     * Modelos de posicionamento extraídos da planilha "Modelos de grupos.xlsx".
+     * A posição null representa uma vaga sem participante: BYE (500) ou
+     * posição marcada com 0 na planilha, cujo valor deve ser ignorado.
+     */
+    private String[] getSeedingTemplate(int groupCount) {
 
-        List<Player> byePlayers = playersWithBye.stream()
-                .filter(bye -> halfPlayers.stream()
-                        .anyMatch(player ->
-                                player.getId().equals(bye.getId())))
-                .toList();
+        return switch (groupCount) {
+            case 2 -> new String[] {
+                    "1.1", "2.2", "1.2", "2.1"
+                };
+            case 3 -> new String[] {
+                    "1.1", null, "2.3", "2.2",
+                    "1.3", "2.1", "1.2", null
+                };
+            case 4 -> new String[] {
+                    "1.1", "2.3", "1.4", "2.2",
+                    "1.3", "2.1", "1.2", "2.4"
+                };
+            case 5 -> new String[] {
+                    "1.1", null, "2.3", "2.5",
+                    null, "2.2", "1.4", null,
+                    "1.3", null, "1.5", null,
+                    "2.1", "2.4", "1.2", null
+                };
+            case 6 -> new String[] {
+                    "1.1", null, "2.3", "2.5",
+                    "1.6", "2.2", "1.4", null,
+                    "1.3", null, "1.5", "2.1",
+                    "2.6", "2.4", "1.2", null
+                };
+            case 7 -> new String[] {
+                    "1.1", null, "2.7", "2.5",
+                    "1.6", "2.2", "1.4", "2.3",
+                    "1.3", "2.6", "1.5", "2.1",
+                    "1.7", "2.4", "1.2", null
+                };
+            case 8 -> new String[] {
+                    "1.1", "2.7", "1.8", "2.5",
+                    "1.6", "2.2", "1.4", "2.3",
+                    "1.3", "2.6", "1.5", "2.1",
+                    "1.7", "2.4", "1.2", "2.8"
+                };
+            case 9 -> new String[] {
+                    "1.1", null, "2.2", null,
+                    "2.3", null, "1.8", null,
+                    "1.6", null, "2.9", "2.7",
+                    "2.5", null, "1.4", null,
+                    "1.3", null, null, "2.4",
+                    "2.8", "2.6", "1.5", null,
+                    "1.7", null, "1.9", null,
+                    null, "2.1", "1.2", null
+                };
+            case 10 -> new String[] {
+                    "1.1", null, "2.2", null,
+                    "1.10", null, "1.8", null,
+                    "1.6", null, "2.9", "2.5",
+                    "2.7", "2.3", "1.4", null,
+                    "1.3", null, "2.10", "2.4",
+                    "2.8", "2.6", "1.5", null,
+                    "1.7", null, "1.9", null,
+                    null, "2.1", "1.2", null
+                };
+            case 11 -> new String[] {
+                    "1.1", null, "2.2", "2.9",
+                    "1.10", null, "1.8", null,
+                    "1.6", null, "2.11", "2.5",
+                    "2.7", "2.3", "1.4", null,
+                    "1.3", null, "2.10", "2.4",
+                    "1.11", "2.6", "1.5", null,
+                    "1.7", null, "1.9", null,
+                    "2.8", "2.1", "1.2", null
+                };
+            case 12 -> new String[] {
+                    "1.1", null, "2.2", "2.9",
+                    "1.10", "2.11", "1.8", null,
+                    "1.6", null, "1.12", "2.5",
+                    "2.7", "2.3", "1.4", null,
+                    "1.3", null, "2.10", "2.4",
+                    "1.11", "2.6", "1.5", null,
+                    "1.7", null, "1.9", "2.8",
+                    "2.12", "2.1", "1.2", null
+                };
+            case 13 -> new String[] {
+                    "1.1", null, "2.2", "2.13",
+                    "1.10", "2.11", "1.8", "2.9",
+                    "1.6", null, "1.12", "2.5",
+                    "2.7", "2.3", "1.4", null,
+                    "1.3", null, "1.13", "2.4",
+                    "1.11", "2.6", "1.5", null,
+                    "1.7", "2.10", "1.9", "2.8",
+                    "2.12", "2.1", "1.2", null
+                };
+            case 14 -> new String[] {
+                    "1.1", null, "2.2", "2.13",
+                    "1.10", "2.11", "1.8", "2.9",
+                    "1.6", "2.7", "1.12", "2.5",
+                    "1.14", "2.3", "1.4", null,
+                    "1.3", null, "1.13", "2.4",
+                    "1.11", "2.6", "1.5", "2.12",
+                    "1.7", "2.10", "1.9", "2.8",
+                    "2.14", "2.1", "1.2", null
+                };
+            case 15 -> new String[] {
+                    "1.1", null, "2.15", "2.13",
+                    "1.10", "2.11", "1.8", "2.9",
+                    "1.6", "2.7", "1.12", "2.5",
+                    "1.14", "2.3", "1.4", "2.2",
+                    "1.3", "2.14", "1.13", "2.4",
+                    "1.11", "2.6", "1.5", "2.12",
+                    "1.7", "2.10", "1.9", "2.8",
+                    "1.15", "2.1", "1.2", null
+                };
+            case 16 -> new String[] {
+                    "1.1", "2.15", "1.16", "2.13",
+                    "1.10", "2.11", "1.8", "2.9",
+                    "1.6", "2.7", "1.12", "2.5",
+                    "1.14", "2.3", "1.4", "2.2",
+                    "1.3", "2.14", "1.13", "2.4",
+                    "1.11", "2.6", "1.5", "2.12",
+                    "1.7", "2.10", "1.9", "2.8",
+                    "1.15", "2.1", "1.2", "2.16"
+                };
+            default -> throw new BusinessException(
+                    "Não existe modelo de chaveamento para essa quantidade de grupos.");
+        };
+    }
 
-        List<Player> playersWithoutBye = halfPlayers.stream()
-                .filter(player -> byePlayers.stream()
-                        .noneMatch(bye ->
-                                bye.getId().equals(player.getId())))
-                .toList();
+    private Player resolveSeededPlayer(
+            String seed,
+            List<Player> firstPlaces,
+            List<Player> secondPlaces) {
 
-        if (playersWithoutBye.size() % 2 != 0) {
+        if (seed == null) {
+            return null;
+        }
+
+        List<Player> source;
+        if (seed.startsWith("1.")) {
+            source = firstPlaces;
+        } else if (seed.startsWith("2.")) {
+            source = secondPlaces;
+        } else {
             throw new BusinessException(
-                    "A distribuição dos classificados deixou um número ímpar de jogadores sem BYE em uma das metades.");
+                    "Identificação inválida no modelo de chaveamento: " + seed);
         }
 
-        if (byePlayers.size() + playersWithoutBye.size() / 2
-                != matchesPerHalf) {
+        int groupNumber;
+        try {
+            groupNumber = Integer.parseInt(seed.substring(2));
+        } catch (NumberFormatException exception) {
             throw new BusinessException(
-                    "A distribuição dos BYEs não corresponde à capacidade da metade do chaveamento.");
+                    "Identificação inválida no modelo de chaveamento: " + seed);
         }
 
-        List<Player> slots = new ArrayList<>(
-                java.util.Collections.nCopies(matchesPerHalf * 2, null));
-
-        int matchIndex = 0;
-
-        for (Player player : byePlayers) {
-            slots.set(matchIndex * 2, player);
-            matchIndex++;
+        int playerIndex = groupNumber - 1;
+        if (playerIndex < 0 || playerIndex >= source.size()) {
+            throw new BusinessException(
+                    "O modelo de chaveamento referencia um grupo inexistente: " + seed);
         }
 
-        for (int i = 0; i < playersWithoutBye.size(); i += 2) {
-            slots.set(matchIndex * 2, playersWithoutBye.get(i));
-            slots.set(matchIndex * 2 + 1, playersWithoutBye.get(i + 1));
-            matchIndex++;
-        }
-
-        return slots;
+        return source.get(playerIndex);
     }
 
     private void validateSeededPlayers(

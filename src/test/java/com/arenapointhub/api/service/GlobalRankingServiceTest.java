@@ -324,6 +324,145 @@ class GlobalRankingServiceTest {
     }
 
     @Test
+    void shouldDistributeSameByPositionPointsForPlayersEliminatedInSameRound() {
+        Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
+
+        Player champion = createPlayer(1L, "Champion");
+        Player runnerUp = createPlayer(2L, "Runner Up");
+        Player third = createPlayer(3L, "Third");
+        Player fourth = createPlayer(4L, "Fourth");
+        Player fifth = createPlayer(5L, "Fifth");
+        Player sixth = createPlayer(6L, "Sixth");
+        Player seventh = createPlayer(7L, "Seventh");
+        Player eighth = createPlayer(8L, "Eighth");
+
+        Match finalMatch = createMatch(
+                category, champion, runnerUp,
+                MatchPhase.FINAL, MatchStatus.FINISHED, 3, 1);
+        Match semi1 = createMatch(
+                category, champion, third,
+                MatchPhase.SEMI_FINAL, MatchStatus.FINISHED, 3, 1);
+        Match semi2 = createMatch(
+                category, runnerUp, fourth,
+                MatchPhase.SEMI_FINAL, MatchStatus.FINISHED, 3, 1);
+        Match quarter1 = createMatch(
+                category, champion, fifth,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 3, 1);
+        Match quarter2 = createMatch(
+                category, runnerUp, sixth,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 3, 1);
+        Match quarter3 = createMatch(
+                category, third, seventh,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 3, 1);
+        Match quarter4 = createMatch(
+                category, fourth, eighth,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 3, 1);
+
+        TournamentScoringConfig config = createByPositionConfig();
+        config.setPoints1stPlace(100);
+        config.setPoints2ndPlace(80);
+        config.setPoints3rdPlace(60);
+        config.setPoints4thPlace(50);
+        config.setPoints5thPlace(40);
+        config.setPoints6thPlace(30);
+
+        mockScoringConfig(config);
+        mockEmptyRankings();
+
+        globalRankingService.processTournamentCompletion(
+                tournament,
+                List.of(finalMatch, semi1, semi2, quarter1, quarter2, quarter3, quarter4));
+
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 80, 1);
+        // O campeão (1º) define o 3º: seu adversário eliminado na semifinal.
+        verifyRankingSaved(third, 60, 1);
+        // O vice-campeão (2º) define o 4º: seu adversário eliminado na semifinal.
+        verifyRankingSaved(fourth, 50, 1);
+
+        // Os dois eliminados nas quartas compartilham o 5º lugar.
+        verifyRankingSaved(fifth, 40, 1);
+        verifyRankingSaved(sixth, 40, 1);
+        verifyRankingSaved(seventh, 40, 1);
+        verifyRankingSaved(eighth, 40, 1);
+    }
+
+    @Test
+    void shouldUseConfiguredClassicPointsForRoundOf16AndRoundOf32Losers() {
+        Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
+
+        Player champion = createPlayer(1L, "Champion");
+        Player runnerUp = createPlayer(2L, "Runner Up");
+        Player eliminatedInRoundOf16 = createPlayer(3L, "Round Of 16 Loser");
+        Player eliminatedInRoundOf32 = createPlayer(4L, "Round Of 32 Loser");
+
+        Match finalMatch = createMatch(
+                category, champion, runnerUp,
+                MatchPhase.FINAL, MatchStatus.FINISHED, 3, 1);
+        Match roundOf16Match = createMatch(
+                category, createPlayer(5L, "Round Of 16 Winner"), eliminatedInRoundOf16,
+                MatchPhase.ROUND_OF_16, MatchStatus.FINISHED, 3, 1);
+        Match roundOf32Match = createMatch(
+                category, createPlayer(6L, "Round Of 32 Winner"), eliminatedInRoundOf32,
+                MatchPhase.ROUND_OF_32, MatchStatus.FINISHED, 3, 1);
+
+        TournamentScoringConfig config = createClassicConfig();
+        config.setPointsChampion(100);
+        config.setPointsRunnerUp(80);
+        config.setPointsRoundOf16Loser(50);
+        config.setPointsRoundOf32Loser(30);
+
+        mockScoringConfig(config);
+        mockEmptyRankings();
+
+        globalRankingService.processTournamentCompletion(
+                tournament,
+                List.of(finalMatch, roundOf16Match, roundOf32Match));
+
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 80, 1);
+        verifyRankingSaved(eliminatedInRoundOf16, 50, 1);
+        verifyRankingSaved(eliminatedInRoundOf32, 30, 1);
+    }
+
+    @Test
+    void shouldUseGroupStagePointsForPlayersEliminatedInGroupStage() {
+        Tournament tournament = createTournament(1L);
+        Category category = createCategory(1L, tournament);
+
+        Player champion = createPlayer(1L, "Champion");
+        Player runnerUp = createPlayer(2L, "Runner Up");
+        Player eliminatedInGroups = createPlayer(3L, "Group Stage Loser");
+        Player groupOpponent = createPlayer(4L, "Group Opponent");
+
+        Match finalMatch = createMatch(
+                category, champion, runnerUp,
+                MatchPhase.FINAL, MatchStatus.FINISHED, 3, 1);
+        Match groupMatch = createMatch(
+                category, groupOpponent, eliminatedInGroups,
+                MatchPhase.GROUP, MatchStatus.FINISHED, 3, 0);
+
+        TournamentScoringConfig config = createClassicConfig();
+        config.setPointsChampion(100);
+        config.setPointsRunnerUp(80);
+        config.setPointsGroupStageLoser(15);
+        config.setPointsRoundOf16Loser(50);
+
+        mockScoringConfig(config);
+        mockEmptyRankings();
+
+        globalRankingService.processTournamentCompletion(
+                tournament,
+                List.of(finalMatch, groupMatch));
+
+        verifyRankingSaved(champion, 100, 1);
+        verifyRankingSaved(runnerUp, 80, 1);
+        verifyRankingSaved(eliminatedInGroups, 15, 1);
+    }
+
+    @Test
     void shouldNotDistributePointsWhenFinalIsInvalid() {
         Tournament tournament = createTournament(1L);
         Category category = createCategory(1L, tournament);

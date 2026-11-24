@@ -2,9 +2,7 @@
 package com.arenapointhub.api.service;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -195,16 +193,7 @@ public class MatchService {
 
         Match match = findMatch(matchId, administratorId);
 
-        if (match.getStatus() == MatchStatus.FINISHED
-                || match.getStatus() == MatchStatus.WO) {
-            throw new BusinessException(
-                    "Não é permitido alterar o placar de uma partida encerrada.");
-        }
-
-        if (match.getStatus() == MatchStatus.CANCELED) {
-            throw new BusinessException(
-                    "Não é permitido alterar o placar de uma partida cancelada.");
-        }
+        ensureMatchCanBeEdited(match);
 
         Integer scorePlayer1 = dto.getScorePlayer1();
         Integer scorePlayer2 = dto.getScorePlayer2();
@@ -224,22 +213,7 @@ public class MatchService {
                 : match.getStatus();
 
         if (requestedStatus == MatchStatus.FINISHED) {
-            if (scorePlayer1.equals(scorePlayer2)) {
-                throw new BusinessException(
-                        "Uma partida não pode ser encerrada empatada.");
-            }
-
-            int setsNeededToWin = determineSetsNeededToWin(match);
-            int winningScore = Math.max(scorePlayer1, scorePlayer2);
-            int losingScore = Math.min(scorePlayer1, scorePlayer2);
-
-            if (winningScore != setsNeededToWin
-                    || losingScore >= setsNeededToWin) {
-                throw new BusinessException(
-                        "Placar final inválido. O vencedor deve alcançar "
-                                + setsNeededToWin
-                                + " sets, e o adversário deve ter menos sets.");
-            }
+            validateFinishedScore(match, scorePlayer1, scorePlayer2);
         }
 
         match.setScorePlayer1(scorePlayer1);
@@ -249,17 +223,7 @@ public class MatchService {
         Match updatedMatch = matchRepository.save(match);
 
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
-            if (updatedMatch.getPhase() == MatchPhase.FINAL) {
-                Player champion = updatedMatch.getScorePlayer1()
-                        > updatedMatch.getScorePlayer2()
-                        ? updatedMatch.getPlayer1()
-                        : updatedMatch.getPlayer2();
-
-                Category category = updatedMatch.getCategory();
-                category.setChampion(champion);
-                categoryRepository.save(category);
-            }
-
+            updateCategoryChampionIfFinalMatch(updatedMatch);
             advanceWinnerToNextRound(updatedMatch);
             checkAndDistributePointsIfFinalFinished(updatedMatch);
         }
@@ -340,9 +304,13 @@ public class MatchService {
             MatchRequestDTO dto,
             Long administratorId) {
 
-        Match match = findMatch(id, administratorId);
+        if (dto == null) {
+            throw new BusinessException(
+                    "Os dados da partida são obrigatórios.");
+        }
 
-        boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
+        Match match = findMatch(id, administratorId);
+        ensureMatchCanBeEdited(match);
 
         if (dto.getScorePlayer1() != null) {
             match.setScorePlayer1(dto.getScorePlayer1());
@@ -356,14 +324,20 @@ public class MatchService {
             match.setStatus(dto.getStatus());
         }
 
+        if (match.getStatus() == MatchStatus.FINISHED) {
+            validateFinishedScore(
+                    match,
+                    match.getScorePlayer1(),
+                    match.getScorePlayer2());
+        }
+
         Match updatedMatch = matchRepository.save(match);
 
         if (updatedMatch.getStatus() == MatchStatus.FINISHED) {
+            updateCategoryChampionIfFinalMatch(updatedMatch);
             advanceWinnerToNextRound(updatedMatch);
 
-            if (!alreadyFinished) {
-                checkAndDistributePointsIfFinalFinished(updatedMatch);
-            }
+            checkAndDistributePointsIfFinalFinished(updatedMatch);
         }
 
         return mapToResponseDTO(updatedMatch);
@@ -376,8 +350,7 @@ public class MatchService {
             Long administratorId) {
 
         Match match = findMatch(matchId, administratorId);
-
-        boolean alreadyFinished = match.getStatus() == MatchStatus.FINISHED;
+        ensureMatchCanBeEdited(match);
 
         for (MatchSetDTO setDto : dto.getSets()) {
             int p1Score = setDto.getScorePlayer1();
@@ -454,15 +427,76 @@ public class MatchService {
 
             Match savedMatch = matchRepository.save(match);
 
+            updateCategoryChampionIfFinalMatch(savedMatch);
             advanceWinnerToNextRound(savedMatch);
 
-            if (!alreadyFinished) {
-                checkAndDistributePointsIfFinalFinished(savedMatch);
-            }
+            checkAndDistributePointsIfFinalFinished(savedMatch);
 
         } else {
             match.setStatus(MatchStatus.IN_PROGRESS);
             matchRepository.save(match);
+        }
+    }
+
+    private void validateFinishedScore(
+            Match match,
+            Integer scorePlayer1,
+            Integer scorePlayer2) {
+
+        if (scorePlayer1 == null || scorePlayer2 == null) {
+            throw new BusinessException(
+                    "Os placares dos dois jogadores são obrigatórios.");
+        }
+
+        if (scorePlayer1 < 0 || scorePlayer2 < 0) {
+            throw new BusinessException(
+                    "Os placares não podem ser negativos.");
+        }
+
+        if (scorePlayer1.equals(scorePlayer2)) {
+            throw new BusinessException(
+                    "Uma partida não pode ser encerrada empatada.");
+        }
+
+        int setsNeededToWin = determineSetsNeededToWin(match);
+        int winningScore = Math.max(scorePlayer1, scorePlayer2);
+        int losingScore = Math.min(scorePlayer1, scorePlayer2);
+
+        if (winningScore != setsNeededToWin
+                || losingScore >= setsNeededToWin) {
+            throw new BusinessException(
+                    "Placar final inválido. O vencedor deve alcançar "
+                            + setsNeededToWin
+                            + " sets, e o adversário deve ter menos sets.");
+        }
+    }
+
+    private void updateCategoryChampionIfFinalMatch(Match match) {
+        if (match.getPhase() != MatchPhase.FINAL
+                || (match.getStatus() != MatchStatus.FINISHED
+                        && match.getStatus() != MatchStatus.WO)) {
+            return;
+        }
+
+        Player champion = match.getScorePlayer1() > match.getScorePlayer2()
+                ? match.getPlayer1()
+                : match.getPlayer2();
+
+        Category category = match.getCategory();
+        category.setChampion(champion);
+        categoryRepository.save(category);
+    }
+
+    private void ensureMatchCanBeEdited(Match match) {
+        if (match.getStatus() == MatchStatus.FINISHED
+                || match.getStatus() == MatchStatus.WO) {
+            throw new BusinessException(
+                    "Não é permitido alterar uma partida encerrada.");
+        }
+
+        if (match.getStatus() == MatchStatus.CANCELED) {
+            throw new BusinessException(
+                    "Não é permitido alterar uma partida cancelada.");
         }
     }
 
@@ -549,6 +583,7 @@ public class MatchService {
 
         Match updatedMatch = matchRepository.save(match);
 
+        updateCategoryChampionIfFinalMatch(updatedMatch);
         advanceWinnerToNextRound(updatedMatch);
         checkAndDistributePointsIfFinalFinished(updatedMatch);
 
@@ -584,49 +619,9 @@ public class MatchService {
                         match.getCategory().getId(),
                         administratorId);
 
-        Map<Player, Integer> playerPositions = new HashMap<>();
-
-        for (Match currentMatch : allMatches) {
-            if (currentMatch.getStatus() != MatchStatus.FINISHED
-                    && currentMatch.getStatus() != MatchStatus.WO) {
-                continue;
-            }
-
-            Player player1 = currentMatch.getPlayer1();
-            Player player2 = currentMatch.getPlayer2();
-
-            if (player1 == null || player2 == null) {
-                continue;
-            }
-
-            Player winner = currentMatch.getScorePlayer1()
-                    > currentMatch.getScorePlayer2()
-                    ? player1
-                    : player2;
-
-            Player loser = currentMatch.getScorePlayer1()
-                    > currentMatch.getScorePlayer2()
-                    ? player2
-                    : player1;
-
-            if (currentMatch.getPhase() == MatchPhase.FINAL) {
-                playerPositions.put(winner, 1);
-                playerPositions.put(loser, 2);
-
-            } else if (currentMatch.getPhase() == MatchPhase.SEMI_FINAL) {
-                playerPositions.putIfAbsent(loser, 3);
-
-            } else if (currentMatch.getPhase() == MatchPhase.QUARTER_FINAL) {
-                playerPositions.putIfAbsent(loser, 5);
-            }
-        }
-
-        if (!playerPositions.isEmpty()) {
-            globalRankingService.distributeTournamentPoints(
-                    tournament,
-                    match.getCategory(),
-                    playerPositions);
-        }
+        globalRankingService.processTournamentCompletion(
+                tournament,
+                allMatches);
     }
 
     public void advanceWinnerToNextRound(Match finishedMatch) {

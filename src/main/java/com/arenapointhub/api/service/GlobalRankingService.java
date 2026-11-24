@@ -103,15 +103,15 @@ public class GlobalRankingService {
         } else {
             // Modelo CLASSIC: Mapeia as posições detalhadas para as regras clássicas de perdedores por fase
             switch (position) {
+                case -1: return config.getPointsGroupStageLoser();
                 case 1: return config.getPointsChampion();
                 case 2: return config.getPointsRunnerUp();
                 case 3:
-                case 4: return config.getPointsSemiFinalsLoser();       // 3º e 4º ganham pontos de semifinalista
-                case 5:
-                case 6:
-                case 7:
-                case 8: return config.getPointsQuarterFinalsLoser();  // 5º ao 8º ganham pontos de perdedor de quartas
-                default: return config.getPointsGroupStageLoser();    // 9+ ganham pontos de fase de grupos
+                case 4: return config.getPointsSemiFinalsLoser();
+                case 5: return config.getPointsQuarterFinalsLoser();
+                case 9: return config.getPointsRoundOf16Loser();
+                case 17: return config.getPointsRoundOf32Loser();
+                default: return config.getPointsGroupStageLoser();
             }
         }
     }
@@ -136,76 +136,147 @@ public class GlobalRankingService {
 
     private Map<Player, Integer> determinePlayerPositions(List<Match> matches) {
         Map<Player, Integer> positions = new HashMap<>();
-        
-        // 1. Identifica a partida da Final para descobrir o Campeão e o Vice
+
         Match finalMatch = matches.stream()
-                .filter(m -> m.getPhase() == MatchPhase.FINAL && (m.getStatus() == MatchStatus.FINISHED || m.getStatus() == MatchStatus.WO))
+                .filter(match -> match.getPhase() == MatchPhase.FINAL
+                        && (match.getStatus() == MatchStatus.FINISHED
+                                || match.getStatus() == MatchStatus.WO))
                 .findFirst()
                 .orElse(null);
 
-        if (finalMatch == null || finalMatch.getPlayer1() == null || finalMatch.getPlayer2() == null) {
+        if (finalMatch == null
+                || finalMatch.getPlayer1() == null
+                || finalMatch.getPlayer2() == null
+                || finalMatch.getScorePlayer1() == finalMatch.getScorePlayer2()) {
             return positions;
         }
 
-        Player p1 = finalMatch.getPlayer1();
-        Player p2 = finalMatch.getPlayer2();
-        int score1 = finalMatch.getScorePlayer1();
-        int score2 = finalMatch.getScorePlayer2();
-
-        Player champion = score1 > score2 ? p1 : p2;
-        Player runnerUp = score1 > score2 ? p2 : p1;
+        Player champion = finalMatch.getScorePlayer1() > finalMatch.getScorePlayer2()
+                ? finalMatch.getPlayer1()
+                : finalMatch.getPlayer2();
+        Player runnerUp = champion.equals(finalMatch.getPlayer1())
+                ? finalMatch.getPlayer2()
+                : finalMatch.getPlayer1();
 
         positions.put(champion, 1);
         positions.put(runnerUp, 2);
 
+        // A semifinalist's position is determined by the finalist they lost to:
+        // the loser of the champion's semifinal is 3rd; the loser of the runner-up's
+        // semifinal is 4th. This follows the bracket path, not match-list ordering.
         for (Match match : matches) {
-            if (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO) continue;
-            
-            Player mp1 = match.getPlayer1();
-            Player mp2 = match.getPlayer2();
-            if (mp1 == null || mp2 == null) continue;
+            if (match.getPhase() != MatchPhase.SEMI_FINAL
+                    || !isCompleted(match)
+                    || match.getPlayer1() == null
+                    || match.getPlayer2() == null) {
+                continue;
+            }
 
-            MatchPhase phase = match.getPhase();
+            Player semifinalWinner = getWinner(match);
+            Player semifinalLoser = getLoser(match);
+            if (semifinalWinner == null || semifinalLoser == null) {
+                continue;
+            }
 
-            if (phase == MatchPhase.SEMI_FINAL) {
-                if (mp1.equals(champion) || mp2.equals(champion)) {
-                    Player loser = mp1.equals(champion) ? mp2 : mp1;
-                    positions.put(loser, 3); // 3º: Perdeu para o Campeão na Semi
-                } else if (mp1.equals(runnerUp) || mp2.equals(runnerUp)) {
-                    Player loser = mp1.equals(runnerUp) ? mp2 : mp1;
-                    positions.put(loser, 4); // 4º: Perdeu para o Vice na Semi
-                }
-            } else if (phase == MatchPhase.QUARTER_FINAL) {
-                if (mp1.equals(champion) || mp2.equals(champion)) {
-                    Player loser = mp1.equals(champion) ? mp2 : mp1;
-                    positions.put(loser, 5); // 5º: Perdeu para o Campeão nas Quartas
-                } else if (mp1.equals(runnerUp) || mp2.equals(runnerUp)) {
-                    Player loser = mp1.equals(runnerUp) ? mp2 : mp1;
-                    positions.put(loser, 6); // 6º: Perdeu para o Vice nas Quartas
-                } else {
-                    // 7º e 8º: Perdedores das quartas que caíram para outros (pontuação inferior aos 5º/6º)
-                    Player loser = (match.getScorePlayer1() > match.getScorePlayer2()) ? mp2 : mp1;
-                    positions.putIfAbsent(loser, 7); 
-                }
+            if (semifinalWinner.equals(champion)) {
+                positions.put(semifinalLoser, 3);
+            } else if (semifinalWinner.equals(runnerUp)) {
+                positions.put(semifinalLoser, 4);
             }
         }
 
-     // 3. Mapeia os eliminados na Fase de Grupos para a posição 9+
         for (Match match : matches) {
-            if (match.getStatus() != MatchStatus.FINISHED && match.getStatus() != MatchStatus.WO) continue;
-            
-            if (match.getPhase() == MatchPhase.GROUP) {
-                Player mp1 = match.getPlayer1();
-                Player mp2 = match.getPlayer2();
-                
-                if (mp1 != null && mp2 != null) {
-                    Player loserGroup = (match.getScorePlayer1() > match.getScorePlayer2()) ? mp2 : mp1;
-                    positions.putIfAbsent(loserGroup, 9);
-                }
+            if (!isCompleted(match)) {
+                continue;
+            }
+
+            if (match.getPhase() == null
+                    || match.getPhase() == MatchPhase.FINAL
+                    || match.getPhase() == MatchPhase.GROUP
+                    || match.getPhase() == MatchPhase.SEMI_FINAL
+                    || match.getPlayer1() == null
+                    || match.getPlayer2() == null) {
+                continue;
+            }
+
+            Integer officialPosition = getOfficialPositionForEliminationPhase(match.getPhase());
+            if (officialPosition == null) {
+                continue;
+            }
+
+            Player loser = getLoser(match);
+            if (loser != null) {
+                positions.put(loser, officialPosition);
             }
         }
-        
-        return positions; 
+
+        // Usa -1 como marcador interno para eliminados na fase de grupos.
+        // Assim, no sistema CLASSIC são consultados os pontos específicos da fase
+        // de grupos; no sistema BY_POSITION, o marcador cai na faixa 9+.
+        // putIfAbsent evita sobrescrever a colocação de quem avançou no mata-mata.
+        for (Match match : matches) {
+            if (match.getPhase() != MatchPhase.GROUP
+                    || (match.getStatus() != MatchStatus.FINISHED
+                            && match.getStatus() != MatchStatus.WO)
+                    || match.getPlayer1() == null
+                    || match.getPlayer2() == null) {
+                continue;
+            }
+
+            Player loser = getLoser(match);
+            if (loser != null) {
+                positions.putIfAbsent(loser, -1);
+            }
+        }
+
+        return positions;
     }
+
+    /**
+     * Retorna a colocação oficial compartilhada por todos os atletas
+     * eliminados na mesma fase, conforme a regra de classificação do torneio.
+     */
+    private Integer getOfficialPositionForEliminationPhase(MatchPhase phase) {
+        switch (phase) {
+            case SEMI_FINAL:
+                return 3;
+            case QUARTER_FINAL:
+                return 5;
+            case ROUND_OF_16:
+                return 9;
+            case ROUND_OF_32:
+                return 17;
+            case GROUP:
+                return -1;
+            default:
+                return null;
+        }
+    }
+
+    private boolean isCompleted(Match match) {
+        return match.getStatus() == MatchStatus.FINISHED
+                || match.getStatus() == MatchStatus.WO;
+    }
+
+    private Player getWinner(Match match) {
+        if (match.getScorePlayer1() > match.getScorePlayer2()) {
+            return match.getPlayer1();
+        }
+        if (match.getScorePlayer2() > match.getScorePlayer1()) {
+            return match.getPlayer2();
+        }
+        return null;
+    }
+
+    private Player getLoser(Match match) {
+        if (match.getScorePlayer1() > match.getScorePlayer2()) {
+            return match.getPlayer2();
+        }
+        if (match.getScorePlayer2() > match.getScorePlayer1()) {
+            return match.getPlayer1();
+        }
+        return null;
+    }
+
     
 }

@@ -22,6 +22,9 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -214,287 +217,90 @@ class BracketServiceTest {
         assertEquals(MatchPhase.FINAL, matches.get(2).getPhase());
     }
 
-    @Test
-    void shouldDistributeByesAcrossDifferentSemifinals() {
-        Category category = createCategory();
-        List<Group> groups = createGroups(3, category);
+    @ParameterizedTest
+    @MethodSource("spreadsheetModels")
+    void shouldGenerateExactSeedingForEverySpreadsheetModel(
+            int groupCount,
+            String[] expectedSlots) {
 
-        mockCategoryAndGroups(category, groups);
-        mockQualifiedPlayers(3);
-        mockMatchSave();
+        Category category = createCategory();
+        prepareBracketScenario(category, groupCount);
 
         BracketResponseDTO response = bracketService.generateKnockoutBracket(
                 CATEGORY_ID, ADMINISTRATOR_ID);
 
-        assertEquals(7, response.getMatches().size());
+        int bracketSize = expectedSlots.length;
+        int expectedByes = bracketSize - (groupCount * 2);
+        int expectedMatchCount = bracketSize - 1;
 
-        List<Match> matches = captureSavedMatches(9);
+        assertEquals(bracketSize, response.getTargetBracketSize());
+        assertEquals(expectedMatchCount, response.getMatches().size());
 
-        assertByeMatch(matches.get(0), 1L);
-        assertByeMatch(matches.get(2), 3L);
+        List<Match> savedMatches = captureSavedMatches(
+                expectedMatchCount + expectedByes);
+        List<Match> matches = savedMatches.subList(0, expectedMatchCount);
+        List<Match> firstRound = matches.subList(0, bracketSize / 2);
 
-        assertEquals(MatchPhase.SEMI_FINAL, matches.get(4).getPhase());
-        assertEquals(MatchPhase.SEMI_FINAL, matches.get(5).getPhase());
+        for (int i = 0; i < expectedSlots.length; i += 2) {
+            String expectedPlayer1 = expectedSlots[i];
+            String expectedPlayer2 = expectedSlots[i + 1];
+            Match match = firstRound.get(i / 2);
 
-        assertEquals(1L, matches.get(4).getPlayer1().getId());
-        assertEquals(3L, matches.get(5).getPlayer1().getId());
+            if (expectedPlayer1 != null && expectedPlayer2 != null) {
+                assertMatch(
+                        match,
+                        expectedPlayerId(expectedPlayer1),
+                        expectedPlayerId(expectedPlayer2));
+            } else {
+                assertTrue(
+                        expectedPlayer1 != null || expectedPlayer2 != null,
+                        "O modelo não pode criar confronto sem participantes.");
+
+                long expectedByePlayerId = expectedPlayerId(
+                        expectedPlayer1 != null ? expectedPlayer1 : expectedPlayer2);
+                assertByeMatch(match, expectedByePlayerId);
+
+                int targetIndex = (i / 2) / 2;
+                Match nextRoundMatch = matches.get(bracketSize / 2 + targetIndex);
+
+                if ((i / 2) % 2 == 0) {
+                    assertEquals(expectedByePlayerId, nextRoundMatch.getPlayer1().getId());
+                } else {
+                    assertEquals(expectedByePlayerId, nextRoundMatch.getPlayer2().getId());
+                }
+            }
+        }
+
+        assertEquals(
+                expectedByes,
+                firstRound.stream().filter(this::isByeMatch).count());
     }
 
-    @Test
-    void shouldGenerateCorrectSeedingForEightGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 8);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(15);
-
-        assertMatch(matches.get(0), 1L, 14L);
-        assertMatch(matches.get(1), 15L, 10L);
-        assertMatch(matches.get(2), 11L, 4L);
-        assertMatch(matches.get(3), 7L, 6L);
-        assertMatch(matches.get(4), 5L, 12L);
-        assertMatch(matches.get(5), 9L, 2L);
-        assertMatch(matches.get(6), 13L, 8L);
-        assertMatch(matches.get(7), 3L, 16L);
-
-        List<Match> firstRoundMatches = matches.subList(0, 8);
-
-        long byeCount = firstRoundMatches.stream()
-                .filter(this::isByeMatch)
-                .count();
-
-        assertEquals(0, byeCount);
-
-        assertTrue(firstRoundMatches.stream()
-                .allMatch(match -> match.getStatus() == MatchStatus.SCHEDULED));
+    private static java.util.stream.Stream<Arguments> spreadsheetModels() {
+        return java.util.stream.Stream.of(
+                Arguments.of(2, new String[] { "1.1", "2.2", "1.2", "2.1" }),
+                Arguments.of(3, new String[] { "1.1", null, "2.3", "2.2", "1.3", "2.1", "1.2", null }),
+                Arguments.of(4, new String[] { "1.1", "2.3", "1.4", "2.2", "1.3", "2.1", "1.2", "2.4" }),
+                Arguments.of(5, new String[] { "1.1", null, "2.3", "2.5", null, "2.2", "1.4", null, "1.3", null, "1.5", null, "2.1", "2.4", "1.2", null }),
+                Arguments.of(6, new String[] { "1.1", null, "2.3", "2.5", "1.6", "2.2", "1.4", null, "1.3", null, "1.5", "2.1", "2.6", "2.4", "1.2", null }),
+                Arguments.of(7, new String[] { "1.1", null, "2.7", "2.5", "1.6", "2.2", "1.4", "2.3", "1.3", "2.6", "1.5", "2.1", "1.7", "2.4", "1.2", null }),
+                Arguments.of(8, new String[] { "1.1", "2.7", "1.8", "2.5", "1.6", "2.2", "1.4", "2.3", "1.3", "2.6", "1.5", "2.1", "1.7", "2.4", "1.2", "2.8" }),
+                Arguments.of(9, new String[] { "1.1", null, "2.2", null, "2.3", null, "1.8", null, "1.6", null, "2.9", "2.7", "2.5", null, "1.4", null, "1.3", null, null, "2.4", "2.8", "2.6", "1.5", null, "1.7", null, "1.9", null, null, "2.1", "1.2", null }),
+                Arguments.of(10, new String[] { "1.1", null, "2.2", null, "1.10", null, "1.8", null, "1.6", null, "2.9", "2.5", "2.7", "2.3", "1.4", null, "1.3", null, "2.10", "2.4", "2.8", "2.6", "1.5", null, "1.7", null, "1.9", null, null, "2.1", "1.2", null }),
+                Arguments.of(11, new String[] { "1.1", null, "2.2", "2.9", "1.10", null, "1.8", null, "1.6", null, "2.11", "2.5", "2.7", "2.3", "1.4", null, "1.3", null, "2.10", "2.4", "1.11", "2.6", "1.5", null, "1.7", null, "1.9", null, "2.8", "2.1", "1.2", null }),
+                Arguments.of(12, new String[] { "1.1", null, "2.2", "2.9", "1.10", "2.11", "1.8", null, "1.6", null, "1.12", "2.5", "2.7", "2.3", "1.4", null, "1.3", null, "2.10", "2.4", "1.11", "2.6", "1.5", null, "1.7", null, "1.9", "2.8", "2.12", "2.1", "1.2", null }),
+                Arguments.of(13, new String[] { "1.1", null, "2.2", "2.13", "1.10", "2.11", "1.8", "2.9", "1.6", null, "1.12", "2.5", "2.7", "2.3", "1.4", null, "1.3", null, "1.13", "2.4", "1.11", "2.6", "1.5", null, "1.7", "2.10", "1.9", "2.8", "2.12", "2.1", "1.2", null }),
+                Arguments.of(14, new String[] { "1.1", null, "2.2", "2.13", "1.10", "2.11", "1.8", "2.9", "1.6", "2.7", "1.12", "2.5", "1.14", "2.3", "1.4", null, "1.3", null, "1.13", "2.4", "1.11", "2.6", "1.5", "2.12", "1.7", "2.10", "1.9", "2.8", "2.14", "2.1", "1.2", null }),
+                Arguments.of(15, new String[] { "1.1", null, "2.15", "2.13", "1.10", "2.11", "1.8", "2.9", "1.6", "2.7", "1.12", "2.5", "1.14", "2.3", "1.4", "2.2", "1.3", "2.14", "1.13", "2.4", "1.11", "2.6", "1.5", "2.12", "1.7", "2.10", "1.9", "2.8", "1.15", "2.1", "1.2", null }),
+                Arguments.of(16, new String[] { "1.1", "2.15", "1.16", "2.13", "1.10", "2.11", "1.8", "2.9", "1.6", "2.7", "1.12", "2.5", "1.14", "2.3", "1.4", "2.2", "1.3", "2.14", "1.13", "2.4", "1.11", "2.6", "1.5", "2.12", "1.7", "2.10", "1.9", "2.8", "1.15", "2.1", "1.2", "2.16" })
+        );
     }
 
-    @Test
-    void shouldGenerateCorrectSeedingForFourGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 4);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(8, response.getTargetBracketSize());
-        assertEquals(7, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(7);
-
-        assertMatch(matches.get(0), 1L, 6L);
-        assertMatch(matches.get(1), 7L, 4L);
-        assertMatch(matches.get(2), 5L, 2L);
-        assertMatch(matches.get(3), 3L, 8L);
-    }
-
-    @Test
-    void shouldDistributeSixByesForFiveGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 5);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(21);
-        List<Match> firstRoundMatches = matches.subList(0, 8);
-
-        long byeCount = firstRoundMatches.stream()
-                .filter(this::isByeMatch)
-                .count();
-
-        assertEquals(6, byeCount);
-
-        assertBye(firstRoundMatches, 1L);
-        assertBye(firstRoundMatches, 2L);
-        assertBye(firstRoundMatches, 3L);
-        assertBye(firstRoundMatches, 5L);
-        assertBye(firstRoundMatches, 7L);
-        assertBye(firstRoundMatches, 9L);
-
-        List<Match> scheduledMatches = firstRoundMatches.stream()
-                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
-                .toList();
-
-        assertEquals(2, scheduledMatches.size());
-        assertContainsPlayers(scheduledMatches, 4L, 8L);
-        assertContainsPlayers(scheduledMatches, 6L, 10L);
-
-        List<Match> quarterFinals = matches.subList(8, 12);
-
-        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
-        assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
-
-        assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
-        assertNull(quarterFinals.get(1).getPlayer2());
-
-        assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
-        assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
-
-        assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
-        assertNull(quarterFinals.get(3).getPlayer2());
-    }
-
-    @Test
-    void shouldDistributeFourByesForSixGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 6);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(19);
-        List<Match> firstRoundMatches = matches.subList(0, 8);
-
-        long byeCount = firstRoundMatches.stream()
-                .filter(this::isByeMatch)
-                .count();
-
-        assertEquals(4, byeCount);
-
-        assertBye(firstRoundMatches, 1L);
-        assertBye(firstRoundMatches, 3L);
-        assertBye(firstRoundMatches, 5L);
-        assertBye(firstRoundMatches, 7L);
-
-        List<Match> scheduledMatches = firstRoundMatches.stream()
-                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
-                .toList();
-
-        assertEquals(4, scheduledMatches.size());
-
-        assertContainsPlayers(scheduledMatches, 11L, 6L);
-        assertContainsPlayers(scheduledMatches, 8L, 10L);
-        assertContainsPlayers(scheduledMatches, 9L, 2L);
-        assertContainsPlayers(scheduledMatches, 4L, 12L);
-
-        List<Match> quarterFinals = matches.subList(8, 12);
-
-        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
-        assertEquals(3L, quarterFinals.get(1).getPlayer2().getId());
-        assertEquals(5L, quarterFinals.get(3).getPlayer1().getId());
-        assertEquals(7L, quarterFinals.get(3).getPlayer2().getId());
-    }
-
-    @Test
-    void shouldDistributeTwoByesForSevenGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 7);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(17);
-        List<Match> firstRoundMatches = matches.subList(0, 8);
-
-        long byeCount = firstRoundMatches.stream()
-                .filter(this::isByeMatch)
-                .count();
-
-        assertEquals(2, byeCount);
-
-        assertBye(firstRoundMatches, 1L);
-        assertBye(firstRoundMatches, 3L);
-        assertByeMatch(firstRoundMatches.get(0), 1L);
-        assertByeMatch(firstRoundMatches.get(7), 3L);
-
-        List<Match> scheduledMatches = firstRoundMatches.stream()
-                .filter(match -> match.getStatus() == MatchStatus.SCHEDULED)
-                .toList();
-
-        assertEquals(6, scheduledMatches.size());
-
-
-		for (long playerId = 1L; playerId <= 14L; playerId++) {
-		
-		    final long currentPlayerId = playerId;
-		
-		    boolean playerFound = firstRoundMatches.stream()
-		            .anyMatch(match -> containsPlayer(match, currentPlayerId));
-		
-		    assertTrue(
-		            playerFound,
-		            "Jogador " + currentPlayerId
-		                    + " não foi encontrado na primeira rodada."
-		    );
-		}
-
-
-        List<Match> quarterFinals = matches.subList(8, 12);
-
-        assertByeMatch(matches.get(0), 1L);
-        assertByeMatch(matches.get(7), 3L);
-
-        assertTrue(
-                quarterFinals.stream().anyMatch(match -> containsPlayer(match, 1L)),
-                "O jogador 1 deve avançar para as quartas de final.");
-
-        assertTrue(
-                quarterFinals.stream().anyMatch(match -> containsPlayer(match, 3L)),
-                "O jogador 3 deve avançar para as quartas de final.");
-    }
-
-    @Test
-    void shouldGenerateCorrectSeedingForSevenGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 7);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(17);
-        List<Match> firstRoundMatches = matches.subList(0, 8);
-
-        assertBye(firstRoundMatches, 1L);
-        assertBye(firstRoundMatches, 3L);
-
-        assertContainsPlayers(firstRoundMatches, 2L, 4L);
-        assertContainsPlayers(firstRoundMatches, 11L, 6L);
-        assertContainsPlayers(firstRoundMatches, 7L, 10L);
-        assertContainsPlayers(firstRoundMatches, 5L, 8L);
-        assertContainsPlayers(firstRoundMatches, 9L, 14L);
-        assertContainsPlayers(firstRoundMatches, 13L, 12L);
-    }
-
-    @Test
-    void shouldGenerateCorrectSeedingForTwoGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 2);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(4, response.getTargetBracketSize());
-        assertEquals(3, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(3);
-
-        assertMatch(matches.get(0), 1L, 4L);
-        assertMatch(matches.get(1), 2L, 3L);
+    private long expectedPlayerId(String seed) {
+        int groupNumber = Integer.parseInt(seed.substring(2));
+        return seed.startsWith("1.")
+                ? (groupNumber * 2L) - 1L
+                : groupNumber * 2L;
     }
 
     @Test
@@ -638,93 +444,6 @@ class BracketServiceTest {
         assertEquals(MatchPhase.FINAL, matches.get(0).getPhase());
         assertMatch(matches.get(0), 1L, 2L);
         assertEquals(MatchStatus.SCHEDULED, matches.get(0).getStatus());
-    }
-
-    @Test
-    void shouldGenerateCorrectSeedingForThreeGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 3);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(8, response.getTargetBracketSize());
-        assertEquals(7, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(9);
-
-        assertByeMatch(matches.get(0), 1L);
-        assertMatch(matches.get(1), 4L, 6L);
-        assertByeMatch(matches.get(2), 3L);
-        assertMatch(matches.get(3), 5L, 2L);
-    }
-
-    @Test
-    void shouldGenerateCorrectSeedingForFiveGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 5);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(21);
-        List<Match> firstRound = matches.subList(0, 8);
-
-        assertByeMatch(firstRound.get(0), 1L);
-        assertByeMatch(firstRound.get(1), 5L);
-        assertByeMatch(firstRound.get(2), 9L);
-        assertMatch(firstRound.get(3), 4L, 8L);
-        assertByeMatch(firstRound.get(4), 3L);
-        assertByeMatch(firstRound.get(5), 7L);
-        assertByeMatch(firstRound.get(6), 2L);
-        assertMatch(firstRound.get(7), 6L, 10L);
-
-        assertEquals(
-                6,
-                firstRound.stream().filter(this::isByeMatch).count());
-
-        List<Match> quarterFinals = matches.subList(8, 12);
-
-        assertEquals(1L, quarterFinals.get(0).getPlayer1().getId());
-        assertEquals(5L, quarterFinals.get(0).getPlayer2().getId());
-
-        assertEquals(9L, quarterFinals.get(1).getPlayer1().getId());
-        assertNull(quarterFinals.get(1).getPlayer2());
-
-        assertEquals(3L, quarterFinals.get(2).getPlayer1().getId());
-        assertEquals(7L, quarterFinals.get(2).getPlayer2().getId());
-
-        assertEquals(2L, quarterFinals.get(3).getPlayer1().getId());
-        assertNull(quarterFinals.get(3).getPlayer2());
-    }
-
-    @Test
-    void shouldGenerateCorrectSeedingForSixGroups() {
-        Category category = createCategory();
-
-        prepareBracketScenario(category, 6);
-
-        BracketResponseDTO response = bracketService.generateKnockoutBracket(
-                CATEGORY_ID, ADMINISTRATOR_ID);
-
-        assertEquals(16, response.getTargetBracketSize());
-        assertEquals(15, response.getMatches().size());
-
-        List<Match> matches = captureSavedMatches(19);
-
-        assertByeMatch(matches.get(0), 1L);
-        assertMatch(matches.get(1), 11L, 6L);
-        assertMatch(matches.get(2), 8L, 10L);
-        assertByeMatch(matches.get(3), 3L);
-        assertMatch(matches.get(4), 9L, 2L);
-        assertMatch(matches.get(5), 4L, 12L);
-        assertByeMatch(matches.get(6), 5L);
-        assertByeMatch(matches.get(7), 7L);
     }
 
     @Test

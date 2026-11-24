@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -16,6 +17,8 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -534,6 +537,30 @@ class MatchServiceTest {
     }
 
     @Test
+    void shouldSetChampionWhenFinalIsFinishedUsingUpdateMatch() {
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchRequestDTO dto = new MatchRequestDTO();
+        dto.setScorePlayer1(2);
+        dto.setScorePlayer2(1);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        mockMatchLookup(30L, finalMatch);
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
+
+        matchService.updateMatch(30L, dto, ADMINISTRATOR_ID);
+
+        assertEquals(winner, category.getChampion());
+        verify(categoryRepository).save(category);
+    }
+
+    @Test
     void shouldNotUpdateScoreWhenMatchDoesNotExist() {
         MatchScoreUpdateDTO dto = createFinishedScore(2, 1);
 
@@ -607,6 +634,38 @@ class MatchServiceTest {
 
         verify(matchSetRepository, times(2)).save(any(MatchSet.class));
         verify(matchRepository).save(match);
+    }
+
+    @Test
+    void shouldSetChampionWhenFinalIsFinishedUsingMatchSets() {
+        category.setSetsToWinMatch(2);
+
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.IN_PROGRESS, 0, 0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, 11, 5),
+                new MatchSetDTO(2, 11, 7)));
+
+        mockMatchLookup(30L, finalMatch);
+        mockNewSet(30L, 1);
+        mockNewSet(30L, 2);
+        when(matchSetRepository.findByMatchId(30L))
+                .thenReturn(List.of(
+                        createMatchSet(finalMatch, 1, 11, 5),
+                        createMatchSet(finalMatch, 2, 11, 7)));
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
+
+        matchService.saveMatchSets(30L, dto, ADMINISTRATOR_ID);
+
+        assertEquals(winner, category.getChampion());
+        verify(categoryRepository).save(category);
     }
 
     @Test
@@ -750,6 +809,28 @@ class MatchServiceTest {
     }
 
     @Test
+    void shouldSetChampionWhenFinalIsFinishedByWalkover() {
+        Player winner = createPlayer(1L, "Winner");
+        Player loser = createPlayer(2L, "Loser");
+
+        Match finalMatch = createMatch(
+                30L, category, winner, loser,
+                MatchPhase.FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchWoRequestDTO dto = new MatchWoRequestDTO();
+        dto.setWinnerPlayerId(winner.getId());
+
+        mockMatchLookup(30L, finalMatch);
+        mockMatchesByCategory(finalMatch);
+        mockMatchSave();
+
+        matchService.registerWalkover(30L, dto, ADMINISTRATOR_ID);
+
+        assertEquals(winner, category.getChampion());
+        verify(categoryRepository).save(category);
+    }
+
+    @Test
     void shouldNotRegisterWalkoverForPlayerOutsideMatch() {
         Player player1 = createPlayer(1L, "Player 1");
         Player player2 = createPlayer(2L, "Player 2");
@@ -802,6 +883,120 @@ class MatchServiceTest {
         assertEquals(MatchStatus.FINISHED, response.getStatus());
 
         verify(matchRepository).save(match);
+    }
+
+    @Test
+    void shouldNotFinishMatchWithTiedScoreUsingUpdateMatch() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(1);
+        dto.setScorePlayer2(1);
+        dto.setStatus(MatchStatus.FINISHED);
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Uma partida não pode ser encerrada empatada.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldNotFinishMatchWithNegativeScoreUsingUpdateMatch() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(-1);
+        dto.setScorePlayer2(2);
+        dto.setStatus(MatchStatus.FINISHED);
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Os placares não podem ser negativos.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldNotFinishMatchWithoutRequiredWinningSetsUsingUpdateMatch() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, MatchStatus.SCHEDULED, 0, 0);
+
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(1);
+        dto.setScorePlayer2(0);
+        dto.setStatus(MatchStatus.FINISHED);
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto, ADMINISTRATOR_ID));
+
+        assertTrue(exception.getMessage().contains("Placar final inválido"));
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MatchStatus.class, names = {"FINISHED", "WO", "CANCELED"})
+    void shouldNotUpdateMatchWhenMatchIsNotEditable(MatchStatus status) {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, status, 2, 0);
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(0);
+        dto.setScorePlayer2(2);
+
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.updateMatch(10L, dto, ADMINISTRATOR_ID));
+
+        assertTrue(exception.getMessage().contains("Não é permitido alterar"));
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MatchStatus.class, names = {"FINISHED", "WO", "CANCELED"})
+    void shouldNotSaveMatchSetsWhenMatchIsNotEditable(MatchStatus status) {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Match match = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.GROUP, status, 2, 0);
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(new MatchSetDTO(1, 5, 11)));
+
+        mockMatchLookup(10L, match);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(10L, dto, ADMINISTRATOR_ID));
+
+        assertTrue(exception.getMessage().contains("Não é permitido alterar"));
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+        verify(matchRepository, never()).save(any(Match.class));
     }
 
     @Test
@@ -1030,10 +1225,9 @@ class MatchServiceTest {
 
         matchService.updateScore(30L, dto, ADMINISTRATOR_ID);
 
-        verify(globalRankingService).distributeTournamentPoints(
+        verify(globalRankingService).processTournamentCompletion(
                 any(Tournament.class),
-                any(Category.class),
-                any());
+                anyList());
     }
 
     @Test
