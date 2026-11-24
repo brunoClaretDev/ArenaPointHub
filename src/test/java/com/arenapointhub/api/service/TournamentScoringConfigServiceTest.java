@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
 
 import com.arenapointhub.api.dto.TournamentScoringConfigDTO;
@@ -107,6 +108,62 @@ class TournamentScoringConfigServiceTest {
     }
 
     @Test
+    void shouldPersistAllAdministratorConfiguredPointValues() {
+        Tournament tournament = createTournament(1L);
+        TournamentScoringConfigDTO dto = createConfigDTO();
+        dto.setPointsGroupStageLoser(11);
+        dto.setPointsRoundOf32Loser(12);
+        dto.setPointsRoundOf16Loser(13);
+        dto.setPointsQuarterFinalsLoser(14);
+        dto.setPointsSemiFinalsLoser(15);
+        dto.setPointsRunnerUp(16);
+        dto.setPointsChampion(17);
+        dto.setPoints1stPlace(21);
+        dto.setPoints2ndPlace(22);
+        dto.setPoints3rdPlace(23);
+        dto.setPoints4thPlace(24);
+        dto.setPoints5thPlace(25);
+        dto.setPoints6thPlace(26);
+        dto.setPoints7thPlace(27);
+        dto.setPoints8thPlace(28);
+        dto.setPoints9thAndBeyond(29);
+
+        when(tournamentRepository.findById(1L)).thenReturn(Optional.of(tournament));
+        when(configRepository.findByTournamentId(1L)).thenReturn(Optional.empty());
+        when(configRepository.save(any(TournamentScoringConfig.class)))
+                .thenAnswer(invocation -> {
+                    TournamentScoringConfig saved = invocation.getArgument(0);
+                    saved.setId(30L);
+                    return saved;
+                });
+
+        configService.saveOrUpdateConfig(dto);
+
+        ArgumentCaptor<TournamentScoringConfig> captor =
+                ArgumentCaptor.forClass(TournamentScoringConfig.class);
+        verify(configRepository).save(captor.capture());
+        TournamentScoringConfig saved = captor.getValue();
+
+        assertEquals(ScoringSystemType.CLASSIC, saved.getSystemType());
+        assertEquals(11, saved.getPointsGroupStageLoser());
+        assertEquals(12, saved.getPointsRoundOf32Loser());
+        assertEquals(13, saved.getPointsRoundOf16Loser());
+        assertEquals(14, saved.getPointsQuarterFinalsLoser());
+        assertEquals(15, saved.getPointsSemiFinalsLoser());
+        assertEquals(16, saved.getPointsRunnerUp());
+        assertEquals(17, saved.getPointsChampion());
+        assertEquals(21, saved.getPoints1stPlace());
+        assertEquals(22, saved.getPoints2ndPlace());
+        assertEquals(23, saved.getPoints3rdPlace());
+        assertEquals(24, saved.getPoints4thPlace());
+        assertEquals(25, saved.getPoints5thPlace());
+        assertEquals(26, saved.getPoints6thPlace());
+        assertEquals(27, saved.getPoints7thPlace());
+        assertEquals(28, saved.getPoints8thPlace());
+        assertEquals(29, saved.getPoints9thAndBeyond());
+    }
+
+    @Test
     void shouldReturnScoringConfigByTournament() {
         Tournament tournament = createTournament(1L);
 
@@ -129,6 +186,18 @@ class TournamentScoringConfigServiceTest {
         assertEquals(5, response.getPointsRunnerUp());
         assertEquals(3, response.getPointsSemiFinalsLoser());
         assertEquals(2, response.getPointsQuarterFinalsLoser());
+        assertEquals(1, response.getPointsGroupStageLoser());
+        assertEquals(2, response.getPointsRoundOf32Loser());
+        assertEquals(3, response.getPointsRoundOf16Loser());
+        assertEquals(10, response.getPoints1stPlace());
+        assertEquals(5, response.getPoints2ndPlace());
+        assertEquals(3, response.getPoints3rdPlace());
+        assertEquals(2, response.getPoints4thPlace());
+        assertEquals(1, response.getPoints5thPlace());
+        assertEquals(1, response.getPoints6thPlace());
+        assertEquals(1, response.getPoints7thPlace());
+        assertEquals(1, response.getPoints8thPlace());
+        assertEquals(0, response.getPoints9thAndBeyond());
 
         verify(configRepository).findByTournamentId(1L);
     }

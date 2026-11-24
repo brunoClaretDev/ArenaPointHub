@@ -2,6 +2,7 @@ package com.arenapointhub.api.dto;
 
 import com.arenapointhub.api.model.enums.ScoringSystemType;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public class TournamentScoringConfigDTO {
 
@@ -14,23 +15,39 @@ public class TournamentScoringConfigDTO {
 	private ScoringSystemType systemType;
 
 	// Modelo Clássico
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsGroupStageLoser;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsRoundOf32Loser;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsRoundOf16Loser;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsQuarterFinalsLoser;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsSemiFinalsLoser;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsRunnerUp;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int pointsChampion;
 
 	// Modelo Por Colocação
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points1stPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points2ndPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points3rdPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points4thPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points5thPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points6thPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points7thPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points8thPlace;
+	@PositiveOrZero(message = "A pontuação não pode ser negativa")
 	private int points9thAndBeyond;
 
 	public Long getId() {

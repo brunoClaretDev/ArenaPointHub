@@ -238,8 +238,6 @@ public class GlobalRankingService {
      */
     private Integer getOfficialPositionForEliminationPhase(MatchPhase phase) {
         switch (phase) {
-            case SEMI_FINAL:
-                return 3;
             case QUARTER_FINAL:
                 return 5;
             case ROUND_OF_16:
