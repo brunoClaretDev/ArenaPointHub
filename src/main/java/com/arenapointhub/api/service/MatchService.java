@@ -680,7 +680,8 @@ public class MatchService {
                 .collect(Collectors.toList());
 
         if (nextRoundMatches.isEmpty()) {
-            return;
+            throw new BusinessException(
+                    "Não existe partida cadastrada para a próxima fase do mata-mata.");
         }
 
         int matchIndex = -1;
@@ -694,13 +695,15 @@ public class MatchService {
         }
 
         if (matchIndex == -1) {
-            return;
+            throw new BusinessException(
+                    "A partida finalizada não foi encontrada na estrutura da fase atual do mata-mata.");
         }
 
         int targetMatchIndex = matchIndex / 2;
 
         if (targetMatchIndex >= nextRoundMatches.size()) {
-            return;
+            throw new BusinessException(
+                    "Não foi encontrada a partida correspondente na próxima fase do mata-mata.");
         }
 
         Match targetMatch = nextRoundMatches.get(targetMatchIndex);

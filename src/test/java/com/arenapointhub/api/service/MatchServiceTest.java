@@ -1150,6 +1150,91 @@ class MatchServiceTest {
     }
 
     @Test
+    void shouldRejectAdvancementWhenNextPhaseMatchDoesNotExist() {
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+
+        Match quarterFinal = createMatch(
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+
+        mockMatchesByCategory(quarterFinal);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.advanceWinnerToNextRound(quarterFinal));
+
+        assertEquals(
+                "Não existe partida cadastrada para a próxima fase do mata-mata.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldRejectAdvancementWhenFinishedMatchIsNotInCurrentPhaseStructure() {
+        Player winner = createPlayer(1L, "Winner");
+        Player opponent = createPlayer(2L, "Opponent");
+        Player otherWinner = createPlayer(3L, "Other Winner");
+        Player otherOpponent = createPlayer(4L, "Other Opponent");
+
+        Match finishedMatch = createMatch(
+                10L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+        Match persistedQuarterFinal = createMatch(
+                11L, category, otherWinner, otherOpponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+        Match semiFinal = createMatch(
+                20L, category, null, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        mockMatchesByCategory(persistedQuarterFinal, semiFinal);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.advanceWinnerToNextRound(finishedMatch));
+
+        assertEquals(
+                "A partida finalizada não foi encontrada na estrutura da fase atual do mata-mata.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
+    void shouldRejectAdvancementWhenTargetMatchIndexDoesNotExist() {
+        Player player1 = createPlayer(1L, "Player 1");
+        Player player2 = createPlayer(2L, "Player 2");
+        Player player3 = createPlayer(3L, "Player 3");
+        Player player4 = createPlayer(4L, "Player 4");
+        Player winner = createPlayer(5L, "Winner");
+        Player opponent = createPlayer(6L, "Opponent");
+
+        Match quarterFinal1 = createMatch(
+                10L, category, player1, player2,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+        Match quarterFinal2 = createMatch(
+                11L, category, player3, player4,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+        Match quarterFinal3 = createMatch(
+                12L, category, winner, opponent,
+                MatchPhase.QUARTER_FINAL, MatchStatus.FINISHED, 2, 0);
+        Match semiFinal = createMatch(
+                20L, category, null, null,
+                MatchPhase.SEMI_FINAL, MatchStatus.SCHEDULED, 0, 0);
+
+        mockMatchesByCategory(
+                quarterFinal1, quarterFinal2, quarterFinal3, semiFinal);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.advanceWinnerToNextRound(quarterFinal3));
+
+        assertEquals(
+                "Não foi encontrada a partida correspondente na próxima fase do mata-mata.",
+                exception.getMessage());
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+
+    @Test
     void shouldAdvanceWinnerFromSecondQuarterFinalToSemiFinalPlayer2() {
         Player player1 = createPlayer(1L, "Player 1");
         Player winner = createPlayer(3L, "Winner");
