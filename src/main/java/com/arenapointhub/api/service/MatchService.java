@@ -472,34 +472,51 @@ public class MatchService {
         }
     }
 
-    private void validateRequestedSets(
-            Match match,
-            MatchScoreRequestDTO dto) {
 
-        if (dto == null || dto.getSets() == null || dto.getSets().isEmpty()) {
-            throw new BusinessException(
-                    "É necessário informar ao menos o resultado de um set.");
-        }
+	private void validateRequestedSets(
+	        Match match,
+	        MatchScoreRequestDTO dto) {
+	
+	    if (dto == null || dto.getSets() == null || dto.getSets().isEmpty()) {
+	        throw new BusinessException(
+	                "É necessário informar ao menos o resultado de um set.");
+	    }
+	
+	    int maximumSetNumber = determineSetsNeededToWin(match) * 2 - 1;
+	    Set<Integer> setNumbers = new HashSet<>();
+	
+	    for (MatchSetDTO setDto : dto.getSets()) {
+	
+	        if (setDto == null || setDto.getSetNumber() == null) {
+	            throw new BusinessException(
+	                    "Os dados do set são inválidos. Informe o número do set "
+	                    + "e placares não negativos.");
+	        }
+	
+	        if (setDto.getSetNumber() < 1
+	                || setDto.getSetNumber() > maximumSetNumber) {
+	            throw new BusinessException(
+	                    "O número do set deve estar entre 1 e "
+	                    + maximumSetNumber + ".");
+	        }
+	
+	        if (setDto.getScorePlayer1() == null
+	                || setDto.getScorePlayer2() == null
+	                || setDto.getScorePlayer1() < 0
+	                || setDto.getScorePlayer2() < 0) {
+	            throw new BusinessException(
+	                    "Os dados do set são inválidos. Informe o número do set "
+	                    + "e placares não negativos.");
+	        }
+	
+	        if (!setNumbers.add(setDto.getSetNumber())) {
+	            throw new BusinessException(
+	                    "O número do set " + setDto.getSetNumber()
+	                    + " foi informado mais de uma vez.");
+	        }
+	    }
+	}
 
-        int maximumSetNumber = determineSetsNeededToWin(match) * 2 - 1;
-        Set<Integer> setNumbers = new HashSet<>();
-
-        for (MatchSetDTO setDto : dto.getSets()) {
-            if (setDto == null || setDto.getSetNumber() == null
-                    || setDto.getSetNumber() < 1
-                    || setDto.getSetNumber() > maximumSetNumber) {
-                throw new BusinessException(
-                        "O número do set deve estar entre 1 e "
-                                + maximumSetNumber + ".");
-            }
-
-            if (!setNumbers.add(setDto.getSetNumber())) {
-                throw new BusinessException(
-                        "O número do set " + setDto.getSetNumber()
-                                + " foi informado mais de uma vez.");
-            }
-        }
-    }
 
     private void validateFinishedScore(
             Match match,

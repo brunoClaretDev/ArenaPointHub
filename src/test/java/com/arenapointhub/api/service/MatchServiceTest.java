@@ -787,6 +787,48 @@ class MatchServiceTest {
 
         verify(matchSetRepository, never()).save(any(MatchSet.class));
     }
+    
+    @ParameterizedTest
+    @MethodSource("invalidSetScores")
+    void shouldNotSaveSetWithNullOrNegativeScore(
+            Integer scorePlayer1,
+            Integer scorePlayer2) {
+
+        Match match = createMatch(
+                10L,
+                category,
+                createPlayer(1L, "Player 1"),
+                createPlayer(2L, "Player 2"),
+                MatchPhase.GROUP,
+                MatchStatus.IN_PROGRESS,
+                0,
+                0);
+
+        MatchScoreRequestDTO dto = new MatchScoreRequestDTO();
+        dto.setSets(List.of(
+                new MatchSetDTO(1, scorePlayer1, scorePlayer2)));
+
+        mockMatchLookup(10L, match);
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.saveMatchSets(
+                        10L,
+                        dto,
+                        ADMINISTRATOR_ID));
+
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+    
+    private static Stream<Arguments> invalidSetScores() {
+        return Stream.of(
+                Arguments.of(null, 5),
+                Arguments.of(5, null),
+                Arguments.of(-1, 5),
+                Arguments.of(5, -1)
+        );
+    }
 
     @Test
     void shouldRejectSetNumberOutsideMaximumBestOfSequence() {
