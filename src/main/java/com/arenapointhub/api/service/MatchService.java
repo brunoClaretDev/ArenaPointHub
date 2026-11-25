@@ -63,6 +63,12 @@ public class MatchService {
     public MatchResponseDTO createMatch(
             MatchRequestDTO dto,
             Long administratorId) {
+    	
+    	if (dto.getStatus() != null
+    	        && dto.getStatus() != MatchStatus.SCHEDULED) {
+    	    throw new BusinessException(
+    	            "Uma nova partida deve ser criada com o status SCHEDULED.");
+    	}
 
         if (dto.getPlayer1Id().equals(dto.getPlayer2Id())) {
             throw new BusinessException(

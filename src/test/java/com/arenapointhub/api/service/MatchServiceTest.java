@@ -105,6 +105,18 @@ class MatchServiceTest {
 
         verify(matchRepository).save(any(Match.class));
     }
+    
+    @Test
+    void shouldNotCreateMatchWithFinishedStatus() {
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setStatus(MatchStatus.FINISHED);
+
+        assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
 
     @Test
     void shouldNotCreateMatchWhenPlayerIsTheSame() {

@@ -727,6 +727,48 @@ class BracketServiceTest {
         verify(matchRepository, org.mockito.Mockito.never())
                 .save(any(Match.class));
     }
+    
+
+	@Test
+	void shouldRejectBracketWhenGroupHasMissingMatches() {
+	    Category category = createCategory();
+	
+	    List<Group> groups = createGroups(2, category);
+	
+	    groups.get(0).setPlayers(List.of(
+	            createPlayer(101L, "Player A1"),
+	            createPlayer(102L, "Player A2"),
+	            createPlayer(103L, "Player A3"),
+	            createPlayer(104L, "Player A4")
+	    ));
+	
+	    groups.get(1).setPlayers(List.of(
+	            createPlayer(201L, "Player B1"),
+	            createPlayer(202L, "Player B2"),
+	            createPlayer(203L, "Player B3"),
+	            createPlayer(204L, "Player B4")
+	    ));
+	
+	    mockCategoryAndGroups(category, groups);
+	
+	    when(matchRepository.countByGroupIdAndPhase(
+	            1L, MatchPhase.GROUP))
+	            .thenReturn(5L);
+	
+	    BusinessException exception = assertThrows(
+	            BusinessException.class,
+	            () -> bracketService.generateKnockoutBracket(
+	                    CATEGORY_ID, ADMINISTRATOR_ID));
+	
+	    assertEquals(
+	            "O grupo Grupo A possui 5 de 6 partidas cadastradas. "
+	            + "Finalize todos os confrontos antes de gerar o mata-mata.",
+	            exception.getMessage());
+	
+	    verify(matchRepository, org.mockito.Mockito.never())
+	            .save(any(Match.class));
+	}
+
 
     private void prepareBracketScenario(
             Category category,

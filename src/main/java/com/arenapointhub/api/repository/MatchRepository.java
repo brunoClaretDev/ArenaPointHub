@@ -47,6 +47,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             @Param("administratorId") Long administratorId);
 
     List<Match> findByGroupId(Long groupId);
+    
+    long countByGroupIdAndPhase(Long groupId, MatchPhase phase);
 
     void deleteByCategoryIdAndPhaseNot(Long categoryId, MatchPhase phase);
 

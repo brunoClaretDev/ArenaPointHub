@@ -62,11 +62,12 @@ public class BracketService {
 
         Category category = findCategory(categoryId, administratorId);
 
-        validateKnockoutCanBeRegenerated(categoryId);
-        validateGroupMatchesCompleted(categoryId);
-
+        removeExistingKnockoutIfNotStarted(categoryId);
+        
         List<Group> groups = getOrderedGroups(
                 categoryId, administratorId);
+
+        validateGroupMatchesCompleted(categoryId, groups);
 
         List<Player> firstPlaces =
                 getPlayersByStandingPosition(groups, 0, administratorId);
@@ -87,8 +88,6 @@ public class BracketService {
                 firstPlaces,
                 secondPlaces,
                 bracketSize);
-
-        removeExistingKnockoutIfNotStarted(categoryId);
 
         List<Match> matches = new ArrayList<>();
 
@@ -762,25 +761,13 @@ public class BracketService {
                 && match.getPlayer2() != null;
     }
 
-    private void validateKnockoutCanBeRegenerated(Long categoryId) {
-
-        boolean knockoutStarted = matchRepository
-                .findByCategoryId(categoryId)
-                .stream()
-                .filter(match -> match.getPhase() != MatchPhase.GROUP)
-                .anyMatch(this::isKnockoutMatchStarted);
-
-        if (knockoutStarted) {
-            throw new BusinessException(
-                    "Não é possível regenerar o mata-mata porque já existem partidas iniciadas ou encerradas.");
-        }
-    }
-
     // =========================================================
     // VALIDAÇÃO DAS PARTIDAS DE GRUPO
     // =========================================================
 
-    private void validateGroupMatchesCompleted(Long categoryId) {
+    private void validateGroupMatchesCompleted(
+            Long categoryId,
+            List<Group> groups) {
 
         boolean hasGroupMatches = matchRepository
                 .existsByCategoryIdAndPhase(
@@ -800,6 +787,27 @@ public class BracketService {
         if (hasPendingMatches) {
             throw new BusinessException(
                     "Não é possível gerar o mata-mata enquanto existirem partidas de grupo pendentes ou canceladas.");
+        }
+
+        for (Group group : groups) {
+
+            int playerCount = group.getPlayers().size();
+
+            long expectedMatches =
+                    (long) playerCount * (playerCount - 1) / 2;
+
+            long actualMatches = matchRepository
+                    .countByGroupIdAndPhase(
+                            group.getId(), MatchPhase.GROUP);
+
+            if (actualMatches != expectedMatches) {
+                throw new BusinessException(
+                        "O grupo " + group.getName()
+                        + " possui " + actualMatches
+                        + " de " + expectedMatches
+                        + " partidas cadastradas. "
+                        + "Finalize todos os confrontos antes de gerar o mata-mata.");
+            }
         }
     }
 
