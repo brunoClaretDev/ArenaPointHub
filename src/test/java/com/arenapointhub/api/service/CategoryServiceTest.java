@@ -46,6 +46,9 @@ class CategoryServiceTest {
 
     @Mock
     private PlayerRepository playerRepository;
+    
+    @Mock
+    private BracketService bracketService;
 
     @InjectMocks
     private CategoryService categoryService;
@@ -401,12 +404,24 @@ class CategoryServiceTest {
     }
 
     @Test
-    void shouldNotGeneratePlayoffsWhenCategoryDoesNotExist() {
+    void shouldDelegatePlayoffGenerationToBracketService() {
 
-        when(categoryRepository
-                .findByIdAndTournament_Administrator_Id(
-                        99L, ADMINISTRATOR_ID))
-                .thenReturn(Optional.empty());
+        categoryService.generatePlayoffs(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID);
+
+        verify(bracketService).generateKnockoutBracket(
+                CATEGORY_ID,
+                ADMINISTRATOR_ID);
+    }
+    
+    @Test
+    void shouldPropagateExceptionWhenCategoryDoesNotExist() {
+
+        when(bracketService.generateKnockoutBracket(
+                99L, ADMINISTRATOR_ID))
+                .thenThrow(new BusinessException(
+                        "Categoria não encontrada com ID: 99"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -414,7 +429,7 @@ class CategoryServiceTest {
                         99L, ADMINISTRATOR_ID));
 
         assertEquals(
-                "Categoria não encontrada com o ID: 99",
+                "Categoria não encontrada com ID: 99",
                 exception.getMessage());
     }
 }

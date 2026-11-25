@@ -3,10 +3,7 @@ package com.arenapointhub.api.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,13 +14,10 @@ import com.arenapointhub.api.dto.MatchResponseDTO;
 import com.arenapointhub.api.dto.PlayerSummaryDTO;
 import com.arenapointhub.api.exception.BusinessException;
 import com.arenapointhub.api.model.Category;
-import com.arenapointhub.api.model.Group;
 import com.arenapointhub.api.model.Match;
 import com.arenapointhub.api.model.Player;
 import com.arenapointhub.api.model.Tournament;
 import com.arenapointhub.api.model.enums.CategoryType;
-import com.arenapointhub.api.model.enums.MatchPhase;
-import com.arenapointhub.api.model.enums.MatchStatus;
 import com.arenapointhub.api.repository.CategoryRepository;
 import com.arenapointhub.api.repository.MatchRepository;
 import com.arenapointhub.api.repository.PlayerRepository;
@@ -36,17 +30,20 @@ public class CategoryService {
     private final TournamentRepository tournamentRepository;
     private final MatchRepository matchRepository;
     private final PlayerRepository playerRepository;
+    private final BracketService bracketService;
 
     public CategoryService(
             CategoryRepository categoryRepository,
             TournamentRepository tournamentRepository,
             MatchRepository matchRepository,
-            PlayerRepository playerRepository) {
+            PlayerRepository playerRepository,
+            BracketService bracketService) {
 
         this.categoryRepository = categoryRepository;
         this.tournamentRepository = tournamentRepository;
         this.matchRepository = matchRepository;
         this.playerRepository = playerRepository;
+        this.bracketService = bracketService;
     }
 
     @Transactional
@@ -154,141 +151,9 @@ public class CategoryService {
     @Transactional
     public void generatePlayoffs(Long categoryId, Long administratorId) {
 
-    	Category category = findCategoryByAdministrator(
-    	        categoryId,
-    	        administratorId);
-
-        List<Group> groups = category.getGroups();
-
-        if (groups == null || groups.isEmpty()) {
-            throw new BusinessException(
-                    "A categoria não possui grupos cadastrados.");
-        }
-
-        List<Player> qualifiedPlayers = new ArrayList<>();
-
-        for (Group group : groups) {
-
-            List<Match> groupMatches =
-                    matchRepository.findByGroupId(group.getId());
-
-            Map<Player, Integer> playerWins = new HashMap<>();
-
-            for (Match m : groupMatches) {
-
-                if (m.getPlayer1() != null) {
-                    playerWins.putIfAbsent(m.getPlayer1(), 0);
-                }
-
-                if (m.getPlayer2() != null) {
-                    playerWins.putIfAbsent(m.getPlayer2(), 0);
-                }
-            }
-
-            for (Match m : groupMatches) {
-
-                if (m.getStatus() == MatchStatus.FINISHED) {
-
-                    if (m.getScorePlayer1() > m.getScorePlayer2()) {
-
-                        playerWins.put(
-                                m.getPlayer1(),
-                                playerWins.get(m.getPlayer1()) + 1
-                        );
-
-                    } else if (m.getScorePlayer2() > m.getScorePlayer1()) {
-
-                        playerWins.put(
-                                m.getPlayer2(),
-                                playerWins.get(m.getPlayer2()) + 1
-                        );
-                    }
-                }
-            }
-
-            List<Player> sortedGroupPlayers = playerWins.entrySet()
-                    .stream()
-                    .sorted(
-                            Map.Entry
-                                    .<Player, Integer>comparingByValue()
-                                    .reversed()
-                    )
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-
-            if (sortedGroupPlayers.size() < 2) {
-                throw new BusinessException(
-                        "O grupo precisa ter pelo menos 2 jogadores computados.");
-            }
-
-            qualifiedPlayers.add(sortedGroupPlayers.get(0));
-            qualifiedPlayers.add(sortedGroupPlayers.get(1));
-        }
-
-        // Limpa playoffs anteriores
-        matchRepository.deleteByCategoryIdAndPhaseNot(
+        bracketService.generateKnockoutBracket(
                 categoryId,
-                MatchPhase.GROUP
-        );
-
-        if (qualifiedPlayers.size() < 8) {
-            throw new BusinessException(
-                    "São necessários pelo menos 8 jogadores classificados para gerar os playoffs.");
-        }
-
-        List<Match> quarters = new ArrayList<>();
-
-        int[][] pairings = {
-                {0, 7},
-                {3, 4},
-                {1, 6},
-                {2, 5}
-        };
-
-        for (int[] pair : pairings) {
-
-            Match match = new Match();
-
-            match.setCategory(category);
-            match.setPlayer1(qualifiedPlayers.get(pair[0]));
-            match.setPlayer2(qualifiedPlayers.get(pair[1]));
-            match.setPhase(MatchPhase.QUARTER_FINAL);
-            match.setStatus(MatchStatus.SCHEDULED);
-            match.setScorePlayer1(0);
-            match.setScorePlayer2(0);
-
-            quarters.add(matchRepository.save(match));
-        }
-
-        Match semi1 = new Match();
-
-        semi1.setCategory(category);
-        semi1.setPhase(MatchPhase.SEMI_FINAL);
-        semi1.setStatus(MatchStatus.SCHEDULED);
-        semi1.setScorePlayer1(0);
-        semi1.setScorePlayer2(0);
-
-        matchRepository.save(semi1);
-
-        Match semi2 = new Match();
-
-        semi2.setCategory(category);
-        semi2.setPhase(MatchPhase.SEMI_FINAL);
-        semi2.setStatus(MatchStatus.SCHEDULED);
-        semi2.setScorePlayer1(0);
-        semi2.setScorePlayer2(0);
-
-        matchRepository.save(semi2);
-
-        Match finalMatch = new Match();
-
-        finalMatch.setCategory(category);
-        finalMatch.setPhase(MatchPhase.FINAL);
-        finalMatch.setStatus(MatchStatus.SCHEDULED);
-        finalMatch.setScorePlayer1(0);
-        finalMatch.setScorePlayer2(0);
-
-        matchRepository.save(finalMatch);
+                administratorId);
     }
 
     @Transactional(readOnly = true)
