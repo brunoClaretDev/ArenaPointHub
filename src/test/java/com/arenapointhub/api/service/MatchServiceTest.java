@@ -107,6 +107,23 @@ class MatchServiceTest {
     }
     
     @Test
+    void shouldNotCreateMatchWithNegativeScore() {
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
+        dto.setScorePlayer1(-1);
+        dto.setScorePlayer2(0);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Os placares não podem ser negativos.",
+                exception.getMessage());
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+    
+    @Test
     void shouldNotCreateMatchWithFinishedStatus() {
         MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, 2L);
         dto.setStatus(MatchStatus.FINISHED);

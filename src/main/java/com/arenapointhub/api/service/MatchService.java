@@ -69,6 +69,12 @@ public class MatchService {
     	    throw new BusinessException(
     	            "Uma nova partida deve ser criada com o status SCHEDULED.");
     	}
+    	
+    	if ((dto.getScorePlayer1() != null && dto.getScorePlayer1() < 0)
+    	        || (dto.getScorePlayer2() != null && dto.getScorePlayer2() < 0)) {
+    	    throw new BusinessException(
+    	            "Os placares não podem ser negativos.");
+    	}
 
         if (dto.getPlayer1Id().equals(dto.getPlayer2Id())) {
             throw new BusinessException(
