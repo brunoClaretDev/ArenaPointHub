@@ -332,11 +332,19 @@ public class MatchService {
             match.setScorePlayer2(dto.getScorePlayer2());
         }
 
-        if (dto.getStatus() != null) {
-            match.setStatus(dto.getStatus());
-        }
 
-        if (match.getStatus() == MatchStatus.FINISHED) {
+		if (dto.getStatus() != null) {
+		    match.setStatus(dto.getStatus());
+		}
+		
+		if (match.getScorePlayer1() < 0
+		        || match.getScorePlayer2() < 0) {
+		    throw new BusinessException(
+		            "Os placares não podem ser negativos.");
+		}
+		
+		if (match.getStatus() == MatchStatus.FINISHED) {
+
             validateFinishedScore(
                     match,
                     match.getScorePlayer1(),

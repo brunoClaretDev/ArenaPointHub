@@ -1599,6 +1599,48 @@ class MatchServiceTest {
 
         verify(matchRepository, times(4)).save(any(Match.class));
     }
+    
+
+	@Test
+	void shouldNotUpdateMatchWithNegativeScoreWhileInProgress() {
+	    Player player1 = createPlayer(1L, "Player 1");
+	    Player player2 = createPlayer(2L, "Player 2");
+	
+	    Match match = createMatch(
+	            10L,
+	            category,
+	            player1,
+	            player2,
+	            MatchPhase.GROUP,
+	            MatchStatus.IN_PROGRESS,
+	            1,
+	            0);
+	
+	    MatchRequestDTO dto = createMatchRequest(
+	            CATEGORY_ID,
+	            1L,
+	            2L);
+	
+	    dto.setScorePlayer1(-1);
+	    dto.setScorePlayer2(0);
+	    dto.setStatus(MatchStatus.IN_PROGRESS);
+	
+	    mockMatchLookup(10L, match);
+	
+	    BusinessException exception = assertThrows(
+	            BusinessException.class,
+	            () -> matchService.updateMatch(
+	                    10L,
+	                    dto,
+	                    ADMINISTRATOR_ID));
+	
+	    assertEquals(
+	            "Os placares não podem ser negativos.",
+	            exception.getMessage());
+	
+	    verify(matchRepository, never()).save(any(Match.class));
+	}
+
 
     private List<Match> createRoundMatches(
             List<Match> categoryMatches,
