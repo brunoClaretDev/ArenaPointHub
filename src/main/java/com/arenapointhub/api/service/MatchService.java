@@ -64,6 +64,11 @@ public class MatchService {
             MatchRequestDTO dto,
             Long administratorId) {
     	
+    	if (dto == null) {
+    	    throw new BusinessException(
+    	            "Os dados da partida são obrigatórios.");
+    	}
+    	
     	if (dto.getStatus() != null
     	        && dto.getStatus() != MatchStatus.SCHEDULED) {
     	    throw new BusinessException(
@@ -631,6 +636,11 @@ public class MatchService {
             Long matchId,
             MatchWoRequestDTO dto,
             Long administratorId) {
+    	
+    	if (dto == null) {
+    	    throw new BusinessException(
+    	            "Os dados do W.O. são obrigatórios.");
+    	}
 
         Match match = findMatch(matchId, administratorId);
 

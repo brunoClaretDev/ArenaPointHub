@@ -567,6 +567,36 @@ class MatchServiceTest {
                 exception.getMessage());
         verify(matchRepository, never()).save(any(Match.class));
     }
+    
+    @Test
+    void shouldNotCreateMatchWithNullRequest() {
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(null, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Os dados da partida são obrigatórios.",
+                exception.getMessage());
+
+        verify(matchRepository, never()).save(any(Match.class));
+    }
+    
+    @Test
+    void shouldNotRegisterWalkoverWithNullRequest() {
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.registerWalkover(
+                        10L,
+                        null,
+                        ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Os dados do W.O. são obrigatórios.",
+                exception.getMessage());
+
+        verify(matchRepository, never()).save(any(Match.class));
+        verify(matchSetRepository, never()).save(any(MatchSet.class));
+    }
 
     @Test
     void shouldSetChampionWhenFinalIsFinished() {
