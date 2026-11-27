@@ -69,6 +69,13 @@ public class MatchService {
     	            "Os dados da partida são obrigatórios.");
     	}
     	
+    	if (dto.getCategoryId() == null
+    	        || dto.getPlayer1Id() == null
+    	        || dto.getPlayer2Id() == null) {
+    	    throw new BusinessException(
+    	            "Categoria e os dois jogadores são obrigatórios.");
+    	}
+    	
     	if (dto.getStatus() != null
     	        && dto.getStatus() != MatchStatus.SCHEDULED) {
     	    throw new BusinessException(

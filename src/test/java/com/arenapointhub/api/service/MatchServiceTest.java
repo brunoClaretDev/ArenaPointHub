@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -19,11 +20,11 @@ import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -579,6 +580,60 @@ class MatchServiceTest {
                 exception.getMessage());
 
         verify(matchRepository, never()).save(any(Match.class));
+    }
+    
+    @Test
+    void shouldNotCreateMatchWithNullCategoryId() {
+        MatchRequestDTO dto = createMatchRequest(null, 1L, 2L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Categoria e os dois jogadores são obrigatórios.",
+                exception.getMessage());
+
+        verifyNoInteractions(
+                categoryRepository,
+                matchRepository,
+                playerRepository);
+    }
+
+    @Test
+    void shouldNotCreateMatchWithNullPlayer1Id() {
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, null, 2L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Categoria e os dois jogadores são obrigatórios.",
+                exception.getMessage());
+
+        verifyNoInteractions(
+                categoryRepository,
+                matchRepository,
+                playerRepository);
+    }
+
+    @Test
+    void shouldNotCreateMatchWithNullPlayer2Id() {
+        MatchRequestDTO dto = createMatchRequest(CATEGORY_ID, 1L, null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> matchService.createMatch(dto, ADMINISTRATOR_ID));
+
+        assertEquals(
+                "Categoria e os dois jogadores são obrigatórios.",
+                exception.getMessage());
+
+        verifyNoInteractions(
+                categoryRepository,
+                matchRepository,
+                playerRepository);
     }
     
     @Test
